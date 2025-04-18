@@ -1,0 +1,4 @@
+[submodule "lerobot"]
+	path = lerobot
+	url = https://github.com/ROBOTIS-GIT/lerobot.git
+  branch = feature-robotis

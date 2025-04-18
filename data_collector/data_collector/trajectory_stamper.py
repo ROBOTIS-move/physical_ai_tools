@@ -28,8 +28,6 @@ class TrajectoryStamper(Node):
         super().__init__('trajectory_stamper')
 
         self.topics = {
-            'right_hand': '/leader/joint_trajectory_right_hand/joint_trajectory',
-            'left_hand': '/leader/joint_trajectory_left_hand/joint_trajectory',
             'right_arm': '/leader/joint_trajectory_right/joint_trajectory',
             'left_arm': '/leader/joint_trajectory_left/joint_trajectory',
         }

@@ -3,18 +3,16 @@ from glob import glob
 from setuptools import find_packages
 from setuptools import setup
 
-
-package_name = 'data_collector'
+package_name = 'policy_to_trajectory'
 authors_info = [
     ('Seongwoo Kim', 'kimsw@robotis.com'),
-    ('Hyungyu Kim', 'kimhg@robotis.com'),
 ]
 authors = ', '.join(author for author, _ in authors_info)
 author_emails = ', '.join(email for _, email in authors_info)
 
 setup(
     name=package_name,
-    version='0.2.0',
+    version='0.1.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
@@ -24,7 +22,7 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    author=authors_info,
+    author=authors,
     author_email=author_emails,
     maintainer='Pyo',
     maintainer_email='pyo@robotis.com',
@@ -40,9 +38,10 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'data_collector = data_collector.topic_to_data:main',
-            'data_collector_omx = data_collector.topic_to_data_omx:main',
-            'trajectory_stamper = data_collector.trajectory_stamper:main',
+            'action_to_trajectory = policy_to_trajectory.action_to_trajectory:main',
+            'topic_to_observation = policy_to_trajectory.topic_to_observation:main',
+            'action_to_trajectory_omx = policy_to_trajectory.action_to_trajectory_omx:main',
+            'topic_to_observation_omx = policy_to_trajectory.topic_to_observation_omx:main',
         ],
     },
 )

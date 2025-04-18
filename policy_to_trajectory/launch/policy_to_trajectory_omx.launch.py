@@ -30,23 +30,22 @@ def load_yaml(path):
 
 
 def generate_launch_description():
-    config_dir = get_package_share_directory('data_collector')
-    robot_params = load_yaml(os.path.join(config_dir, 'config', 'joint_order.yaml'))
-
+    config_dir = get_package_share_directory('policy_to_trajectory')
+    robot_params = load_yaml(os.path.join(config_dir, 'config', 'joint_order_omx.yaml'))
     return LaunchDescription([
         Node(
-            package='data_collector',
-            executable='data_collector',
-            name='data_collector',
+            package='policy_to_trajectory',
+            executable='action_to_trajectory_omx',
+            name='policy_trajectory_omx_node',
             output='screen',
-            parameters=[
-                robot_params['data_collector']['ros__parameters'],
-            ]
         ),
         Node(
-            package='data_collector',
-            executable='trajectory_stamper',
-            name='trajectory_stamper',
-            output='screen'
+            package='policy_to_trajectory',
+            executable='topic_to_observation_omx',
+            name='observation_omx_node',
+            output='screen',
+            parameters=[
+                robot_params['policy_to_trajectory']['ros__parameters'],
+            ]
         ),
     ])

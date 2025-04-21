@@ -27,12 +27,12 @@ class PolicyTrajectory(Node):
         super().__init__('policy_trajectory_publisher')
         self.r_arm_publisher = self.create_publisher(
             JointTrajectory,
-            '/leader/joint_trajectory_right/joint_trajectory',
+            '/leader/joint_trajectory_command_broadcaster_right/joint_trajectory',
             100
         )
         self.l_arm_publisher = self.create_publisher(
             JointTrajectory,
-            '/leader/joint_trajectory_left/joint_trajectory',
+            '/leader/joint_trajectory_command_broadcaster_left/joint_trajectory',
             100
         )
 

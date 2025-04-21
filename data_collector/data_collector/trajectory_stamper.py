@@ -28,8 +28,8 @@ class TrajectoryStamper(Node):
         super().__init__('trajectory_stamper')
 
         self.topics = {
-            'right_arm': '/leader/joint_trajectory_right/joint_trajectory',
-            'left_arm': '/leader/joint_trajectory_left/joint_trajectory',
+            'right_arm': '/leader/joint_trajectory_command_broadcaster_right/joint_trajectory',
+            'left_arm': '/leader/joint_trajectory_command_broadcaster_left/joint_trajectory',
         }
 
         self.pub_dict = {}

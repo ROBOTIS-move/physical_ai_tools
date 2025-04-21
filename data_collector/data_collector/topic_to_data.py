@@ -88,8 +88,8 @@ class DataCollector(Node):
                 self.leader_arm_right,
                 self.leader_arm_left
             ],
-            queue_size=100,
-            slop=10.0,
+            queue_size=10,
+            slop=0.5,
             allow_headerless=True
         )
         self.sync.registerCallback(self.synced_callback)

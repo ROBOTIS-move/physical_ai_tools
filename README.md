@@ -159,6 +159,7 @@ python lerobot/scripts/control_robot.py \
 ```
 
 💡 Make sure to replace `${HF_USER}` with your actual Hugging Face username.
+💡 If you don't want to push your Hugging Face dataset to hub, set --control.push_to_hub=false.
 
 ---
 
@@ -200,3 +201,62 @@ python lerobot/scripts/visualize_dataset_html.py \
 ```
 
 🖥️ This will start a local web server and open your dataset in a browser-friendly format.
+
+## Train a policy on Your Data
+
+Run the following command to start training a policy using your dataset:
+
+```bash
+python lerobot/scripts/train.py \
+  --dataset.repo_id=${HF_USER}/ffw_test \
+  --policy.type=act \
+  --output_dir=outputs/train/act_ffw_test \
+  --job_name=act_ffw_test \
+  --policy.device=cuda \
+  --wandb.enable=true
+```
+
+(Optional) You can upload the latest checkpoint to the Hugging Face Hub with the following command:
+
+```bash
+huggingface-cli upload ${HF_USER}/act_ffw_test \
+  outputs/train/act_ffw_test/checkpoints/last/pretrained_model
+```
+
+## Evaluation
+
+### 1. Launch the ROS 2 action_to_trajectory and topic_to_observation nodes.:
+
+```bash
+ros2 launch policy_to_trajectory policy_to_trajectory.launch.py
+```
+
+### 2. Evaluate your policy
+
+You can evaluate the policy on the robot using the `record` mode, which allows you to visualize the evaluation later on.
+
+```bash
+python lerobot/scripts/control_robot.py \
+  --robot.type=ffw \
+  --control.type=record \
+  --control.single_task="pick and place objects" \
+  --control.fps=30 \
+  --control.repo_id=${HF_USER}/eval_ffw_test \
+  --control.tags='["tutorial"]' \
+  --control.episode_time_s=20 \
+  --control.reset_time_s=10 \
+  --control.num_episodes=2 \
+  --control.push_to_hub=true \
+  --control.use_ros=true \
+  --control.policy.path=outputs/train/act_ffw_test/checkpoints/last/pretrained_model \
+  --control.play_sounds=false
+```
+
+### 3. Visualize Evaluation
+
+You can then visualize the evaluation results using the following command:
+
+```bash
+python lerobot/scripts/visualize_dataset_html.py \
+  --repo-id ${HF_USER}/eval_act_ffw_test
+```

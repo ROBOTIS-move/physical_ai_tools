@@ -133,7 +133,10 @@ class FFWRobotConfig(ManipulatorRobotConfig):
 
 Launch the ROS 2 data collector node.
 ```bash
-ros2 launch data_collector data_collector.launch.py
+# For OpenManipulator-X
+ros2 launch data_collector data_collector.launch.py mode:=omx
+# For AI Worker
+ros2 launch data_collector data_collector.launch.py mode:=worker
 ```
 
 Open a new terminal, and navigate to the `lerobot` directory:
@@ -228,7 +231,10 @@ huggingface-cli upload ${HF_USER}/act_ffw_test \
 ### 1. Launch the ROS 2 action_to_trajectory and topic_to_observation nodes.:
 
 ```bash
-ros2 launch policy_to_trajectory policy_to_trajectory.launch.py
+# For OpenManipulator-X
+ros2 launch policy_to_trajectory policy_to_trajectory.launch.py mode:=omx
+# For AI Worker
+ros2 launch policy_to_trajectory policy_to_trajectory.launch.py mode:=worker
 ```
 
 ### 2. Evaluate your policy

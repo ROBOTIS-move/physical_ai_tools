@@ -23,6 +23,7 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 
 class PolicyTrajectory(Node):
+
     def __init__(self):
         super().__init__('policy_trajectory_publisher')
         self.r_arm_publisher = self.create_publisher(

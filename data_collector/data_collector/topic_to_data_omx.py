@@ -28,6 +28,7 @@ import torch
 
 
 class DataCollector(Node):
+
     def __init__(self):
         super().__init__('data_collector_omx')
 

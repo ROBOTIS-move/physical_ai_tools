@@ -26,6 +26,7 @@ import torch
 
 
 class ObservationCollector(Node):
+
     def __init__(self):
         super().__init__('topic_to_observation')
 

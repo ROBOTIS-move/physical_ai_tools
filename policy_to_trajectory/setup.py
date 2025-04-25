@@ -3,6 +3,7 @@ from glob import glob
 from setuptools import find_packages
 from setuptools import setup
 
+
 package_name = 'policy_to_trajectory'
 authors_info = [
     ('Seongwoo Kim', 'kimsw@robotis.com'),
@@ -22,7 +23,7 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    author=authors,
+    author=authors_info,
     author_email=author_emails,
     maintainer='Pyo',
     maintainer_email='pyo@robotis.com',

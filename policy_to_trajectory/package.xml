@@ -9,7 +9,6 @@
   <maintainer email="pyo@robotis.com">Pyo</maintainer>
   <license>Apache 2.0</license>
   <author email="kimsw@robotis.com">Seongwoo Kim</author>
-  <author email="kimhg@robotis.com">Hyungyu Kim</author>
   <buildtool_depend>ament_python</buildtool_depend>
   <depend>rclpy</depend>
   <depend>trajectory_msgs</depend>

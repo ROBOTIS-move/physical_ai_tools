@@ -43,7 +43,10 @@ Make the package available as a Python module in your current environment:
 cd ~/${WORKSPACE}/src/physical_ai_tools/data_collector
 pip install .
 ```
-
+```bash
+cd ~/${WORKSPACE}/src/physical_ai_tools/policy_to_trajectory
+pip install .
+```
 ## Record LeRobot Datasets
 
 ### 1. Authenticate with Hugging Face

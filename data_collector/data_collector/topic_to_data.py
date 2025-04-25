@@ -143,7 +143,7 @@ class DataCollector(Node):
             self.get_logger().info(f'Received action: {act_tensor}')
 
         except KeyError as e:
-            self.get_logger().error(f'Joint name missing in incoming message: {e}')
+            self.get_logger().error(f'Joint name {e} missing in incoming message: {follower_msg.name}')
 
     def get_latest_data(self) -> Optional[tuple[dict, dict]]:
         if self.latest_observation is not None and self.latest_action is not None:

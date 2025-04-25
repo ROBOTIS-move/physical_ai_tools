@@ -36,9 +36,9 @@ class PolicyTrajectory(Node):
         ]
 
         self.input_joint_order = [
+            'joint1',
             'joint2',
             'joint3',
-            'joint1',
             'joint4',
             'gripper_left_joint'
         ]
@@ -68,8 +68,6 @@ class PolicyTrajectory(Node):
 
         traj_msg.points.append(point)
         self.publisher.publish(traj_msg)
-
-        # self.get_logger().info(f'Published trajectory: {point.positions}')
 
 
 def main(args=None):

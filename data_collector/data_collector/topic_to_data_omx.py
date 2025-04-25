@@ -49,7 +49,7 @@ class DataCollector(Node):
 
         self.sync = ApproximateTimeSynchronizer(
             [self.obs_sub, self.act_sub],
-            queue_size=10,
+            queue_size=100,
             slop=0.05
         )
         self.sync.registerCallback(self.synced_callback)

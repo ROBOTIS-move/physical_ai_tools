@@ -36,9 +36,11 @@ def load_yaml(path):
 def generate_launch_description():
     config_dir = get_package_share_directory('data_collector')
     omx_params_path = os.path.join(config_dir, 'config', 'joint_order_omx.yaml')
+    inspire_params_path = os.path.join(config_dir, 'config', 'joint_order_inspire.yaml')    
     normal_params_path = os.path.join(config_dir, 'config', 'joint_order.yaml')
 
     robot_params_omx = load_yaml(omx_params_path)
+    robot_params_inspire = load_yaml(inspire_params_path)
     robot_params_normal = load_yaml(normal_params_path)
 
     mode = LaunchConfiguration('mode')
@@ -57,6 +59,23 @@ def generate_launch_description():
             output='screen',
             parameters=[robot_params_omx['data_collector']['ros__parameters']],
             condition=IfCondition(EqualsSubstitution(mode, 'omx'))
+        ),
+
+        Node(
+            package='data_collector',
+            executable='data_collector_inspire',
+            name='data_collector_inspire',
+            output='screen',
+            parameters=[robot_params_normal['data_collector']['ros__parameters']],
+            condition=IfCondition(EqualsSubstitution(mode, 'inspire'))
+        ),
+
+        Node(
+            package='data_collector',
+            executable='trajectory_stamper_inspire',
+            name='trajectory_stamper_inspire',
+            output='screen',
+            condition=IfCondition(EqualsSubstitution(mode, 'inspire'))
         ),
 
         Node(

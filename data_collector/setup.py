@@ -42,7 +42,9 @@ setup(
         'console_scripts': [
             'data_collector = data_collector.topic_to_data:main',
             'data_collector_omx = data_collector.topic_to_data_omx:main',
+            'data_collector_inspire = data_collector.topic_to_data_inspire:main',
             'trajectory_stamper = data_collector.trajectory_stamper:main',
+            'trajectory_stamper_inspire = data_collector.trajectory_stamper_inspire:main',
         ],
     },
 )

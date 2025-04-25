@@ -21,6 +21,10 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
+from launch.substitutions import EqualsSubstitution
 import yaml
 
 
@@ -31,22 +35,44 @@ def load_yaml(path):
 
 def generate_launch_description():
     config_dir = get_package_share_directory('data_collector')
-    robot_params = load_yaml(os.path.join(config_dir, 'config', 'joint_order.yaml'))
+    omx_params_path = os.path.join(config_dir, 'config', 'joint_order_omx.yaml')
+    normal_params_path = os.path.join(config_dir, 'config', 'joint_order.yaml')
+
+    robot_params_omx = load_yaml(omx_params_path)
+    robot_params_normal = load_yaml(normal_params_path)
+
+    mode = LaunchConfiguration('mode')
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'mode',
+            default_value='worker',
+            description='Mode of the data collector: omx or worker'
+        ),
+
+        Node(
+            package='data_collector',
+            executable='data_collector_omx',
+            name='data_collector_omx',
+            output='screen',
+            parameters=[robot_params_omx['data_collector']['ros__parameters']],
+            condition=IfCondition(EqualsSubstitution(mode, 'omx'))
+        ),
+
         Node(
             package='data_collector',
             executable='data_collector',
             name='data_collector',
             output='screen',
-            parameters=[
-                robot_params['data_collector']['ros__parameters'],
-            ]
+            parameters=[robot_params_normal['data_collector']['ros__parameters']],
+            condition=IfCondition(EqualsSubstitution(mode, 'worker'))
         ),
+
         Node(
             package='data_collector',
             executable='trajectory_stamper',
             name='trajectory_stamper',
-            output='screen'
+            output='screen',
+            condition=IfCondition(EqualsSubstitution(mode, 'worker'))
         ),
     ])

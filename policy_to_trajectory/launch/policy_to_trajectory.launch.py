@@ -21,7 +21,12 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
+from launch.substitutions import EqualsSubstitution
 import yaml
+
 
 
 def load_yaml(path):
@@ -31,21 +36,50 @@ def load_yaml(path):
 
 def generate_launch_description():
     config_dir = get_package_share_directory('policy_to_trajectory')
-    robot_params = load_yaml(os.path.join(config_dir, 'config', 'joint_order.yaml'))
+    omx_params_path = os.path.join(config_dir, 'config', 'joint_order_omx.yaml')
+    normal_params_path = os.path.join(config_dir, 'config', 'joint_order.yaml')
+
+    robot_params_omx = load_yaml(omx_params_path)
+    robot_params_normal = load_yaml(normal_params_path)
+
+    mode = LaunchConfiguration('mode')
+
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'mode',
+            default_value='worker',
+            description='Mode of the policy_to_trajectory: omx or worker'
+        ),
+
+        Node(
+            package='policy_to_trajectory',
+            executable='action_to_trajectory_omx',
+            name='policy_trajectory_omx_node',
+            output='screen',
+            condition=IfCondition(EqualsSubstitution(mode, 'omx'))
+        ),
+        Node(
+            package='policy_to_trajectory',
+            executable='topic_to_observation_omx',
+            name='observation_omx_node',
+            output='screen',
+            parameters=[robot_params_omx['policy_to_trajectory']['ros__parameters']],
+            condition=IfCondition(EqualsSubstitution(mode, 'omx'))
+        ),
+
         Node(
             package='policy_to_trajectory',
             executable='action_to_trajectory',
             name='policy_trajectory_node',
             output='screen',
+            condition=IfCondition(EqualsSubstitution(mode, 'worker'))
         ),
         Node(
             package='policy_to_trajectory',
             executable='topic_to_observation',
             name='observation_node',
             output='screen',
-            parameters=[
-                robot_params['policy_to_trajectory']['ros__parameters'],
-            ]
+            parameters=[robot_params_normal['policy_to_trajectory']['ros__parameters']],
+            condition=IfCondition(EqualsSubstitution(mode, 'worker'))
         ),
     ])

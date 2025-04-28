@@ -37,7 +37,6 @@ setup(
     ],
     description='ROS 2 package for Open Platform AI Kit integration',
     license='Apache 2.0',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'data_collector = data_collector.topic_to_data:main',

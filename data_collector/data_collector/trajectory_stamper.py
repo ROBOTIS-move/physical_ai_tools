@@ -38,7 +38,7 @@ class TrajectoryStamper(Node):
             stamped_topic = f'/leader/{key}_with_timestamp'
 
             self.pub_dict[key] = {
-                'trajectory': self.create_publisher(JointTrajectory, stamped_topic, 10),
+                'trajectory': self.create_publisher(JointTrajectory, stamped_topic, 100),
             }
 
             self.create_subscription(

@@ -16,6 +16,7 @@
 #
 # Author: Seongwoo Kim, Hyungyu Kim
 
+
 import rclpy
 from rclpy.node import Node
 
@@ -28,8 +29,10 @@ class TrajectoryStamper(Node):
         super().__init__('trajectory_stamper')
 
         self.topics = {
-            'right_arm': '/leader/joint_trajectory_command_broadcaster_right/joint_trajectory',
-            'left_arm': '/leader/joint_trajectory_command_broadcaster_left/joint_trajectory',
+            'right_hand': '/leader/joint_trajectory_right_hand/joint_trajectory',
+            'left_hand': '/leader/joint_trajectory_left_hand/joint_trajectory',
+            'right_arm': '/leader/joint_trajectory_right/joint_trajectory',
+            'left_arm': '/leader/joint_trajectory_left/joint_trajectory',
         }
 
         self.pub_dict = {}
@@ -38,7 +41,7 @@ class TrajectoryStamper(Node):
             stamped_topic = f'/leader/{key}_with_timestamp'
 
             self.pub_dict[key] = {
-                'trajectory': self.create_publisher(JointTrajectory, stamped_topic, 100),
+                'trajectory': self.create_publisher(JointTrajectory, stamped_topic, 10),
             }
 
             self.create_subscription(

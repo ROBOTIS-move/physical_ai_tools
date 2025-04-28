@@ -34,13 +34,11 @@ def load_yaml(path):
 
 
 def generate_launch_description():
-    config_dir = get_package_share_directory('data_collector')
+    config_dir = get_package_share_directory('policy_to_trajectory')
     omx_params_path = os.path.join(config_dir, 'config', 'joint_order_omx.yaml')
-    inspire_params_path = os.path.join(config_dir, 'config', 'joint_order_inspire.yaml')
     normal_params_path = os.path.join(config_dir, 'config', 'joint_order.yaml')
 
     robot_params_omx = load_yaml(omx_params_path)
-    robot_params_inspire = load_yaml(inspire_params_path)
     robot_params_normal = load_yaml(normal_params_path)
 
     mode = LaunchConfiguration('mode')
@@ -49,49 +47,38 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'mode',
             default_value='worker',
-            description='Mode of the data collector: omx or worker'
+            description='Mode of the policy_to_trajectory: omx or worker'
         ),
 
         Node(
-            package='data_collector',
-            executable='data_collector_omx',
-            name='data_collector_omx',
+            package='policy_to_trajectory',
+            executable='action_to_trajectory_omx',
+            name='policy_trajectory_omx_node',
             output='screen',
-            parameters=[robot_params_omx['data_collector']['ros__parameters']],
+            condition=IfCondition(EqualsSubstitution(mode, 'omx'))
+        ),
+        Node(
+            package='policy_to_trajectory',
+            executable='topic_to_observation_omx',
+            name='observation_omx_node',
+            output='screen',
+            parameters=[robot_params_omx['policy_to_trajectory']['ros__parameters']],
             condition=IfCondition(EqualsSubstitution(mode, 'omx'))
         ),
 
         Node(
-            package='data_collector',
-            executable='data_collector_inspire',
-            name='data_collector_inspire',
+            package='policy_to_trajectory',
+            executable='action_to_trajectory',
+            name='policy_trajectory_node',
             output='screen',
-            parameters=[robot_params_inspire['data_collector']['ros__parameters']],
-            condition=IfCondition(EqualsSubstitution(mode, 'inspire'))
-        ),
-
-        Node(
-            package='data_collector',
-            executable='trajectory_stamper_inspire',
-            name='trajectory_stamper_inspire',
-            output='screen',
-            condition=IfCondition(EqualsSubstitution(mode, 'inspire'))
-        ),
-
-        Node(
-            package='data_collector',
-            executable='data_collector',
-            name='data_collector',
-            output='screen',
-            parameters=[robot_params_normal['data_collector']['ros__parameters']],
             condition=IfCondition(EqualsSubstitution(mode, 'worker'))
         ),
-
         Node(
-            package='data_collector',
-            executable='trajectory_stamper',
-            name='trajectory_stamper',
+            package='policy_to_trajectory',
+            executable='topic_to_observation',
+            name='observation_node',
             output='screen',
+            parameters=[robot_params_normal['policy_to_trajectory']['ros__parameters']],
             condition=IfCondition(EqualsSubstitution(mode, 'worker'))
         ),
     ])

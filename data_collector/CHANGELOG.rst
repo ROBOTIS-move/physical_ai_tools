@@ -2,6 +2,11 @@
 Changelog for package data_collector
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2025-04-25)
+------------------
+* Unified multiple launch files into a single configurable launch file for better usability
+* Contributors: Seongwoo Kim
+
 0.2.0 (2025-04-08)
 ------------------
 * Added a time stamper node for data synchronization purposes

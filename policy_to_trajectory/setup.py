@@ -4,10 +4,9 @@ from setuptools import find_packages
 from setuptools import setup
 
 
-package_name = 'data_collector'
+package_name = 'policy_to_trajectory'
 authors_info = [
     ('Seongwoo Kim', 'kimsw@robotis.com'),
-    ('Hyungyu Kim', 'kimhg@robotis.com'),
 ]
 authors = ', '.join(author for author, _ in authors_info)
 author_emails = ', '.join(email for _, email in authors_info)
@@ -40,11 +39,10 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'data_collector = data_collector.topic_to_data:main',
-            'data_collector_omx = data_collector.topic_to_data_omx:main',
-            'data_collector_inspire = data_collector.topic_to_data_inspire:main',
-            'trajectory_stamper = data_collector.trajectory_stamper:main',
-            'trajectory_stamper_inspire = data_collector.trajectory_stamper_inspire:main',
+            'action_to_trajectory = policy_to_trajectory.action_to_trajectory:main',
+            'topic_to_observation = policy_to_trajectory.topic_to_observation:main',
+            'action_to_trajectory_omx = policy_to_trajectory.action_to_trajectory_omx:main',
+            'topic_to_observation_omx = policy_to_trajectory.topic_to_observation_omx:main',
         ],
     },
 )

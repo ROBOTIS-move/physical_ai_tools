@@ -1,6 +1,6 @@
 # physical_ai_tools
 
-This repository offers an interface for developing physical AI applications using LeRobot.
+This repository offers an interface for developing physical AI applications using LeRobot and ROS 2.
 
 ## Installation
 
@@ -37,8 +37,8 @@ After the build completes successfully, source the setup script:
 source ~/${WORKSPACE}/install/setup.bash
 ```
 
-### 5. Install the Data Collector Package
-Make the package available as a Python module in your current environment:
+### 5. Install Packages
+Make the packages available as a Python module in your current environment:
 ```bash
 cd ~/${WORKSPACE}/src/physical_ai_tools/data_collector
 pip install .
@@ -165,6 +165,7 @@ python lerobot/scripts/control_robot.py \
 ```
 
 💡 Make sure to replace `${HF_USER}` with your actual Hugging Face username.
+
 💡 If you don't want to push your Hugging Face dataset to hub, set --control.push_to_hub=false.
 
 ---

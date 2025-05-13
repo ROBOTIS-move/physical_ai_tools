@@ -22,18 +22,20 @@ from lerobot.lerobot.common.robot_devices.control_utils import (
     init_keyboard_listener, sanity_check_dataset_name, sanity_check_dataset_robot_compatibility
 )
 
+
 class DataSaver(LeRobotDataset):
     def __init__(self, robot, config):
         # Assume config is of type RecordControlConfig
         self.robot = robot
         self.config = config
+        n_threads = config.num_image_writer_threads_per_camera * len(robot.cameras)
         # Create or load dataset
         if getattr(config, 'resume', False):
             super().__init__(config.repo_id, root=config.root)
             if hasattr(robot, 'cameras') and len(robot.cameras) > 0:
                 self.start_image_writer(
                     num_processes=config.num_image_writer_processes,
-                    num_threads=config.num_image_writer_threads_per_camera * len(robot.cameras),
+                    num_threads=n_threads,
                 )
             sanity_check_dataset_robot_compatibility(self, robot, config.fps, config.video)
         else:
@@ -45,7 +47,7 @@ class DataSaver(LeRobotDataset):
                 robot=robot,
                 use_videos=config.video,
                 image_writer_processes=config.num_image_writer_processes,
-                image_writer_threads=config.num_image_writer_threads_per_camera * len(robot.cameras),
+                image_writer_threads=n_threads,
             )
             # LeRobotDataset.create returns an instance, so copy its internal state
             self.__dict__.update(ds.__dict__)

@@ -22,7 +22,8 @@ from sensor_msgs.msg import JointState, CompressedImage
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from cv_bridge import CvBridge
 import numpy as np
-# import torch
+import torch
+
 
 class DataConverter:
     def __init__(self):

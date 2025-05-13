@@ -59,7 +59,7 @@ class CommunicationManager:
 
         # Initialize MultiSubscriberManager with enabled sources
         self.multi_subscriber_manager = MultiSubscriberManager(self.node, self.enabled_sources)
-        
+
         # Initialize joint publishers
         self.joint_publishers = {}
 
@@ -88,8 +88,8 @@ class CommunicationManager:
 
         self.node.get_logger().info(f"Enabled sources for {mode} mode: {enabled_sources}")
         return enabled_sources
-    
-    def init_publishers(self) -> None:
+
+    def init_publishers(self):
         for name, topic_name in self.joint_pub_topics.items():
             self.joint_publishers[name] = self.node.create_publisher(
                 JointTrajectory,
@@ -98,8 +98,7 @@ class CommunicationManager:
             )
             self.node.get_logger().info(f"Initialized joint publisher: {name} -> {topic_name}")
 
-
-    def init_subscribers(self) -> None:
+    def init_subscribers(self):
         # Initialize camera subscribers if defined
         for name, topic in self.camera_topics.items():
             self.multi_subscriber_manager.add_subscriber(

@@ -60,12 +60,11 @@ class RobotOperationManager(Node):
         self.data_collection_timer = self.create_timer(
             1.0/self.timer_frequency,
             self.data_collection_timer_callback)
-        
+
         # Create data_inference_timer for periodic data collection with specified frequency
         self.data_inference_timer = self.create_timer(
             1.0/self.timer_frequency,
             self.data_inference_timer_callback)
-        
 
         self.data_converter = DataConverter()
 
@@ -112,7 +111,7 @@ class RobotOperationManager(Node):
         self.collect_joint_order_list = [
             f'collect_joint_order.{joint_name}' for joint_name in self.params['joint_list']
         ]
-        
+
         self.inference_joint_order_list = [
             f'inference_joint_order.{joint_name}' for joint_name in self.params['joint_list']
         ]
@@ -123,7 +122,7 @@ class RobotOperationManager(Node):
             param_names=self.collect_joint_order_list,
             default_value=[""]
         )
-        
+
         declare_parameters(
             node=self,
             robot_type=self.robot_type,
@@ -136,7 +135,7 @@ class RobotOperationManager(Node):
             robot_type=self.robot_type,
             param_names=self.collect_joint_order_list
         )
-        
+
         self.inference_joint_order_param = load_parameters(
             node=self,
             robot_type=self.robot_type,
@@ -161,20 +160,20 @@ class RobotOperationManager(Node):
             self.get_logger().info(f"image_data[key].shape: {key}, {image_data[key].shape}")
 
         return image_data
-    
+
     def update_latest_joint_data(self):
         follower_data = {}
         leader_data = {}
 
         _, follower_msgs, leader_msgs = self.communication_manager.get_latest_data()
-        
+
         if follower_msgs is None:
             follower_data = None
         else:
             for key, value in follower_msgs.items():
                 follower_data[key] = self.data_converter.joint_state2tensor_array(
                     value, self.collect_joint_order_param[key])
-        
+
         if leader_msgs is None:
             leader_data = None
         else:
@@ -196,11 +195,11 @@ class RobotOperationManager(Node):
         if camera_data is not None and follower_data is not None:
             self.latest_camera_data = camera_data
             self.latest_joint_data = follower_data
-            
+
     def data_inference_timer_callback(self):
         camera_data = self.update_latest_image_data()
         follower_data, _ = self.update_latest_joint_data()
-        
+
         if camera_data is not None and follower_data is not None:
             self.latest_camera_data = camera_data
             self.latest_joint_data = follower_data

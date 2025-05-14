@@ -20,6 +20,7 @@ from lerobot.lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
 
 class DataSaver(LeRobotDataset):
+
     def __init__(self, robot, config):
         # Assume config is of type RecordControlConfig
         self.robot = robot

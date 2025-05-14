@@ -28,6 +28,7 @@ from physical_ai_manager.utils.parameter_utils import parse_topic_list_with_name
 
 
 class Communicator:
+
     # Define data source categories
     SOURCE_CAMERA = 'camera'
     SOURCE_FOLLOWER = 'follower'

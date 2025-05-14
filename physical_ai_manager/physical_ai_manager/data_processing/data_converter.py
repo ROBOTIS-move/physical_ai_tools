@@ -26,6 +26,7 @@ from sensor_msgs.msg import CompressedImage, JointState
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 class DataConverter:
+
     def __init__(self):
         self._image_converter = CvBridge()  # Image converter using CVBridge
         self._joint_converter = None  # Joint data converter

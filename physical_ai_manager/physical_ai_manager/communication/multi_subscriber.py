@@ -25,7 +25,6 @@ from rclpy.node import Node
 import rclpy.qos
 
 
-
 class MultiSubscriber:
 
     def __init__(self, node: Node, enabled_sources: Optional[Set[str]] = None):

@@ -18,11 +18,12 @@
 
 from typing import Any, Dict, List
 
-import numpy as np
 from cv_bridge import CvBridge
-import torch
+import numpy as np
 from sensor_msgs.msg import CompressedImage, JointState
+import torch
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+
 
 class DataConverter:
 

@@ -10,7 +10,7 @@
   <license>Apache 2.0</license>
   <author email="kdy@robotis.com">Dongyun Kim</author>
   <depend>rclpy</depend>
-  <depend>std_msgs</depend>z
+  <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>message_filters</depend>
   <depend>cv_bridge</depend>

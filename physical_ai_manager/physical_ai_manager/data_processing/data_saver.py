@@ -17,10 +17,6 @@
 # Author: Dongyun Kim
 
 from lerobot.lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.lerobot.common.robot_devices.control_utils import (
-    warmup_record, record_episode, reset_environment, stop_recording,
-    init_keyboard_listener, sanity_check_dataset_name, sanity_check_dataset_robot_compatibility
-)
 
 
 class DataSaver(LeRobotDataset):
@@ -28,90 +24,9 @@ class DataSaver(LeRobotDataset):
         # Assume config is of type RecordControlConfig
         self.robot = robot
         self.config = config
-        n_threads = config.num_image_writer_threads_per_camera * len(robot.cameras)
-        # Create or load dataset
-        if getattr(config, 'resume', False):
-            super().__init__(config.repo_id, root=config.root)
-            if hasattr(robot, 'cameras') and len(robot.cameras) > 0:
-                self.start_image_writer(
-                    num_processes=config.num_image_writer_processes,
-                    num_threads=n_threads,
-                )
-            sanity_check_dataset_robot_compatibility(self, robot, config.fps, config.video)
-        else:
-            sanity_check_dataset_name(config.repo_id, None)
-            ds = LeRobotDataset.create(
-                config.repo_id,
-                config.fps,
-                root=config.root,
-                robot=robot,
-                use_videos=config.video,
-                image_writer_processes=config.num_image_writer_processes,
-                image_writer_threads=n_threads,
-            )
-            # LeRobotDataset.create returns an instance, so copy its internal state
-            self.__dict__.update(ds.__dict__)
+        # TODO: Implement init function
+        pass
 
     def record(self):
-        # Prepare keyboard event listener
-        listener, events = init_keyboard_listener()
-        # Warmup phase
-        self._warmup(events)
-        if hasattr(self.robot, 'teleop_safety_stop'):
-            self.robot.teleop_safety_stop()
-        recorded_episodes = 0
-        while recorded_episodes < self.config.num_episodes:
-            self._record_episode(events)
-            # Reset environment if not the last episode
-            if not events['stop_recording'] and (
-                (recorded_episodes < self.config.num_episodes - 1) or events['rerecord_episode']
-            ):
-                self._reset_env(events)
-            if events['rerecord_episode']:
-                events['rerecord_episode'] = False
-                events['exit_early'] = False
-                self.clear_episode_buffer()
-                continue
-            self.save_episode()
-            recorded_episodes += 1
-            if events['stop_recording']:
-                break
-        # Finalize
-        stop_recording(self.robot, listener, self.config.display_data)
-        if getattr(self.config, 'push_to_hub', False):
-            self.push_to_hub(tags=self.config.tags, private=self.config.private)
-
-    def _warmup(self, events):
-        # Only teleoperation is supported in warmup_record (no policy)
-        warmup_record(
-            self.robot,
-            events,
-            enable_teleoperation=True,
-            warmup_time_s=self.config.warmup_time_s,
-            display_data=self.config.display_data,
-            fps=self.config.fps,
-        )
-
-    def _reset_env(self, events):
-        reset_environment(
-            self.robot,
-            events,
-            reset_time_s=self.config.reset_time_s,
-            fps=self.config.fps,
-        )
-
-    def _record_episode(self, events):
-        # Only teleoperation is supported (no policy)
-        record_episode(
-            robot=self.robot,
-            dataset=self,
-            events=events,
-            episode_time_s=self.config.episode_time_s,
-            display_data=self.config.display_data,
-            policy=None,
-            fps=self.config.fps,
-            single_task=self.config.single_task,
-        )
-
-    def save_data(self, data: dict):
-        self.dataset.save_data(data)
+        # TODO: Implement record function
+        pass

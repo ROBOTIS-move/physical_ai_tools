@@ -1,4 +1,4 @@
-robot_operation_manager:
+physical_ai_manager:
   ros__parameters:
     ai_worker:
       camera_topic_list: 

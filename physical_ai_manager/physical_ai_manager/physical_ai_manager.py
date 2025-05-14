@@ -21,23 +21,23 @@ import cv2
 import rclpy
 from rclpy.node import Node
 
-from robot_operation_manager.utils import (
+from physical_ai_manager.utils.parameter_utils import (
     declare_parameters,
     load_parameters,
     log_parameters,
 )
 
-from robot_operation_manager.communication.communication_manager import CommunicationManager
-from robot_operation_manager.data_processing.data_converter import DataConverter
+from physical_ai_manager.communication.communicator import Communicator
+from physical_ai_manager.data_processing.data_converter import DataConverter
 
 
-class RobotOperationManager(Node):
-    # Define operation modes (constants taken from CommunicationManager)
-    MODE_COLLECTION = CommunicationManager.MODE_COLLECTION
-    MODE_INFERENCE = CommunicationManager.MODE_INFERENCE
+class PhysicalAIManager(Node):
+    # Define operation modes (constants taken from Communicator)
+    MODE_COLLECTION = Communicator.MODE_COLLECTION
+    MODE_INFERENCE = Communicator.MODE_INFERENCE
 
     def __init__(self):
-        super().__init__('robot_operation_manager')
+        super().__init__('physical_ai_manager')
 
         self.get_ros_params()
 
@@ -46,15 +46,15 @@ class RobotOperationManager(Node):
         self.latest_action = {}
 
         # Initialize observation manager
-        self.communication_manager = CommunicationManager(
+        self.communicator = Communicator(
             node=self,
             operation_mode=self.operation_mode,
             params=self.params
         )
 
         # Initialize ROS2 Communication Manager
-        self.communication_manager.init_subscribers()
-        self.communication_manager.init_publishers()
+        self.communicator.init_subscribers()
+        self.communicator.init_publishers()
 
         # Create data_collection_timer for periodic data collection with specified frequency
         self.data_collection_timer = self.create_timer(
@@ -68,7 +68,7 @@ class RobotOperationManager(Node):
 
         self.data_converter = DataConverter()
 
-        self.get_logger().info("RobotOperationManager initialization completed")
+        self.get_logger().info("PhysicalAIManager initialization completed")
 
     def get_ros_params(self):
         # Declare and get robot type and operation mode parameters
@@ -149,7 +149,7 @@ class RobotOperationManager(Node):
     def update_latest_image_data(self):
         image_data = {}
 
-        image_msgs, _, _ = self.communication_manager.get_latest_data()
+        image_msgs, _, _ = self.communicator.get_latest_data()
         if image_msgs is None:
             return None
 
@@ -165,7 +165,7 @@ class RobotOperationManager(Node):
         follower_data = {}
         leader_data = {}
 
-        _, follower_msgs, leader_msgs = self.communication_manager.get_latest_data()
+        _, follower_msgs, leader_msgs = self.communicator.get_latest_data()
 
         if follower_msgs is None:
             follower_data = None
@@ -187,7 +187,7 @@ class RobotOperationManager(Node):
         joint_msgs = self.data_converter.tensor_array2joint_trajectory(
             action,
             self.inference_joint_order_param)
-        self.communication_manager.send_action(joint_msgs)
+        self.communicator.send_action(joint_msgs)
 
     def data_collection_timer_callback(self):
         camera_data = self.update_latest_image_data()
@@ -207,7 +207,7 @@ class RobotOperationManager(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = RobotOperationManager()
+    node = PhysicalAIManager()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()

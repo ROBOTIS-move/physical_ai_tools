@@ -17,9 +17,9 @@
 # Author: Dongyun Kim
 
 """
-Launch file for robot_operation_manager node.
+Launch file for physical_ai_manager node.
 
-This launch file enables starting the robot_operation_manager node with
+This launch file enables starting the physical_ai_manager node with
 parameters loaded from a configuration file.
 """
 
@@ -32,8 +32,8 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    # Find package share directory for the robot_operation_manager package
-    pkg_dir = get_package_share_directory('robot_operation_manager')
+    # Find package share directory for the physical_ai_manager package
+    pkg_dir = get_package_share_directory('physical_ai_manager')
 
     # Launch arguments
     robot_type = LaunchConfiguration('robot_type', default='ai_worker')
@@ -69,11 +69,11 @@ def generate_launch_description():
         description='Path to the robot configuration YAML file'
     )
 
-    # Create node action for the robot_operation_manager node
-    robot_operation_manager_node = Node(
-        package='robot_operation_manager',
-        executable='robot_operation_manager',
-        name='robot_operation_manager',
+    # Create node action for the physical_ai_manager node
+    physical_ai_manager = Node(
+        package='physical_ai_manager',
+        executable='physical_ai_manager',
+        name='physical_ai_manager',
         output='screen',
         parameters=[
             config_file,
@@ -91,5 +91,5 @@ def generate_launch_description():
         declare_operation_mode_arg,
         declare_timer_frequency_arg,
         declare_config_file_arg,
-        robot_operation_manager_node
+        physical_ai_manager
     ])

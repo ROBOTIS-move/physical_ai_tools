@@ -24,13 +24,13 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState, CompressedImage
 from trajectory_msgs.msg import JointTrajectory
 
-from robot_operation_manager.utils import (
+from physical_ai_manager.utils.parameter_utils import (
     parse_topic_list_with_names
 )
-from robot_operation_manager.communication.multi_subscriber_manager import MultiSubscriberManager
+from physical_ai_manager.communication.multi_subscriber import MultiSubscriber
 
 
-class CommunicationManager:
+class Communicator:
     # Define data source categories
     SOURCE_CAMERA = 'camera'
     SOURCE_FOLLOWER = 'follower'
@@ -57,8 +57,8 @@ class CommunicationManager:
         # Determine which sources to enable based on operation mode
         self.enabled_sources = self._get_enabled_sources_for_mode(self.operation_mode)
 
-        # Initialize MultiSubscriberManager with enabled sources
-        self.multi_subscriber_manager = MultiSubscriberManager(self.node, self.enabled_sources)
+        # Initialize MultiSubscriber with enabled sources
+        self.multi_subscriber = MultiSubscriber(self.node, self.enabled_sources)
 
         # Initialize joint publishers
         self.joint_publishers = {}
@@ -101,7 +101,7 @@ class CommunicationManager:
     def init_subscribers(self):
         # Initialize camera subscribers if defined
         for name, topic in self.camera_topics.items():
-            self.multi_subscriber_manager.add_subscriber(
+            self.multi_subscriber.add_subscriber(
                 category=self.SOURCE_CAMERA,
                 name=name,
                 topic=topic,
@@ -128,7 +128,7 @@ class CommunicationManager:
                 )
                 continue  # Move to the next topic
 
-            self.multi_subscriber_manager.add_subscriber(
+            self.multi_subscriber.add_subscriber(
                 category=category,
                 name=name,
                 topic=topic,

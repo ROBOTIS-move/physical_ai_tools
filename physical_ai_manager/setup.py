@@ -4,7 +4,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 
-package_name = 'robot_operation_manager'
+package_name = 'physical_ai_manager'
 authors_info = [
     ('Dongyun Kim', 'kdy@robotis.com')
 ]
@@ -39,7 +39,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'robot_operation_manager = robot_operation_manager.robot_operation_manager:main',
+            'physical_ai_manager = physical_ai_manager.physical_ai_manager:main',
         ],
     },
 )

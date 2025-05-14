@@ -25,7 +25,7 @@ import rclpy.qos
 from rclpy.node import Node
 
 
-class MultiSubscriberManager:
+class MultiSubscriber:
     def __init__(self, node: Node, enabled_sources: Optional[Set[str]] = None):
         self._node = node
         self._subscribers = defaultdict(dict)

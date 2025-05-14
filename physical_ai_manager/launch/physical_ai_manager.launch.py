@@ -16,13 +16,6 @@
 #
 # Author: Dongyun Kim
 
-"""
-Launch file for physical_ai_manager node.
-
-This launch file enables starting the physical_ai_manager node with
-parameters loaded from a configuration file.
-"""
-
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -54,7 +47,7 @@ def generate_launch_description():
     declare_operation_mode_arg = DeclareLaunchArgument(
         'operation_mode',
         default_value='collection',
-        description='Operation mode: "collection" or "inference"'
+        description='Operation mode: collection or inference'
     )
 
     declare_timer_frequency_arg = DeclareLaunchArgument(

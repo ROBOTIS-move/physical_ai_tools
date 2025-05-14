@@ -68,8 +68,8 @@ class Communicator:
         self.latest_action = None
 
         # Log topic information
-        node.get_logger().info(f"Parsed camera topics: {self.camera_topics}")
-        node.get_logger().info(f"Parsed joint topics: {self.joint_sub_topics}")
+        node.get_logger().info(f'Parsed camera topics: {self.camera_topics}')
+        node.get_logger().info(f'Parsed joint topics: {self.joint_sub_topics}')
 
         self.camera_topic_msgs = {}
         self.follower_topic_msgs = {}
@@ -86,7 +86,7 @@ class Communicator:
         if mode == self.MODE_COLLECTION:
             enabled_sources.add(self.SOURCE_LEADER)
 
-        self.node.get_logger().info(f"Enabled sources for {mode} mode: {enabled_sources}")
+        self.node.get_logger().info(f'Enabled sources for {mode} mode: {enabled_sources}')
         return enabled_sources
 
     def init_publishers(self):
@@ -96,7 +96,7 @@ class Communicator:
                 topic=topic_name,
                 qos_profile=100
             )
-            self.node.get_logger().info(f"Initialized joint publisher: {name} -> {topic_name}")
+            self.node.get_logger().info(f'Initialized joint publisher: {name} -> {topic_name}')
 
     def init_subscribers(self):
         # Initialize camera subscribers if defined
@@ -108,7 +108,7 @@ class Communicator:
                 msg_type=CompressedImage,
                 callback=partial(self._camera_callback, name)
             )
-            self.node.get_logger().debug(f"Camera subscriber: {name} -> {topic}")
+            self.node.get_logger().debug(f'Camera subscriber: {name} -> {topic}')
 
         # Initialize joint subscribers with appropriate message types and callbacks
         for name, topic in self.joint_sub_topics.items():
@@ -124,7 +124,7 @@ class Communicator:
             else:
                 # Log an error message if the topic name does not include 'follower' or 'leader'
                 self.node.get_logger().error(
-                    "[Error] Please include 'follower' or 'leader' in the topic name."
+                    '[Error] Please include follower or leader in the topic name.'
                 )
                 continue  # Move to the next topic
 
@@ -137,7 +137,7 @@ class Communicator:
             )
             self.joint_sub_topics[name] = msg_type()
             self.node.get_logger().debug(
-                f"Joint subscriber: {name} -> {topic} ({msg_type.__name__})")
+                f'Joint subscriber: {name} -> {topic} ({msg_type.__name__})')
 
     def _camera_callback(self, name: str, msg: CompressedImage) -> None:
         self.camera_topic_msgs[name] = msg

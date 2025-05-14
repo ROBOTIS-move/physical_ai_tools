@@ -68,7 +68,7 @@ class PhysicalAIManager(Node):
 
         self.data_converter = DataConverter()
 
-        self.get_logger().info("PhysicalAIManager initialization completed")
+        self.get_logger().info('PhysicalAIManager initialization completed')
 
     def get_ros_params(self):
         # Declare and get robot type and operation mode parameters
@@ -80,9 +80,9 @@ class PhysicalAIManager(Node):
         self.operation_mode = self.get_parameter('operation_mode').value
         self.timer_frequency = self.get_parameter('timer_frequency').value
 
-        self.get_logger().info(f"Robot type: {self.robot_type}")
-        self.get_logger().info(f"Operation mode: {self.operation_mode}")
-        self.get_logger().info(f"Timer frequency: {self.timer_frequency} Hz")
+        self.get_logger().info(f'Robot type: {self.robot_type}')
+        self.get_logger().info(f'Operation mode: {self.operation_mode}')
+        self.get_logger().info(f'Timer frequency: {self.timer_frequency} Hz')
 
         # Define parameter names to load
         param_names = [
@@ -98,7 +98,7 @@ class PhysicalAIManager(Node):
             node=self,
             robot_type=self.robot_type,
             param_names=param_names,
-            default_value=[""]
+            default_value=['']
         )
 
         # Load parameters
@@ -120,14 +120,14 @@ class PhysicalAIManager(Node):
             node=self,
             robot_type=self.robot_type,
             param_names=self.collect_joint_order_list,
-            default_value=[""]
+            default_value=['']
         )
 
         declare_parameters(
             node=self,
             robot_type=self.robot_type,
             param_names=self.inference_joint_order_list,
-            default_value=[""]
+            default_value=['']
         )
 
         self.collect_joint_order_param = load_parameters(
@@ -157,7 +157,7 @@ class PhysicalAIManager(Node):
             image_data[key] = self.data_converter.compressed_image2cvmat(value)
             cv2.imshow(key, image_data[key])
             cv2.waitKey(1)
-            self.get_logger().info(f"image_data[key].shape: {key}, {image_data[key].shape}")
+            self.get_logger().info(f'image_data[key].shape: {key}, {image_data[key].shape}')
 
         return image_data
 

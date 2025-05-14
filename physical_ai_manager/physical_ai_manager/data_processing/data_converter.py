@@ -36,7 +36,7 @@ class DataConverter:
             cv_image = self._image_converter.compressed_imgmsg_to_cv2(msg)
             return cv_image
         except Exception as e:
-            raise RuntimeError(f"Failed to convert image: {str(e)}")
+            raise RuntimeError(f'Failed to convert image: {str(e)}')
 
     def joint_trajectory2tensor_array(
             self,
@@ -58,9 +58,9 @@ class DataConverter:
             elif target_format == 'torch':
                 return torch.tensor(ordered_positions, dtype=torch.float32)
             else:
-                raise ValueError(f"Unsupported target format: {target_format}")
+                raise ValueError(f'Unsupported target format: {target_format}')
         except Exception as e:
-            raise RuntimeError(f"Failed to convert joint trajectory: {str(e)}")
+            raise RuntimeError(f'Failed to convert joint trajectory: {str(e)}')
 
     def joint_state2tensor_array(
             self,
@@ -82,9 +82,9 @@ class DataConverter:
             elif target_format == 'torch':
                 return torch.tensor(ordered_positions, dtype=torch.float32)
             else:
-                raise ValueError(f"Unsupported target format: {target_format}")
+                raise ValueError(f'Unsupported target format: {target_format}')
         except Exception as e:
-            raise RuntimeError(f"Failed to convert joint state: {str(e)}")
+            raise RuntimeError(f'Failed to convert joint state: {str(e)}')
 
     def tensor_array2joint_trajectory(
             self,

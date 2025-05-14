@@ -63,18 +63,18 @@ class DataSaver(LeRobotDataset):
         while recorded_episodes < self.config.num_episodes:
             self._record_episode(events)
             # Reset environment if not the last episode
-            if not events["stop_recording"] and (
-                (recorded_episodes < self.config.num_episodes - 1) or events["rerecord_episode"]
+            if not events['stop_recording'] and (
+                (recorded_episodes < self.config.num_episodes - 1) or events['rerecord_episode']
             ):
                 self._reset_env(events)
-            if events["rerecord_episode"]:
-                events["rerecord_episode"] = False
-                events["exit_early"] = False
+            if events['rerecord_episode']:
+                events['rerecord_episode'] = False
+                events['exit_early'] = False
                 self.clear_episode_buffer()
                 continue
             self.save_episode()
             recorded_episodes += 1
-            if events["stop_recording"]:
+            if events['stop_recording']:
                 break
         # Finalize
         stop_recording(self.robot, listener, self.config.display_data)

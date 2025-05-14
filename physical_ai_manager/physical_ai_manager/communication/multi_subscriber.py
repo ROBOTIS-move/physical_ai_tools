@@ -38,9 +38,6 @@ class MultiSubscriber:
 
     def set_enabled_sources(self, enabled_sources: Optional[Set[str]]) -> None:
         self._enabled_sources = enabled_sources
-        self._node.get_logger().info(
-            f"Enabled sources set to: {enabled_sources if enabled_sources else 'ALL'}"
-        )
 
     def add_subscriber(
             self,
@@ -54,7 +51,7 @@ class MultiSubscriber:
         # Skip if this source category is disabled
         if not self.is_source_enabled(category):
             self._node.get_logger().debug(
-                f"Skipping subscriber {category}/{name} as category is disabled"
+                f'Skipping subscriber {category}/{name} as category is disabled'
             )
             return
 
@@ -67,7 +64,7 @@ class MultiSubscriber:
 
         if category in self._subscribers and name in self._subscribers[category]:
             self._node.get_logger().warn(
-                f"Subscriber {category}/{name} already exists. Overwriting."
+                f'Subscriber {category}/{name} already exists. Overwriting.'
             )
 
         # Create subscriber with callback
@@ -78,4 +75,4 @@ class MultiSubscriber:
             qos_profile=qos_profile
         )
 
-        self._node.get_logger().info(f"Subscribed to {topic} as {category}/{name}")
+        self._node.get_logger().info(f'Subscribed to {topic} as {category}/{name}')

@@ -47,13 +47,13 @@ def load_parameters(
 def log_parameters(node: Node, params: Dict[str, Any], log_level: str = 'info') -> None:
     for name, value in params.items():
         if log_level == 'debug':
-            node.get_logger().debug(f"{name}: {value}")
+            node.get_logger().debug(f'{name}: {value}')
         elif log_level == 'info':
-            node.get_logger().info(f"{name}: {value}")
+            node.get_logger().info(f'{name}: {value}')
         elif log_level == 'warn':
-            node.get_logger().warn(f"{name}: {value}")
+            node.get_logger().warn(f'{name}: {value}')
         elif log_level == 'error':
-            node.get_logger().error(f"{name}: {value}")
+            node.get_logger().error(f'{name}: {value}')
 
 
 def parse_topic_list_with_names(topic_list: List[str]) -> Dict[str, str]:

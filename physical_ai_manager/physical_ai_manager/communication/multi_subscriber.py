@@ -21,8 +21,9 @@ from collections import defaultdict
 from typing import Callable, Optional, Set, Type
 
 import rclpy
-import rclpy.qos
 from rclpy.node import Node
+import rclpy.qos
+
 
 
 class MultiSubscriber:

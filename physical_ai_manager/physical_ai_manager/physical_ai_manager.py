@@ -18,7 +18,6 @@
 
 import cv2
 import rclpy
-from rclpy.node import Node
 
 from physical_ai_manager.communication.communicator import Communicator
 from physical_ai_manager.data_processing.data_converter import DataConverter
@@ -27,6 +26,8 @@ from physical_ai_manager.utils.parameter_utils import (
     load_parameters,
     log_parameters,
 )
+
+from rclpy.node import Node
 
 
 class PhysicalAIManager(Node):
@@ -169,8 +170,9 @@ class PhysicalAIManager(Node):
             follower_data = None
         else:
             for key, value in follower_msgs.items():
-                follower_data[key] = self.data_converter.joint_state2tensor_array(
-                    value, self.collect_joint_order_param[key])
+                if value is not None:  
+                    follower_data[key] = self.data_converter.joint_state2tensor_array(
+                        value, self.collect_joint_order_param[key])
 
         if leader_msgs is None:
             leader_data = None

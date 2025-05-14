@@ -21,9 +21,8 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage, JointState
-from trajectory_msgs.msg import JointTrajectory
-
 from physical_ai_manager.communication.multi_subscriber import MultiSubscriber
+from trajectory_msgs.msg import JointTrajectory
 from physical_ai_manager.utils.parameter_utils import parse_topic_list_with_names
 
 

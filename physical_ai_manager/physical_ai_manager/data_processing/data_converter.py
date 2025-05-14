@@ -16,12 +16,11 @@
 #
 # Author: Dongyun Kim
 
-
 from typing import Any, Dict, List
 
 import numpy as np
-import torch
 from cv_bridge import CvBridge
+import torch
 from sensor_msgs.msg import CompressedImage, JointState
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 

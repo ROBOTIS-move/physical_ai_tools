@@ -2,6 +2,10 @@
 Changelog for package physical_ai_manager
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.0 (2025-05-15)
+------------------
+* None
+
 0.4.0 (2025-05-15)
 ------------------
 * Added a pipeline for data collection and inference based on ROS2.

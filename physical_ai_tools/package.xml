@@ -13,8 +13,10 @@
   <author email="kimhg@robotis.com">Hyungyu Kim</author>
   <author email="kdy@robotis.com">Dongyun Kim</author>
   <author email="wwj@robotis.com">Woojin Wie</author>
+  <author email="pkw@robotis.com">Kiwoong Park</author>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <exec_depend>physical_ai_server</exec_depend>
+  <exec_depend>physical_ai_manager</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

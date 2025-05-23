@@ -14,7 +14,7 @@
 //
 // Author: Park Kiwoong
 
-import React from 'react';
+import React, { useState } from 'react';
 import './ImageGrid.css';
 import ImageGridCell from './ImageGridCell';
 
@@ -29,6 +29,9 @@ const topicList = [
 ];
 
 function TopicSelectModal({ topicList, onSelect, onClose }) {
+  const [hovered, setHovered] = useState(null);
+  const [selected, setSelected] = useState(null);
+
   return (
     <div
       className="modal-backdrop"
@@ -59,10 +62,22 @@ function TopicSelectModal({ topicList, onSelect, onClose }) {
                 cursor: 'pointer',
                 padding: 12,
                 borderRadius: 6,
-                background: '#eee',
                 fontSize: 20,
+                background:
+                  selected === topic
+                    ? 'rgba(21, 101, 192, 0.92)' // 선택: 더 진한 파랑 + 약간의 투명도
+                    : hovered === topic
+                    ? '#90caf9' // hover: 연한 파랑
+                    : '#eee', // 기본: 연한 회색
+                color: selected === topic ? '#fff' : '#000',
+                transition: 'background 0.2s',
               }}
-              onClick={() => onSelect(topic)}
+              onMouseEnter={() => setHovered(topic)}
+              onMouseLeave={() => setHovered(null)}
+              onClick={() => {
+                setSelected(topic);
+                onSelect(topic);
+              }}
             >
               {topic}
             </li>

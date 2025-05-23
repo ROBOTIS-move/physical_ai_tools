@@ -1,10 +1,11 @@
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Changelog for package physical_ai_manager
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Changelog for package physical_ai_server
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 0.5.0 (2025-05-20)
 ------------------
-* None
+* Renamed physical_ai_manager to physical_ai_server.
+* Contributors: Dongyun Kim
 
 0.4.0 (2025-05-15)
 ------------------

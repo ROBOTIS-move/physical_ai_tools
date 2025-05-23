@@ -55,4 +55,4 @@ jobs:
           target-ros2-distro: ${{ matrix.ros_distribution }}
           vcs-repo-file-url: ""
           package-name: |
-            physical_ai_manager
+            physical_ai_server

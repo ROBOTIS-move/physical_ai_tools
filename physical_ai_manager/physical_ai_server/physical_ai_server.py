@@ -18,9 +18,9 @@
 
 import cv2
 
-from physical_ai_manager.communication.communicator import Communicator
-from physical_ai_manager.data_processing.data_converter import DataConverter
-from physical_ai_manager.utils.parameter_utils import (
+from physical_ai_server.communication.communicator import Communicator
+from physical_ai_server.data_processing.data_converter import DataConverter
+from physical_ai_server.utils.parameter_utils import (
     declare_parameters,
     load_parameters,
     log_parameters,
@@ -35,7 +35,7 @@ class PhysicalAIManager(Node):
     MODE_INFERENCE = Communicator.MODE_INFERENCE
 
     def __init__(self):
-        super().__init__('physical_ai_manager')
+        super().__init__('physical_ai_server')
 
         self.get_ros_params()
 

@@ -178,7 +178,7 @@ function YamlEditor({ onYamlLoad }) {
         ))}
         {errorLine && (
           <div className="yaml-editor-error-message">
-            오류 (라인 {errorLine}): {errorMessage}
+            Error (line {errorLine}): {errorMessage}
           </div>
         )}
       </div>

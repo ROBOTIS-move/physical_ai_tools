@@ -2,9 +2,9 @@
   "name": "physical_ai_manager",
   "version": "0.5.0",
   "description": "Web UI for Physical AI Platform",
-  "author": "Park Kiwoong <pkw@robotis.com>",
+  "author": "Kiwoong Park <pkw@robotis.com>",
   "contributors": [
-    "Park Kiwoong <pkw@robotis.com>"
+    "Kiwoong Park <pkw@robotis.com>"
   ],
   "license": "Apache-2.0",
   "private": true,

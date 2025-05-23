@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// Author: Park Kiwoong
+// Author: Kiwoong Park
 
 import React, { useEffect, useState } from 'react';
 import ROSLIB from 'roslib';

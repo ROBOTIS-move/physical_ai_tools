@@ -21,11 +21,10 @@ import ImageGridCell from './ImageGridCell';
 const layout = [{ aspect: '16/9' }, { aspect: '16/9' }, { aspect: '16/9' }];
 
 const topicList = [
-  'image_raw',
-  'left/color/image/raw',
-  'right/color/image/raw',
-  'head/color/image/raw',
-  'custom/topic/1',
+  '/camera_left/camera_left/color/image_rect_raw',
+  '/camera_right/camera_right/color/image_rect_raw',
+  '/zed/zed_node/rgb/image_rect_color',
+  '/image_raw',
 ];
 
 function TopicSelectModal({ topicList, onSelect, onClose }) {

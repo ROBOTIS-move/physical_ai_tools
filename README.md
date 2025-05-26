@@ -6,4 +6,12 @@
 </p>
 
 
-This repository offers an interface for developing physical AI applications using LeRobot and ROS 2.
+This repository offers an interface for developing physical AI applications using LeRobot and ROS 2. For detailed usage instructions, please refer to the e-manual below.
+  - [ROBOTIS e-Manual for AI Worker](https://ai.robotis.com/)
+
+ For more information on ROS Packages regarding Physical AI Tools, please refer to the following resource below.
+  - [AI Worker ROS 2 Packages](https://github.com/ROBOTIS-GIT/ai_worker)
+  - [Simulation Models](https://github.com/ROBOTIS-GIT/robotis_mujoco_menagerie)
+  - [Tutorial Videos](https://www.youtube.com/@ROBOTISOpenSourceTeam)
+  - [AI Models & Datasets](https://huggingface.co/ROBOTIS)
+  - [Docker Images](https://hub.docker.com/r/robotis/ros/tags)

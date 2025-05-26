@@ -4,7 +4,7 @@ Changelog for package physical_ai_tools
 
 0.5.0 (2025-05-20)
 ------------------
-* Added a web interface for collecting and preparing datasets for Hugging Face
+* Added a web UI for physical AI data collection
 * Removed unnecessary dependencies and cleaned up the codebase
 * Updated the LeRobot submodule to the latest version
 * Refactored to a scalable structure that supports N cameras and various joint configurations

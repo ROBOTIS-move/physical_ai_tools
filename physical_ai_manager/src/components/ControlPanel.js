@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ProgressBar from './ProgressBar';
 import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck } from 'react-icons/md';
 
@@ -51,10 +51,10 @@ const buttonStyle = {
 };
 
 const iconWrapperStyle = {
-  background: '#ffffffbb',
+  background: 'transparent',
   borderRadius: '50%',
-  width: 56,
-  height: 56,
+  width: 86,
+  height: 86,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -70,7 +70,43 @@ const buttons = [
 ];
 
 export default function ControlPanel() {
-  const icon_size = 40;
+  const icon_size = 70;
+  const [hovered, setHovered] = useState(null);
+  const [pressed, setPressed] = useState(null);
+  const [started, setStarted] = useState(false);
+  const startedRef = useRef(started);
+
+  useEffect(() => {
+    startedRef.current = started;
+  }, [started]);
+
+  const handleCommand = (label) => {
+    console.log(label + ' command executed');
+    if (label === 'Start') setStarted(true);
+    if (label === 'Stop') setStarted(false);
+    // 다른 명령은 상태 변화 없음
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') {
+        handleCommand('Retry');
+      } else if (e.key === 'ArrowRight') {
+        handleCommand('Next');
+      } else if (e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') {
+        if (!startedRef.current) {
+          handleCommand('Start');
+        } else {
+          handleCommand('Stop');
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        handleCommand('Finish');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div className="control-panel-fixed" style={panelStyle}>
       <div
@@ -83,14 +119,42 @@ export default function ControlPanel() {
           gap: 16,
         }}
       >
-        {buttons.map(({ label, icon: Icon, color }) => (
-          <button key={label} style={buttonStyle}>
-            <span style={iconWrapperStyle}>
-              <Icon size={icon_size} color={color} />
-            </span>
-            {label}
-          </button>
-        ))}
+        {buttons.map(({ label, icon: Icon, color }) => {
+          let bg = buttonStyle.background;
+          if (pressed === label) {
+            bg = '#d1d1d1';
+          } else if (hovered === label) {
+            bg = '#e0e0e0';
+          }
+          return (
+            <button
+              key={label}
+              style={{ ...buttonStyle, background: bg }}
+              tabIndex={0}
+              onClick={() => handleCommand(label)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCommand(label);
+                }
+                if (e.key === ' ') {
+                  e.preventDefault();
+                }
+              }}
+              onMouseEnter={() => setHovered(label)}
+              onMouseLeave={() => {
+                setHovered(null);
+                setPressed(null);
+              }}
+              onMouseDown={() => setPressed(label)}
+              onMouseUp={() => setPressed(null)}
+            >
+              <span style={iconWrapperStyle}>
+                <Icon size={icon_size} color={color} />
+              </span>
+              {label}
+            </button>
+          );
+        })}
       </div>
       <div
         style={{

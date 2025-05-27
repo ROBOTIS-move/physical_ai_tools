@@ -104,7 +104,30 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
         <div className="grid-wrapper" style={{ flex: 6, overflow: 'hidden' }}>
           <ImageGrid topics={topics} setTopics={setTopics} rosHost={rosHost} />
         </div>
+        <div style={{ display: 'flex', flex: 1 }}>
+          <div className="right-panel">
+            <div
+              style={{
+                width: '100%',
+                height: '100px',
+                minHeight: 150,
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
+              <EpisodeStatus />
+            </div>
+            <div style={{ width: '100%', height: '50px' }}></div>
+            <TaskSelector
+              yamlContent={yamlContent}
+              onTaskSelect={(task) => console.log('Selected task:', task)}
+            />
+            <InfoPanel info={info} />
+          </div>
+        </div>
       </div>
+
+      <ControlPanel />
     </>
   );
 }

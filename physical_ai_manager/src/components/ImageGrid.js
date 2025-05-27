@@ -64,10 +64,10 @@ function TopicSelectModal({ topicList, onSelect, onClose }) {
                 fontSize: 20,
                 background:
                   selected === topic
-                    ? 'rgba(21, 101, 192, 0.92)' // 선택: 더 진한 파랑 + 약간의 투명도
+                    ? 'rgba(21, 101, 192, 0.92)'
                     : hovered === topic
-                    ? '#90caf9' // hover: 연한 파랑
-                    : '#eee', // 기본: 연한 회색
+                    ? '#90caf9'
+                    : '#eee',
                 color: selected === topic ? '#fff' : '#000',
                 transition: 'background 0.2s',
               }}
@@ -153,7 +153,6 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
   const cellStyle = {};
 
   return (
-    //<div style={{backgroundColor: 'green', width: '100%', height: '100%', overflow: 'hidden'}}></div>
     <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
       <div
         className="image-grid"

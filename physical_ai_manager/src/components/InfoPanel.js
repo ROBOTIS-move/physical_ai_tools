@@ -23,21 +23,24 @@ const InfoPanel = ({ info, onChange }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 w-full max-w-xs">
+    <div className="bg-white border-2 border-gray-300 rounded-xl shadow-md p-4 w-full max-w-[400px]">
       <div className="text-lg font-semibold mb-3">Task Information</div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">task name</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">task name</span>
         <textarea
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'resize-y',
             'min-h-3',
             'max-h-20',
+            'h-10',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
             'border-gray-300',
-            'rounded',
+            'bg-gray-100',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -47,15 +50,17 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">robot type</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">robot type</span>
         <input
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
             'border-gray-300',
-            'rounded',
+            'bg-gray-100',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -66,15 +71,17 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">task type</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">task type</span>
         <input
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
             'border-gray-300',
-            'rounded',
+            'bg-gray-100',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -85,18 +92,20 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">task instruction</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">task instruction</span>
         <textarea
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'resize-y',
             'min-h-6',
             'max-h-24',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
+            'bg-gray-100',
             'border-gray-300',
-            'rounded',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -106,15 +115,17 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">fps</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">fps</span>
         <input
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
+            'bg-gray-100',
             'border-gray-300',
-            'rounded',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -125,15 +136,17 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">tags</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">tags</span>
         <input
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
             'border-gray-300',
-            'rounded',
+            'bg-gray-100',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -149,15 +162,17 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">warmup time (s)</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">warmup time (s)</span>
         <input
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
             'border-gray-300',
-            'rounded',
+            'bg-gray-100',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -168,15 +183,17 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">episode time (s)</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">episode time (s)</span>
         <input
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
             'border-gray-300',
-            'rounded',
+            'bg-gray-100',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -187,15 +204,17 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">reset time (s)</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">reset time (s)</span>
         <input
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
             'border-gray-300',
-            'rounded',
+            'bg-gray-100',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -206,15 +225,17 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">num episodes</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">num episodes</span>
         <input
           className={clsx(
-            'text-xs',
+            'text-s',
+            'font-medium',
             'w-full',
             'p-1.5',
-            'border',
+            'border-2',
             'border-gray-300',
-            'rounded',
+            'bg-gray-100',
+            'rounded-md',
             'focus:outline-none',
             'focus:ring-1',
             'focus:ring-blue-500'
@@ -225,15 +246,15 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">resume</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">resume</span>
         <input
           className={clsx(
-            'w-3',
-            'h-3',
+            'w-4',
+            'h-4',
             'text-blue-600',
             'bg-gray-100',
             'border-gray-300',
-            'rounded',
+            'rounded-md',
             'focus:ring-blue-500'
           )}
           type="checkbox"
@@ -242,15 +263,15 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
       <div className="flex items-center mb-2">
-        <span className="text-xs text-gray-600 w-28 flex-shrink-0">push to hub</span>
+        <span className="text-s text-gray-600 w-32 flex-shrink-0">push to hub</span>
         <input
           className={clsx(
-            'w-3',
-            'h-3',
+            'w-4',
+            'h-4',
             'text-blue-600',
             'bg-gray-100',
             'border-gray-300',
-            'rounded',
+            'rounded-md',
             'focus:ring-blue-500'
           )}
           type="checkbox"

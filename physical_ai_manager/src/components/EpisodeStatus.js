@@ -29,7 +29,7 @@ export default function EpisodeStatus() {
         'flex-col',
         'items-center',
         'rounded-xl',
-        'border-0',
+        'border-2',
         'p-2',
         'box-border',
         'shadow-md'

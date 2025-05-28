@@ -73,7 +73,7 @@ export default function ControlPanel({ onCommand }) {
       className={clsx(
         'control-panel-fixed',
         'h-56',
-        'bg-gray-400',
+        'bg-gray-300',
         'rounded-3xl',
         'm-8',
         'p-4',

@@ -112,10 +112,10 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
         >
           <ImageGrid topics={topics} setTopics={setTopics} rosHost={rosHost} />
         </div>
-        <div className="flex-[1] min-w-[250px] max-w-[270px]">
+        <div className="flex-[1] min-w-[420px] max-w-[420px]">
           <div className="ml-1 mr-1 flex flex-col items-center">
             <div className="w-full h-10"></div>
-            <div className="w-full h-16 min-h-[90px] flex justify-center">
+            <div className="w-[200px] flex justify-center">
               <EpisodeStatus />
             </div>
             <div className="w-full h-10"></div>

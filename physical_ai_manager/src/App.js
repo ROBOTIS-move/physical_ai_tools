@@ -14,12 +14,13 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import clsx from 'clsx';
 import ImageGrid from './components/ImageGrid';
 import EpisodeStatus from './components/EpisodeStatus';
 import ControlPanel from './components/ControlPanel';
 import InfoPanel from './components/InfoPanel';
-import { MdHome, MdSettings } from 'react-icons/md';
+import { MdHome } from 'react-icons/md';
 import RosTopicList from './components/RosTopicList';
 import RosTopicSubscriber from './components/RosTopicSubscriber';
 import RosServiceCaller from './components/RosServiceCaller';
@@ -31,40 +32,21 @@ function SettingPage({ rosHost, setRosHost, yamlContent, setYamlContent }) {
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
 
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        fontSize: 22,
-        flexDirection: 'row',
-        gap: 32,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          marginTop: 40,
-          width: '100%',
-        }}
-      >
-        <div style={{ marginBottom: 24, fontSize: 28, fontWeight: 600 }}>
+    <div className="w-full h-full flex items-start justify-center text-xl flex-row gap-8">
+      <div className="flex flex-col items-center mt-10 w-full">
+        <div className="mb-6 text-3xl font-semibold">
           Image Streaming Server Address Configuration
         </div>
-        <div style={{ color: '#888', fontSize: 16 }}>
+        <div className="text-gray-500 text-base">
           Current auto-set value: <b>{rosHost}</b>
           <br />
           (This value is automatically determined based on window.location.hostname)
         </div>
-        <div style={{ marginTop: 40, width: '70%' }}>
+        <div className="mt-10 w-3/5">
           <YamlEditor onYamlLoad={setYamlContent} />
         </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+      <div className="flex flex-col items-stretch">
         <RosTopicList rosbridgeUrl={rosbridgeUrl} />
         <RosTopicSubscriber
           rosbridgeUrl={rosbridgeUrl}
@@ -101,31 +83,42 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
   const { setGuiPage } = useRosServiceCaller(`ws://${rosHost.split(':')[0]}:9090`);
 
   const handleControlCommand = (cmd) => {
-    if (cmd === 'Start') {
-      setGuiPage('Waiting', 'home');
+    console.log('Control command received:', cmd);
+    try {
+      if (cmd === 'Start') {
+        console.log('Calling setGuiPage with Waiting, home');
+        setGuiPage('Waiting', 'home');
+      }
+      // Add other command handling here if needed
+    } catch (error) {
+      console.error('Error handling control command:', error);
     }
   };
 
   return (
     <>
-      <div className="top-section">
-        <div className="grid-wrapper" style={{ flex: 6, overflow: 'hidden' }}>
+      <div className="flex flex-1 min-h-0 h-full pt-0 px-0 justify-center items-start">
+        <div
+          className={clsx(
+            'flex-[12]',
+            'flex',
+            'items-center',
+            'justify-center',
+            'min-h-0',
+            'h-full',
+            'overflow-hidden',
+            'm-2'
+          )}
+        >
           <ImageGrid topics={topics} setTopics={setTopics} rosHost={rosHost} />
         </div>
-        <div style={{ display: 'flex', flex: 1 }}>
-          <div className="right-panel">
-            <div
-              style={{
-                width: '100%',
-                height: '100px',
-                minHeight: 150,
-                display: 'flex',
-                justifyContent: 'center',
-              }}
-            >
+        <div className="flex-[1] min-w-[250px] max-w-[270px]">
+          <div className="ml-1 mr-1 flex flex-col items-center">
+            <div className="w-full h-10"></div>
+            <div className="w-full h-16 min-h-[90px] flex justify-center">
               <EpisodeStatus />
             </div>
-            <div style={{ width: '100%', height: '30px' }}></div>
+            <div className="w-full h-10"></div>
             <InfoPanel info={info} onChange={setInfo} />
           </div>
         </div>
@@ -158,27 +151,38 @@ function App() {
   }, [yamlContent]);
 
   return (
-    <div className="container">
-      <aside
-        className="sidebar"
-        style={{
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          paddingTop: 40,
-          gap: 24,
-        }}
-      >
+    <div className="flex h-screen w-screen">
+      <aside className="w-30 bg-gray-200 h-full flex flex-col items-center pt-10 gap-6">
         <button
-          className={`nav-btn${page === 'home' ? ' active' : ''}`}
+          className={clsx(
+            'flex',
+            'flex-col',
+            'items-center',
+            'bg-gray-100',
+            'rounded-2xl',
+            'border-none',
+            'py-5',
+            'px-4',
+            'mb-3',
+            'text-base',
+            'text-gray-800',
+            'cursor-pointer',
+            'transition-colors',
+            'duration-150',
+            'outline-none',
+            'min-w-20',
+            {
+              'hover:bg-gray-300 active:bg-gray-400': page !== 'home',
+              'bg-gray-300': page === 'home',
+            }
+          )}
           onClick={() => setPage('home')}
         >
-          <MdHome size={32} style={{ marginBottom: 6 }} />
-          <span>Home</span>
+          <MdHome size={32} className="mb-1.5" />
+          <span className="mt-1 text-sm">Home</span>
         </button>
       </aside>
-      <main className="main-content">
+      <main className="flex-1 flex flex-col h-screen min-h-0">
         {page === 'home' ? (
           <HomePage
             topics={topics}

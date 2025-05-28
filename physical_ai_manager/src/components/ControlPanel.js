@@ -14,52 +14,10 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import clsx from 'clsx';
 import ProgressBar from './ProgressBar';
 import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck } from 'react-icons/md';
-
-const panelStyle = {
-  height: 200,
-  background: '#bdbdbd',
-  borderRadius: 27,
-  margin: 30,
-  padding: 14,
-  display: 'flex',
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-  boxShadow: 'rgba(0, 0, 0, 0.1) 0px 2px 8px',
-};
-
-const buttonStyle = {
-  fontSize: '40px',
-  fontFamily: 'Pretendard Variable',
-  fontWeight: 800,
-  height: '100%',
-  flexGrow: 1,
-  minWidth: 60,
-  borderRadius: 20,
-  border: 'none',
-  background: '#ededed',
-  cursor: 'pointer',
-  marginRight: 8,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexDirection: 'column',
-  gap: 4,
-};
-
-const iconWrapperStyle = {
-  background: 'transparent',
-  borderRadius: '50%',
-  width: 86,
-  height: 86,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: 4,
-};
 
 const buttons = [
   { label: 'Start', icon: MdPlayArrow, color: '#1976d2' },
@@ -80,13 +38,15 @@ export default function ControlPanel({ onCommand }) {
     startedRef.current = started;
   }, [started]);
 
-  const handleCommand = (label) => {
-    if (onCommand) onCommand(label);
-    console.log(label + ' command executed');
-    if (label === 'Start') setStarted(true);
-    if (label === 'Stop') setStarted(false);
-    // 다른 명령은 상태 변화 없음
-  };
+  const handleCommand = useCallback(
+    (label) => {
+      if (onCommand) onCommand(label);
+      console.log(label + ' command executed');
+      if (label === 'Start') setStarted(true);
+      if (label === 'Stop') setStarted(false);
+    },
+    [onCommand]
+  );
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -106,31 +66,51 @@ export default function ControlPanel({ onCommand }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [handleCommand]);
 
   return (
-    <div className="control-panel-fixed" style={panelStyle}>
-      <div
-        style={{
-          display: 'flex',
-          flex: 2,
-          alignItems: 'center',
-          width: '100%',
-          height: '100%',
-          gap: 16,
-        }}
-      >
+    <div
+      className={clsx(
+        'control-panel-fixed',
+        'h-56',
+        'bg-gray-400',
+        'rounded-3xl',
+        'm-8',
+        'p-4',
+        'flex',
+        'flex-row',
+        'items-center',
+        'gap-2',
+        'shadow-lg'
+      )}
+    >
+      <div className="flex flex-[2] items-center w-full h-full gap-4">
         {buttons.map(({ label, icon: Icon, color }) => {
-          let bg = buttonStyle.background;
-          if (pressed === label) {
-            bg = '#d1d1d1';
-          } else if (hovered === label) {
-            bg = '#e0e0e0';
-          }
           return (
             <button
               key={label}
-              style={{ ...buttonStyle, background: bg }}
+              className={clsx(
+                'text-4xl',
+                'font-extrabold',
+                'h-full',
+                'flex-grow',
+                'min-w-16',
+                'rounded-2xl',
+                'border-none',
+                'cursor-pointer',
+                'mr-2',
+                'flex',
+                'items-center',
+                'justify-center',
+                'flex-col',
+                'gap-1',
+                {
+                  'bg-gray-300': pressed === label,
+                  'bg-gray-200': hovered === label && pressed !== label,
+                  'bg-gray-100': hovered !== label && pressed !== label,
+                }
+              )}
+              style={{ fontFamily: 'Pretendard Variable' }}
               tabIndex={0}
               onClick={() => handleCommand(label)}
               onKeyDown={(e) => {
@@ -149,7 +129,18 @@ export default function ControlPanel({ onCommand }) {
               onMouseDown={() => setPressed(label)}
               onMouseUp={() => setPressed(null)}
             >
-              <span style={iconWrapperStyle}>
+              <span
+                className={clsx(
+                  'bg-transparent',
+                  'rounded-full',
+                  'w-20',
+                  'h-20',
+                  'flex',
+                  'items-center',
+                  'justify-center',
+                  'mb-1'
+                )}
+              >
                 <Icon size={icon_size} color={color} />
               </span>
               {label}
@@ -157,20 +148,8 @@ export default function ControlPanel({ onCommand }) {
           );
         })}
       </div>
-      <div
-        style={{
-          display: 'flex',
-          flex: 1,
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          width: '100%',
-          gap: 30,
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0, fontSize: 33, textAlign: 'center' }}>
-          Please prepare next episode
-        </div>
+      <div className="flex flex-1 flex-col justify-center items-center w-full gap-8">
+        <div className="flex-1 min-w-0 text-3xl text-center">Please prepare next episode</div>
         <ProgressBar percent={60} />
       </div>
     </div>

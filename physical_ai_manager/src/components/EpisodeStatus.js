@@ -35,8 +35,9 @@ export default function EpisodeStatus() {
         'shadow-md'
       )}
     >
-      <div className="text-lg mb-1 justify-start">Episode</div>
-      <div className="bg-gray-200 rounded-lg py-1.5 px-3 text-base font-bold">
+      <div className="mb-1 justify-start text-2xl">Episode</div>
+      <div className="h-3"></div>
+      <div className="w-full bg-gray-200 rounded-lg py-1.5 px-3 text-3xl font-bold">
         <span className="font-bold">14</span> / <span className="text-gray-600">150</span>
       </div>
     </div>

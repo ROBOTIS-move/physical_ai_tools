@@ -180,7 +180,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
           >
             <div className="ml-1 mr-1 flex flex-col items-center h-full">
               <div className="w-full h-10"></div>
-              <div className="w-[200px] flex justify-center">
+              <div className="w-[250px] flex justify-center">
                 <EpisodeStatus />
               </div>
               <div className="w-full h-10"></div>

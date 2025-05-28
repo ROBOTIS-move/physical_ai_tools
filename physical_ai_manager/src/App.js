@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ImageGrid from './components/ImageGrid';
 import EpisodeStatus from './components/EpisodeStatus';
 import ControlPanel from './components/ControlPanel';
@@ -25,6 +25,7 @@ import RosTopicSubscriber from './components/RosTopicSubscriber';
 import RosServiceCaller from './components/RosServiceCaller';
 import './App.css';
 import YamlEditor from './components/YamlEditor';
+import { useRosServiceCaller } from './hooks/useRosServiceCaller';
 
 function SettingPage({ rosHost, setRosHost, yamlContent, setYamlContent }) {
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
@@ -97,6 +98,14 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
     pushToHub: true,
   });
 
+  const { setGuiPage } = useRosServiceCaller(`ws://${rosHost.split(':')[0]}:9090`);
+
+  const handleControlCommand = (cmd) => {
+    if (cmd === 'Start') {
+      setGuiPage('Waiting', 'home');
+    }
+  };
+
   return (
     <>
       <div className="top-section">
@@ -121,8 +130,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
           </div>
         </div>
       </div>
-
-      <ControlPanel />
+      <ControlPanel onCommand={handleControlCommand} />
     </>
   );
 }

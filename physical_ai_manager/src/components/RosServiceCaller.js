@@ -14,15 +14,13 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState } from 'react';
+import React, { useState, useImperativeHandle, forwardRef } from 'react';
 import ROSLIB from 'roslib';
 
-export default function RosServiceCaller({
-  rosbridgeUrl,
-  serviceName,
-  serviceType,
-  requestFields,
-}) {
+const RosServiceCaller = forwardRef(function RosServiceCaller(
+  { rosbridgeUrl, serviceName, serviceType, requestFields },
+  ref
+) {
   const [response, setResponse] = useState(null);
   const [connected, setConnected] = useState(false);
   const [request, setRequest] = useState(requestFields || {});
@@ -40,7 +38,7 @@ export default function RosServiceCaller({
     setRequest({ ...request, [e.target.name]: e.target.value });
   };
 
-  const callService = () => {
+  const callService = (serviceName, serviceType, request) => {
     setLoading(true);
     const ros = new ROSLIB.Ros({ url: rosbridgeUrl });
     const service = new ROSLIB.Service({
@@ -55,6 +53,18 @@ export default function RosServiceCaller({
       ros.close();
     });
   };
+
+  const setGuiPage = (pageName, option) => {
+    callService('/gui/set_page', 'gaemi_interfaces/srv/SetGUIPage', {
+      page_name: pageName,
+      option: option,
+    });
+  };
+
+  useImperativeHandle(ref, () => ({
+    callService,
+    setGuiPage,
+  }));
 
   return (
     <div
@@ -135,4 +145,6 @@ export default function RosServiceCaller({
       </div>
     </div>
   );
-}
+});
+
+export default RosServiceCaller;

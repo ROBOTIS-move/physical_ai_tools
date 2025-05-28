@@ -69,7 +69,7 @@ const buttons = [
   { label: 'Finish', icon: MdCheck, color: '#388e3c' },
 ];
 
-export default function ControlPanel() {
+export default function ControlPanel({ onCommand }) {
   const icon_size = 70;
   const [hovered, setHovered] = useState(null);
   const [pressed, setPressed] = useState(null);
@@ -81,6 +81,7 @@ export default function ControlPanel() {
   }, [started]);
 
   const handleCommand = (label) => {
+    if (onCommand) onCommand(label);
     console.log(label + ' command executed');
     if (label === 'Start') setStarted(true);
     if (label === 'Stop') setStarted(false);

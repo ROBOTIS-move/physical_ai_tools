@@ -164,7 +164,7 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
             className="cell-wrapper"
             style={{
               ...cellWrapperStyle,
-              flex: idx === 1 ? '3 1 0' : '1 1 0',
+              flex: idx === 1 ? '7 1 0' : '3 1 0',
             }}
           >
             <ImageGridCell

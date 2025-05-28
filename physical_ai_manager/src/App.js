@@ -16,7 +16,6 @@
 
 import React, { useState, useEffect } from 'react';
 import ImageGrid from './components/ImageGrid';
-import TaskSelector from './components/TaskSelector';
 import EpisodeStatus from './components/EpisodeStatus';
 import ControlPanel from './components/ControlPanel';
 import InfoPanel from './components/InfoPanel';
@@ -83,20 +82,20 @@ function SettingPage({ rosHost, setRosHost, yamlContent, setYamlContent }) {
 }
 
 function HomePage({ topics, setTopics, rosHost, yamlContent }) {
-  const info = {
-    taskName: 'omy_task_123',
-    robotType: 'omy',
+  const [info, setInfo] = useState({
+    taskName: 'ai_worker_task_abcd_12345',
+    robotType: 'ai-worker',
     taskType: 'record',
-    singleTask: 'pick and place objects',
+    taskInstruction: 'pick and place objects',
     fps: 30,
     tags: ['tutorial'],
-    warmupTime: '5 sec',
-    episodeTime: '60 sec',
-    resetTime: '60 sec',
+    warmupTime: 5,
+    episodeTime: 60,
+    resetTime: 60,
     numEpisodes: 100,
     resume: true,
     pushToHub: true,
-  };
+  });
 
   return (
     <>
@@ -117,12 +116,8 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
             >
               <EpisodeStatus />
             </div>
-            <div style={{ width: '100%', height: '50px' }}></div>
-            <TaskSelector
-              yamlContent={yamlContent}
-              onTaskSelect={(task) => console.log('Selected task:', task)}
-            />
-            <InfoPanel info={info} />
+            <div style={{ width: '100%', height: '30px' }}></div>
+            <InfoPanel info={info} onChange={setInfo} />
           </div>
         </div>
       </div>

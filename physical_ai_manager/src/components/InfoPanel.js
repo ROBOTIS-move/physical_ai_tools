@@ -17,52 +17,129 @@
 import React from 'react';
 import './InfoPanel.css';
 
-const InfoPanel = ({ info }) => (
-  <div className="info-panel">
-    <div>
-      <span className="label">task name</span> <span className="value">{info.taskName}</span>
+const InfoPanel = ({ info, onChange }) => {
+  const handleChange = (field, value) => {
+    onChange({ ...info, [field]: value });
+  };
+
+  return (
+    <div className="info-panel">
+      <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 16 }}>Task Information</div>
+      <div className="info-panel-row">
+        <span className="label">task name</span>
+        <textarea
+          className="value"
+          style={{ fontSize: '15px', resize: 'vertical', minHeight: '16px', maxHeight: '100px' }}
+          value={info.taskName || ''}
+          onChange={(e) => handleChange('taskName', e.target.value)}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">robot type</span>
+        <input
+          className="value"
+          type="text"
+          value={info.robotType || ''}
+          onChange={(e) => handleChange('robotType', e.target.value)}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">task type</span>
+        <input
+          className="value"
+          type="text"
+          value={info.taskType || ''}
+          onChange={(e) => handleChange('taskType', e.target.value)}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">task instruction</span>
+        <textarea
+          className="value"
+          style={{ fontSize: '15px', resize: 'vertical', minHeight: '32px', maxHeight: '120px' }}
+          value={info.taskInstruction || ''}
+          onChange={(e) => handleChange('taskInstruction', e.target.value)}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">fps</span>
+        <input
+          className="value"
+          type="number"
+          value={info.fps || ''}
+          onChange={(e) => handleChange('fps', Number(e.target.value))}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">tags</span>
+        <input
+          className="value"
+          type="text"
+          value={Array.isArray(info.tags) ? info.tags.join(', ') : ''}
+          onChange={(e) =>
+            handleChange(
+              'tags',
+              e.target.value.split(',').map((s) => s.trim())
+            )
+          }
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">warmup time (s)</span>
+        <input
+          className="value"
+          type="text"
+          value={info.warmupTime || ''}
+          onChange={(e) => handleChange('warmupTime', e.target.value)}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">episode time (s)</span>
+        <input
+          className="value"
+          type="text"
+          value={info.episodeTime || ''}
+          onChange={(e) => handleChange('episodeTime', e.target.value)}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">reset time (s)</span>
+        <input
+          className="value"
+          type="text"
+          value={info.resetTime || ''}
+          onChange={(e) => handleChange('resetTime', e.target.value)}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">num episodes</span>
+        <input
+          className="value"
+          type="number"
+          value={info.numEpisodes || ''}
+          onChange={(e) => handleChange('numEpisodes', Number(e.target.value))}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">resume</span>
+        <input
+          className="value"
+          type="checkbox"
+          checked={!!info.resume}
+          onChange={(e) => handleChange('resume', e.target.checked)}
+        />
+      </div>
+      <div className="info-panel-row">
+        <span className="label">push to hub</span>
+        <input
+          className="value"
+          type="checkbox"
+          checked={!!info.pushToHub}
+          onChange={(e) => handleChange('pushToHub', e.target.checked)}
+        />
+      </div>
     </div>
-    <div>
-      <span className="label">robot type</span> <span className="value">{info.robotType}</span>
-    </div>
-    <div>
-      <span className="label">task type</span> <span className="value">{info.taskType}</span>
-    </div>
-    <div className="info-panel-row">
-      <span className="label" style={{ whiteSpace: 'nowrap' }}>
-        single task
-      </span>
-      <span className="value" style={{ fontSize: '18px' }}>
-        {info.singleTask}
-      </span>
-    </div>
-    <div>
-      <span className="label">fps</span> <span className="value">{info.fps}</span>
-    </div>
-    <div>
-      <span className="label">tags</span> <span className="value">{JSON.stringify(info.tags)}</span>
-    </div>
-    <div>
-      <span className="label">warmup time</span> <span className="value">{info.warmupTime}</span>
-    </div>
-    <div>
-      <span className="label">episode time</span> <span className="value">{info.episodeTime}</span>
-    </div>
-    <div>
-      <span className="label">reset time</span> <span className="value">{info.resetTime}</span>
-    </div>
-    <div>
-      <span className="label">num episodes</span> <span className="value">{info.numEpisodes}</span>
-    </div>
-    <div>
-      <span className="label">resume</span>{' '}
-      <span className="value">{info.resume ? 'true' : 'false'}</span>
-    </div>
-    <div>
-      <span className="label">push to hub</span>{' '}
-      <span className="value">{info.pushToHub ? 'true' : 'false'}</span>
-    </div>
-  </div>
-);
+  );
+};
 
 export default InfoPanel;

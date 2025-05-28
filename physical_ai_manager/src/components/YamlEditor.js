@@ -16,6 +16,7 @@
 
 import React, { useState, useEffect } from 'react';
 import yaml from 'js-yaml';
+import clsx from 'clsx';
 
 function YamlEditor({ onYamlLoad }) {
   const [fileContent, setFileContent] = useState(() => {
@@ -169,7 +170,18 @@ function YamlEditor({ onYamlLoad }) {
 
     const lines = editableContent.split('\n');
     return (
-      <div className="absolute top-0 left-0 w-full h-full m-0 p-4 font-mono text-sm bg-transparent border-none box-border leading-relaxed overflow-auto whitespace-pre">
+      <div
+        className={clsx(
+          'absolute',
+          'top-0',
+          'left-0',
+          'w-full',
+          'h-full',
+          'm-0',
+          'p-4',
+          'font-mono'
+        )}
+      >
         {lines.map((line, index) => (
           <div key={index} className={errorLine === index + 1 ? 'bg-red-200 block w-full' : ''}>
             {line}
@@ -231,7 +243,24 @@ function YamlEditor({ onYamlLoad }) {
               <textarea
                 value={editableContent}
                 onChange={(e) => setEditableContent(e.target.value)}
-                className="absolute top-0 left-0 w-full h-full font-mono text-sm p-4 bg-transparent border-none outline-none resize-none box-border whitespace-pre leading-relaxed overflow-auto"
+                className={clsx(
+                  'absolute',
+                  'top-0',
+                  'left-0',
+                  'w-full',
+                  'h-full',
+                  'font-mono',
+                  'text-sm',
+                  'p-4',
+                  'bg-transparent',
+                  'border-none',
+                  'outline-none',
+                  'resize-none',
+                  'box-border',
+                  'whitespace-pre',
+                  'leading-relaxed',
+                  'overflow-auto'
+                )}
               />
             ) : (
               renderYamlWithLineNumbers()

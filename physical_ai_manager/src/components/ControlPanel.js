@@ -71,11 +71,11 @@ export default function ControlPanel({ onCommand }) {
   return (
     <div
       className={clsx(
-        'control-panel-fixed',
         'h-56',
         'bg-gray-300',
         'rounded-3xl',
-        'm-8',
+        'mx-8',
+        'my-4',
         'p-4',
         'flex',
         'flex-row',

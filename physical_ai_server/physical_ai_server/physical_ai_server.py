@@ -173,7 +173,7 @@ class PhysicalAIServer(Node):
 
         if len(camera_data) != len(self.params['camera_topic_list']):
             self.get_logger().error(
-                f'Camera data length does not match the number of camera topics: {len(camera_data)} != {len(self.params["camera_topic_list"])}')
+                f'Camera data length does not match the number of camera topics: {len(camera_data)} != {len(self.params['camera_topic_list'])}')
             return False
         
         if len(self.total_joint_order) != len(follower_data):
@@ -260,7 +260,7 @@ class PhysicalAIServer(Node):
 
             self.timer_manager.start(timer_name=self.operation_mode)
             response.success = True
-            response.message = "Recording started"
+            response.message = 'Recording started'
 
         elif request.command == SendRecordingCommand.Request.STOP:
             self.get_logger().info('Stopping recording')
@@ -268,8 +268,7 @@ class PhysicalAIServer(Node):
                 self.timer_manager.stop(timer_name=self.operation_mode)
                 self.data_manager.record_stop()
             response.success = True
-            response.message = "Recording stopped"
-
+            response.message = 'Recording stopped'
         return response
 
 

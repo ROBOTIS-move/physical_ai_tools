@@ -146,7 +146,7 @@ class DataManager:
         if os.path.exists(root):
             return True
         # Huggingface dataset check
-        url = f"https://huggingface.co/api/datasets/{repo_id}"
+        url = f'https://huggingface.co/api/datasets/{repo_id}'
         response = requests.get(url)
         url_exist_code = 200
 
@@ -223,6 +223,6 @@ class DataManager:
     def download_dataset(self, repo_id):
         snapshot_download(
             repo_id,
-            repo_type="dataset",
+            repo_type='dataset',
             local_dir=self._record_config.root,
         )

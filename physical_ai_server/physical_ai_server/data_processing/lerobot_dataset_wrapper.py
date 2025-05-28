@@ -46,10 +46,10 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             self.episode_buffer = self.create_episode_buffer()
 
         # Automatically add frame_index and timestamp to episode buffer
-        frame_index = self.episode_buffer["size"]
-        timestamp = frame.pop("timestamp") if "timestamp" in frame else frame_index / self.fps
-        self.episode_buffer["frame_index"].append(frame_index)
-        self.episode_buffer["timestamp"].append(timestamp)
+        frame_index = self.episode_buffer['size']
+        timestamp = frame.pop('timestamp') if 'timestamp' in frame else frame_index / self.fps
+        self.episode_buffer['frame_index'].append(frame_index)
+        self.episode_buffer['timestamp'].append(timestamp)
 
         # Add frame features to episode_buffer
         for key in frame:
@@ -58,7 +58,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             else:
                 self.episode_buffer[key].append(frame[key])
 
-        self.episode_buffer["size"] += 1
+        self.episode_buffer['size'] += 1
 
     def save_episode_without_write_image(self):
         episode_buffer = self.episode_buffer
@@ -67,15 +67,15 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             self.meta.total_episodes,
             self.features)
 
-        episode_length = episode_buffer.pop("size")
-        tasks = episode_buffer.pop("task")
+        episode_length = episode_buffer.pop('size')
+        tasks = episode_buffer.pop('task')
         episode_tasks = list(set(tasks))
-        episode_index = episode_buffer["episode_index"]
+        episode_index = episode_buffer['episode_index']
 
-        episode_buffer["index"] = np.arange(
+        episode_buffer['index'] = np.arange(
             self.meta.total_frames,
             self.meta.total_frames + episode_length)
-        episode_buffer["episode_index"] = np.full((episode_length,), episode_index)
+        episode_buffer['episode_index'] = np.full((episode_length,), episode_index)
 
         # Add new tasks to the tasks dictionary
         for task in episode_tasks:
@@ -84,10 +84,10 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 self.meta.add_task(task)
 
         # Given tasks in natural language, find their corresponding task indices
-        episode_buffer["task_index"] = np.array([self.meta.get_task_index(task) for task in tasks])
+        episode_buffer['task_index'] = np.array([self.meta.get_task_index(task) for task in tasks])
         for key, ft in self.features.items():
-            if (key in ["index", "episode_index", "task_index"] or
-                    ft["dtype"] in ["image", "video"]):
+            if (key in ['index', 'episode_index', 'task_index'] or
+                    ft['dtype'] in ['image', 'video']):
                 continue
             episode_buffer[key] = np.stack(episode_buffer[key])
 
@@ -103,13 +103,13 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 self.create_video(ep, video_path)
                 video_count += 1
                 video_info = {
-                    "video.height": self.features[key]['shape'][0],
-                    "video.width": self.features[key]['shape'][1],
-                    "video.channels": self.features[key]['shape'][2],
-                    "video.codec": "libx264",
-                    "video.pix_fmt": "yuv420p",
+                    'video.height': self.features[key]['shape'][0],
+                    'video.width': self.features[key]['shape'][1],
+                    'video.channels': self.features[key]['shape'][2],
+                    'video.codec': 'libx264',
+                    'video.pix_fmt': 'yuv420p',
                 }
-                self.meta.info["features"][key]["info"] = video_info
+                self.meta.info['features'][key]['info'] = video_info
 
         self.save_meta_info(
             video_count,
@@ -128,17 +128,17 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             episode_stats):
         chunk = self.meta.get_episode_chunk(episode_index)
         if chunk >= self.meta.total_chunks:
-            self.meta.info["total_chunks"] += 1
-        self.meta.info["total_episodes"] += 1
-        self.meta.info["total_frames"] += episode_length
-        self.meta.info["total_videos"] += video_count
-        self.meta.info["splits"] = {"train": f"0:{self.meta.info['total_episodes']}"}
-        self.meta.info["robot_type"] = "aiworker"
+            self.meta.info['total_chunks'] += 1
+        self.meta.info['total_episodes'] += 1
+        self.meta.info['total_frames'] += episode_length
+        self.meta.info['total_videos'] += video_count
+        self.meta.info['splits'] = {'train': f'0:{self.meta.info['total_episodes']}'}
+        self.meta.info['robot_type'] = 'aiworker'
 
         episode_dict = {
-            "episode_index": episode_index,
-            "tasks": episode_tasks,
-            "length": episode_length,
+            'episode_index': episode_index,
+            'tasks': episode_tasks,
+            'length': episode_length,
         }
 
         write_info(self.meta.info, self.meta.root)
@@ -154,10 +154,10 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         self.encoders[save_path] = FFmpegBufferEncoder(
                 fps=30,
                 chunk_size=50,
-                preset="ultrafast",
+                preset='ultrafast',
                 crf=28,
-                pix_fmt="yuv420p",
-                vcodec="libx264"
+                pix_fmt='yuv420p',
+                vcodec='libx264'
             )
         self.encoders[save_path].set_buffer(image_buffer)
         encoding_thread = threading.Thread(
@@ -177,9 +177,9 @@ class LeRobotDatasetWrapper(LeRobotDataset):
     def compute_episode_stats_buffer(self, episode_buffer, features):
         ep_stats = {}
         for key, data in episode_buffer.items():
-            if features[key]["dtype"] == "string":
+            if features[key]['dtype'] == 'string':
                 continue  # HACK: we should receive np.arrays of strings
-            elif features[key]["dtype"] in ["image", "video"]:
+            elif features[key]['dtype'] in ['image', 'video']:
                 ep_ft_array = np.array(data)
                 ep_ft_array = np.transpose(ep_ft_array, (0, 3, 1, 2))
                 axes_to_reduce = (0, 2, 3)  # keep channel dim
@@ -195,9 +195,9 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 keepdims=keepdims)
 
             # finally, we normalize and remove batch dim for images
-            if features[key]["dtype"] in ["image", "video"]:
+            if features[key]['dtype'] in ['image', 'video']:
                 ep_stats[key] = {
-                    k: v if k == "count" else np.squeeze(
+                    k: v if k == 'count' else np.squeeze(
                         v / 255.0, axis=0) for k, v in ep_stats[key].items()
                 }
         return ep_stats

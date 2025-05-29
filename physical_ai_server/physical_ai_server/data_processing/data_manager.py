@@ -18,13 +18,13 @@
 
 import os
 import time
-import requests
 
 from huggingface_hub import snapshot_download
 from lerobot.common.datasets.utils import DEFAULT_FEATURES
 from lerobot.common.robot_devices.control_configs import RecordControlConfig
 import numpy as np
 from physical_ai_server.data_processing.lerobot_dataset_wrapper import LeRobotDatasetWrapper
+import requests
 
 
 class DataManager:
@@ -85,7 +85,7 @@ class DataManager:
 
         if self._start_time_s == 0:
             self._start_time_s = time.perf_counter()
-        
+
         if self.status == 'warmup':
             if not self._check_time(self._record_config.warmup_time_s, 'run'):
                 return False

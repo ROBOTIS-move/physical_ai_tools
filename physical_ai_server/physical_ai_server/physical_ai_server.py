@@ -16,21 +16,22 @@
 #
 # Author: Dongyun Kim
 
-import cv2
 from pathlib import Path
 
+import cv2
+from physical_ai_interfaces.srv import SendRecordingCommand
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_converter import DataConverter
+from physical_ai_server.data_processing.data_manager import DataManager
+from physical_ai_server.timer.timer_manager import TimerManager
 from physical_ai_server.utils.parameter_utils import (
     declare_parameters,
     load_parameters,
     log_parameters,
 )
-from physical_ai_server.data_processing.data_manager import DataManager
+
 import rclpy
 from rclpy.node import Node
-from physical_ai_interfaces.srv import SendRecordingCommand
-from physical_ai_server.timer.timer_manager import TimerManager
 
 
 class PhysicalAIServer(Node):
@@ -54,7 +55,7 @@ class PhysicalAIServer(Node):
         self.joint_order = None
         self.total_joint_order = None
         self.default_save_root_path = Path.home() / '.cache/huggingface/lerobot'
-        
+
     def init_robot_control_parameters_from_user_task(
             self,
             robot_type,
@@ -81,7 +82,7 @@ class PhysicalAIServer(Node):
 
         self.data_converter = DataConverter()
         self.data_collection_config = None
-    
+
     def clear_robot_control_parameters(self):
         self.communicator = None
         self.timer_manager = None
@@ -147,7 +148,7 @@ class PhysicalAIServer(Node):
             leader_data: list) -> bool:
 
         image_msgs, follower_msgs, leader_msgs = self.communicator.get_latest_data()
-        
+
         if image_msgs is not None and follower_msgs is not None:
             for key, value in image_msgs.items():
                 camera_data[key] = cv2.cvtColor(
@@ -173,14 +174,14 @@ class PhysicalAIServer(Node):
 
         if len(camera_data) != len(self.params['camera_topic_list']):
             self.get_logger().error(
-                f'Camera data length does not match the number of camera topics: {len(camera_data)} != {len(self.params['camera_topic_list'])}')
+                'Camera data length does not match the number of cameras')
             return False
-        
+
         if len(self.total_joint_order) != len(follower_data):
             self.get_logger().error(
                 'Follower data length does not match the number of joints')
             return False
-        
+
         if len(self.total_joint_order) != len(leader_data):
             self.get_logger().error(
                 'Leader data length does not match the number of joints')
@@ -200,9 +201,9 @@ class PhysicalAIServer(Node):
         leader_data = []
 
         if not self.update_latest_data(
-            camera_data,
-            follower_data,
-            leader_data):
+                camera_data,
+                follower_data,
+                leader_data):
             return
 
         if not self.data_manager.check_lerobot_dataset(
@@ -222,7 +223,6 @@ class PhysicalAIServer(Node):
             self.get_logger().info('Recording stopped')
             self.timer_manager.stop(timer_name=self.operation_mode)
             return
-
 
     def inference_timer_callback(self):
         camera_data, follower_data, _ = self.update_latest_data()

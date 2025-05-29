@@ -16,12 +16,13 @@
 #
 # Author: Dongyun Kim
 
-import numpy as np
-import subprocess
-from pathlib import Path
-from typing import List, Optional, Union
 import os
+from pathlib import Path
+import subprocess
 import time
+from typing import List, Optional, Union
+
+import numpy as np
 
 
 class VideoBufferEncoder:

@@ -23,8 +23,8 @@ from lerobot.common.datasets.compute_stats import (
 )
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.common.datasets.utils import (
-    validate_frame,
     validate_episode_buffer,
+    validate_frame,
     write_episode,
     write_episode_stats,
     write_info
@@ -132,7 +132,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         self.meta.info['total_episodes'] += 1
         self.meta.info['total_frames'] += episode_length
         self.meta.info['total_videos'] += video_count
-        self.meta.info['splits'] = {'train': f'0:{self.meta.info['total_episodes']}'}
+        self.meta.info['splits'] = {'train': f"0:{self.meta.info['total_episodes']}"}
         self.meta.info['robot_type'] = 'aiworker'
 
         episode_dict = {
@@ -150,7 +150,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             image_buffer: list[np.ndarray],
             save_path: str):
         if not hasattr(self, 'encoders') or self.encoders is None:
-           self.encoders = {}
+            self.encoders = {}
         self.encoders[save_path] = FFmpegBufferEncoder(
                 fps=30,
                 chunk_size=50,

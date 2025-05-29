@@ -145,6 +145,41 @@ const InfoPanel = ({ info, onChange }) => {
         />
       </div>
 
+      <div className={clsx('flex', 'items-start', 'mb-2.5')}>
+        <span
+          className={clsx(
+            'text-sm',
+            'text-gray-600',
+            'w-28',
+            'flex-shrink-0',
+            'font-medium',
+            'pt-2'
+          )}
+        >
+          Repo ID
+        </span>
+        <textarea
+          className={clsx(
+            'text-sm',
+            'resize-y',
+            'min-h-10',
+            'max-h-24',
+            'h-10',
+            'w-full',
+            'p-2',
+            'border',
+            'border-gray-300',
+            'rounded-md',
+            'focus:outline-none',
+            'focus:ring-2',
+            'focus:ring-blue-500',
+            'focus:border-transparent'
+          )}
+          value={info.repoId || ''}
+          onChange={(e) => handleChange('repoId', e.target.value)}
+        />
+      </div>
+
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
         <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
           FPS
@@ -183,7 +218,9 @@ const InfoPanel = ({ info, onChange }) => {
             'focus:outline-none',
             'focus:ring-2',
             'focus:ring-blue-500',
-            'focus:border-transparent'
+            'focus:border-transparent',
+            'bg-gray-100', // TODO: remove this when enable tags
+            'cursor-not-allowed'
           )}
           type="text"
           value={Array.isArray(info.tags) ? info.tags.join(', ') : ''}
@@ -193,6 +230,7 @@ const InfoPanel = ({ info, onChange }) => {
               e.target.value.split(',').map((s) => s.trim())
             )
           }
+          disabled // TODO: remove this when enable tags
         />
       </div>
 

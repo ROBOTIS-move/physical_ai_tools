@@ -68,5 +68,25 @@ export function useRosServiceCaller(rosbridgeUrl) {
     [callService]
   );
 
-  return { callService, setGuiPage };
+  const sendRecordCommand = useCallback(
+    (command, task_info) => {
+      callService('recording/command', 'physical_ai_interfaces/srv/SendRecordingCommand', {
+        command: command,
+        task_name: task_info.taskName,
+        robot_type: task_info.robotType,
+        frequency: task_info.fps,
+        task_instruction: task_info.taskInstruction,
+        repo_id: task_info.repoId,
+        use_image_buffer: true,
+        reset_time: task_info.resetTime,
+        episode_time: task_info.episodeTime,
+        episode_num: task_info.numEpisodes,
+        push_to_hub: task_info.pushToHub,
+        private_mode: false,
+      });
+    },
+    [callService]
+  );
+
+  return { callService, setGuiPage, sendRecordCommand };
 }

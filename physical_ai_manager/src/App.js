@@ -70,6 +70,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
     robotType: 'ai-worker',
     taskType: 'record',
     taskInstruction: 'pick and place objects',
+    repoId: 'robotis/ai_worker_dataset',
     fps: 30,
     tags: ['tutorial'],
     warmupTime: 5,
@@ -81,16 +82,29 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
   });
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
-  const { setGuiPage } = useRosServiceCaller(`ws://${rosHost.split(':')[0]}:9090`);
+  const { setGuiPage, sendRecordCommand } = useRosServiceCaller(
+    `ws://${rosHost.split(':')[0]}:9090`
+  );
 
   const handleControlCommand = (cmd) => {
     console.log('Control command received:', cmd);
     try {
       if (cmd === 'Start') {
-        console.log('Calling setGuiPage with Waiting, home');
-        setGuiPage('Waiting', 'home');
+        console.log('Calling sendRecordCommand with start');
+        sendRecordCommand('start', info);
+      } else if (cmd === 'Stop') {
+        console.log('Calling sendRecordCommand with stop');
+        sendRecordCommand('stop', info);
+      } else if (cmd === 'Retry') {
+        console.log('Calling sendRecordCommand with retry');
+        sendRecordCommand('retry', info);
+      } else if (cmd === 'Next') {
+        console.log('Calling sendRecordCommand with next');
+        sendRecordCommand('next', info);
+      } else if (cmd === 'Finish') {
+        console.log('Calling sendRecordCommand with finish');
+        sendRecordCommand('finish', info);
       }
-      // Add other command handling here if needed
     } catch (error) {
       console.error('Error handling control command:', error);
     }
@@ -151,7 +165,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
               'z-10',
               {
                 'left-2': isRightPanelCollapsed,
-                'left+[10px]': !isRightPanelCollapsed,
+                'left-[10px]': !isRightPanelCollapsed,
               }
             )}
           >

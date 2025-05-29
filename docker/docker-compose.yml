@@ -4,8 +4,7 @@ services:
       context: ../physical_ai_manager
       dockerfile: Dockerfile
     container_name: physical_ai_manager
-    ports:
-      - 80:80
+    network_mode: host
     restart: unless-stopped
 
   physical_ai_server:

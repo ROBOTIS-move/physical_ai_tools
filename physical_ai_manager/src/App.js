@@ -124,7 +124,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Main content area */}
-      <div className="flex-1 flex min-h-0 pt-0 px-0 justify-center items-start overflow-hidden">
+      <div className="flex-1 flex min-h-0 pt-0 px-0 justify-center items-start overflow-scroll">
         <div
           className={clsx(
             'transition-all',

@@ -14,12 +14,25 @@
 //
 // Author: Kiwoong Park
 
-import React from 'react';
+import React, { useState } from 'react';
 import clsx from 'clsx';
 
+const dummyTaskInfoList = [
+  { taskName: 'Task 1', robotType: 'Type A', taskType: 'Type X', taskInstruction: 'Do X', repoId: 'repo1', fps: 30, tags: ['tag1'], warmupTime: '10', episodeTime: '60', resetTime: '5', numEpisodes: 3, resume: false, pushToHub: false },
+  { taskName: 'Task 2', robotType: 'Type B', taskType: 'Type Y', taskInstruction: 'Do Y', repoId: 'repo2', fps: 20, tags: ['tag2'], warmupTime: '5', episodeTime: '30', resetTime: '2', numEpisodes: 5, resume: true, pushToHub: true },
+];
+
 const InfoPanel = ({ info, onChange }) => {
+  const [showPopup, setShowPopup] = useState(false);
+  const [taskInfoList] = useState(dummyTaskInfoList);
+
   const handleChange = (field, value) => {
     onChange({ ...info, [field]: value });
+  };
+
+  const handleSelect = (selected) => {
+    onChange(selected);
+    setShowPopup(false);
   };
 
   return (
@@ -32,7 +45,8 @@ const InfoPanel = ({ info, onChange }) => {
         'shadow-md',
         'p-4',
         'w-full',
-        'max-w-[350px]'
+        'max-w-[350px]',
+        'relative'
       )}
     >
       <div className={clsx('text-lg', 'font-semibold', 'mb-3', 'text-gray-800')}>
@@ -377,6 +391,40 @@ const InfoPanel = ({ info, onChange }) => {
           </span>
         </div>
       </div>
+
+      <button
+        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded w-full"
+        onClick={() => setShowPopup(true)}
+      >
+        Load Previous Task Info
+      </button>
+
+      {showPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-2xl w-full">
+            <div className="mb-4 font-bold text-lg">Select Task Info</div>
+            <div className="grid grid-cols-2 gap-4">
+              {taskInfoList.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="p-4 border rounded cursor-pointer hover:bg-blue-100"
+                  onClick={() => handleSelect(item)}
+                >
+                  <div className="font-semibold">{item.taskName}</div>
+                  <div className="text-sm text-gray-600">{item.taskType}</div>
+                  <div className="text-xs text-gray-400">{item.repoId}</div>
+                </div>
+              ))}
+            </div>
+            <button
+              className="mt-6 px-4 py-2 bg-gray-400 text-white rounded"
+              onClick={() => setShowPopup(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

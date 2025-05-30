@@ -25,9 +25,10 @@ Unified Policy Framework
 """
 
 from .base_policy import BasePolicy
+from .model_config_manager import ModelConfigManager
 from .policy_factory import PolicyFactory, ConfigManager
 
-# 모든 정책 클래스들을 import하여 팩토리에 자동 등록
+# Import all policy classes to auto-register them with factory
 from .act_policy import ACTPolicy
 from .diffusion_policy import DiffusionPolicy
 from .pi0_policy import Pi0Policy
@@ -35,6 +36,7 @@ from .gr00t_n1_policy import GR00TN1Policy
 
 __all__ = [
     'BasePolicy',
+    'ModelConfigManager',
     'PolicyFactory', 
     'ConfigManager',
     'ACTPolicy',

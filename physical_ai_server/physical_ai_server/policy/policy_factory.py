@@ -30,25 +30,39 @@ class PolicyFactory:
     def create_policy(cls, 
                      policy_type: str, 
                      config_path: str = None, 
-                     config_dict: Dict[str, Any] = None) -> BasePolicy:
+                     config_dict: Dict[str, Any] = None,
+                     pretrained_model_path: str = None,
+                     merge_strategy: str = "user_priority") -> BasePolicy:
         """
-        정책 생성
+        Create policy with enhanced configuration management
         
         Args:
-            policy_type: 정책 타입 (예: 'act', 'diffusion', 'pi0', 'gr00t_n1')
-            config_path: YAML 설정 파일 경로
-            config_dict: 설정 딕셔너리
+            policy_type: Policy type (e.g., 'act', 'diffusion', 'pi0', 'gr00t_n1')
+            config_path: YAML configuration file path
+            config_dict: Configuration dictionary
+            pretrained_model_path: Path to pretrained model for auto-config loading
+            merge_strategy: Strategy for merging configurations
+                - "user_priority": User config overrides pretrained config (default)
+                - "pretrained_priority": Pretrained config takes precedence
+                - "smart_merge": Intelligent merging based on field types
             
         Returns:
-            생성된 정책 인스턴스
+            Created policy instance with enhanced configuration
         """
         if policy_type not in cls._policy_registry:
             available_policies = list(cls._policy_registry.keys())
-            raise ValueError(f"알 수 없는 정책 타입: {policy_type}. "
-                           f"사용 가능한 정책: {available_policies}")
+            raise ValueError(f"Unknown policy type: {policy_type}. "
+                           f"Available policies: {available_policies}")
         
         policy_class = cls._policy_registry[policy_type]
-        return policy_class(config_path=config_path, config_dict=config_dict)
+        
+        # Create policy with enhanced configuration support
+        return policy_class(
+            config_path=config_path, 
+            config_dict=config_dict,
+            pretrained_model_path=pretrained_model_path,
+            merge_strategy=merge_strategy
+        )
     
     @classmethod
     def get_available_policies(cls) -> Dict[str, Type[BasePolicy]]:

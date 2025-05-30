@@ -10,48 +10,104 @@ import os
 
 class ACTPolicy(BasePolicy):
     """
-    ACT (Action Chunking with Transformers) Policy Wrapper
+    Enhanced ACT (Action Chunking with Transformers) Policy Wrapper
     
     LeRobot의 ACT 정책을 통합 인터페이스로 래핑한 클래스입니다.
+    Enhanced configuration management를 지원하여 pretrained model의 설정을 
+    자동으로 로드하고 사용자 설정과 병합합니다.
     """
     
-    def __init__(self, config_path: str = None, config_dict: Dict[str, Any] = None):
-        super().__init__(config_path, config_dict)
+    def __init__(self, 
+                 config_path: str = None, 
+                 config_dict: Dict[str, Any] = None,
+                 pretrained_model_path: str = None,
+                 merge_strategy: str = "user_priority"):
+        """
+        Initialize ACT policy with enhanced configuration management
+        
+        Args:
+            config_path: YAML configuration file path
+            config_dict: Configuration dictionary
+            pretrained_model_path: Path to pretrained model for auto-config loading
+            merge_strategy: Strategy for merging configurations
+        """
+        super().__init__(config_path, config_dict, pretrained_model_path, merge_strategy)
         self.policy = None
         self.stats = None
         
     def load_model(self, checkpoint_path: str = None) -> None:
         """
-        ACT 모델 로드
+        Load ACT model with enhanced configuration management
         
         Args:
-            checkpoint_path: 체크포인트 경로 (선택사항, config에서 가져올 수 있음)
+            checkpoint_path: Checkpoint path (optional, can be taken from config)
         """
-        model_config = self.config['model']
-        pretrained_policy_name_or_path = model_config.get('pretrained_policy_name_or_path')
-        revision = model_config.get('revision', 'main')
+        model_config = self.config.get('model', {})
+        
+        # Determine the model path to use
+        model_path_to_use = None
         
         if checkpoint_path:
-            # 로컬 체크포인트 로드
-            self.policy = LeRobotACTPolicy.from_pretrained(checkpoint_path)
-        elif pretrained_policy_name_or_path:
-            # Hugging Face Hub에서 로드
-            self.policy = LeRobotACTPolicy.from_pretrained(
-                pretrained_policy_name_or_path,
-                revision=revision
-            )
+            # Use explicitly provided checkpoint path
+            model_path_to_use = checkpoint_path
+        elif self.pretrained_model_path:
+            # Use the pretrained model path from initialization
+            model_path_to_use = self.pretrained_model_path
+        elif model_config.get('pretrained_policy_name_or_path'):
+            # Use path from configuration
+            model_path_to_use = model_config.get('pretrained_policy_name_or_path')
         else:
-            raise ValueError("checkpoint_path 또는 pretrained_policy_name_or_path가 필요합니다.")
+            raise ValueError("No model path specified. Provide checkpoint_path, set pretrained_model_path, or specify pretrained_policy_name_or_path in config.")
         
-        self.policy.to(self.device)
-        self.policy.eval()
-        self.is_loaded = True
+        revision = model_config.get('revision', 'main')
         
-        # 정규화 통계 로드 (있는 경우)
         try:
-            if pretrained_policy_name_or_path:
+            # If the path exists locally, load from local path
+            if os.path.exists(model_path_to_use):
+                self.logger.info(f"Loading ACT model from local path: {model_path_to_use}")
+                self.policy = LeRobotACTPolicy.from_pretrained(model_path_to_use)
+            else:
+                # Try to load from Hugging Face Hub
+                self.logger.info(f"Loading ACT model from Hub: {model_path_to_use}")
+                self.policy = LeRobotACTPolicy.from_pretrained(
+                    model_path_to_use,
+                    revision=revision
+                )
+            
+            self.policy.to(self.device)
+            self.policy.eval()
+            self.is_loaded = True
+            
+            # Load normalization statistics if available
+            self._load_normalization_stats(model_path_to_use, revision)
+            
+            self.logger.info(f"ACT model loaded successfully on device: {self.device}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load ACT model: {e}")
+            raise RuntimeError(f"Failed to load ACT model from {model_path_to_use}: {e}")
+    
+    def _load_normalization_stats(self, model_path: str, revision: str = "main") -> None:
+        """
+        Load normalization statistics for the model
+        
+        Args:
+            model_path: Path to the model
+            revision: Model revision for Hub models
+        """
+        try:
+            if os.path.exists(model_path):
+                # Local model path
+                stats_path = os.path.join(model_path, "stats.json")
+                if os.path.exists(stats_path):
+                    import json
+                    with open(stats_path, 'r') as f:
+                        self.stats = json.load(f)
+                    self.logger.info("Loaded normalization statistics from local file")
+            else:
+                # Hub model - try to download stats
                 repo_path = snapshot_download(
-                    pretrained_policy_name_or_path,
+                    model_path,
                     revision=revision,
                     allow_patterns=["*.json", "*.yaml"]
                 )
@@ -60,8 +116,10 @@ class ACTPolicy(BasePolicy):
                     import json
                     with open(stats_path, 'r') as f:
                         self.stats = json.load(f)
+                    self.logger.info("Loaded normalization statistics from Hub")
         except Exception as e:
-            print(f"통계 파일 로드 실패: {e}")
+            self.logger.warning(f"Failed to load normalization statistics: {e}")
+            self.stats = None
     
     def predict(self, 
                 observation: Union[Dict[str, Any], torch.Tensor], 

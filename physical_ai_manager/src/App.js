@@ -20,7 +20,7 @@ import ImageGrid from './components/ImageGrid';
 import EpisodeStatus from './components/EpisodeStatus';
 import ControlPanel from './components/ControlPanel';
 import InfoPanel from './components/InfoPanel';
-import { MdHome } from 'react-icons/md';
+import { MdHome, MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight } from 'react-icons/md';
 import RosTopicList from './components/RosTopicList';
 import RosTopicSubscriber from './components/RosTopicSubscriber';
 import RosServiceCaller from './components/RosServiceCaller';
@@ -124,7 +124,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Main content area */}
-      <div className="flex-1 flex min-h-0 pt-0 px-0 justify-center items-start overflow-scroll">
+      <div className="flex-1 flex min-h-0 pt-0 px-0 justify-center items-start overflow-hidden">
         <div
           className={clsx(
             'transition-all',
@@ -183,16 +183,12 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
             <span
               className={clsx(
                 'text-gray-600',
-                'text-base',
-                'font-bold',
+                'text-3xl',
                 'transition-transform',
                 'duration-200',
-                {
-                  'rotate-180': !isRightPanelCollapsed,
-                }
               )}
             >
-              ◀
+              {isRightPanelCollapsed ? <MdKeyboardDoubleArrowLeft /> : <MdKeyboardDoubleArrowRight />}
             </span>
           </button>
           <div

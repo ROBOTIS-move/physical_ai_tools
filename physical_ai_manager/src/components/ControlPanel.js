@@ -27,7 +27,15 @@ const buttons = [
   { label: 'Finish', icon: MdCheck, color: '#388e3c' },
 ];
 
-export default function ControlPanel({ onCommand }) {
+const phaseGuideMessages = {
+  0: '🚫 None',
+  1: '🔥 Warmup Time in progress',
+  2: '🔄 Reset time in progress',
+  3: '🎥 Recording is on progress',
+  4: '🤖 Inference is on progress',
+};
+
+export default function ControlPanel({ onCommand, episodeStatus }) {
   const icon_size = 70;
   const [hovered, setHovered] = useState(null);
   const [pressed, setPressed] = useState(null);
@@ -86,6 +94,7 @@ export default function ControlPanel({ onCommand }) {
     >
       <div className="flex flex-[2] items-center w-full h-full gap-4">
         {buttons.map(({ label, icon: Icon, color }) => {
+          const isStartDisabled = label === 'Start' && episodeStatus?.running;
           return (
             <button
               key={label}
@@ -108,12 +117,14 @@ export default function ControlPanel({ onCommand }) {
                   'bg-gray-300': pressed === label,
                   'bg-gray-200': hovered === label && pressed !== label,
                   'bg-gray-100': hovered !== label && pressed !== label,
+                  'opacity-50 cursor-not-allowed': isStartDisabled,
                 }
               )}
               style={{ fontFamily: 'Pretendard Variable' }}
               tabIndex={0}
-              onClick={() => handleCommand(label)}
+              onClick={() => !isStartDisabled && handleCommand(label)}
               onKeyDown={(e) => {
+                if (isStartDisabled) return;
                 if (e.key === 'Enter') {
                   handleCommand(label);
                 }
@@ -128,6 +139,7 @@ export default function ControlPanel({ onCommand }) {
               }}
               onMouseDown={() => setPressed(label)}
               onMouseUp={() => setPressed(null)}
+              disabled={isStartDisabled}
             >
               <span
                 className={clsx(
@@ -149,8 +161,10 @@ export default function ControlPanel({ onCommand }) {
         })}
       </div>
       <div className="flex flex-1 flex-col justify-center items-center w-full gap-8">
-        <div className="flex-1 min-w-0 text-3xl text-center">Please prepare next episode</div>
-        <ProgressBar percent={60} />
+        <div className="flex-1 min-w-0 text-3xl text-center">
+          {phaseGuideMessages[episodeStatus?.phase]}
+        </div>
+        <ProgressBar percent={episodeStatus?.progress} />
       </div>
     </div>
   );

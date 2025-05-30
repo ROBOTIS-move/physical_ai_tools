@@ -80,6 +80,17 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
     resume: true,
     pushToHub: true,
   });
+
+  const [episodeStatus, setEpisodeStatus] = useState({
+    taskName: 'idle',
+    running: true,
+    phase: 4,
+    progress: 60,
+    numEpisodes: 0,
+    currentEpisodeNumber: 0,
+    repoId: '',
+  });
+
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
   const { setGuiPage, sendRecordCommand } = useRosServiceCaller(
@@ -195,7 +206,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
             <div className="ml-1 mr-1 flex flex-col items-center h-full">
               <div className="w-full h-10"></div>
               <div className="w-[250px] flex justify-center">
-                <EpisodeStatus />
+                <EpisodeStatus episodeStatus={episodeStatus} />
               </div>
               <div className="w-full h-10"></div>
               <div className="flex-1 overflow-y-auto">
@@ -208,7 +219,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
 
       {/* Control Panel - Fixed at bottom */}
       <div className="flex-shrink-0">
-        <ControlPanel onCommand={handleControlCommand} />
+        <ControlPanel onCommand={handleControlCommand} episodeStatus={episodeStatus} />
       </div>
     </div>
   );

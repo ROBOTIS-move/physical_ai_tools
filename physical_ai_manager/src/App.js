@@ -83,7 +83,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
 
   const [episodeStatus, setEpisodeStatus] = useState({
     taskName: 'idle',
-    running: true,
+    running: false,
     phase: 4,
     progress: 60,
     numEpisodes: 0,
@@ -93,7 +93,7 @@ function HomePage({ topics, setTopics, rosHost, yamlContent }) {
 
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
-  const { setGuiPage, sendRecordCommand } = useRosServiceCaller(
+  const { sendRecordCommand } = useRosServiceCaller(
     `ws://${rosHost.split(':')[0]}:9090`
   );
 

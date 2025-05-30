@@ -15,8 +15,12 @@ class DiffusionPolicy(BasePolicy):
     LeRobot의 Diffusion 정책을 통합 인터페이스로 래핑한 클래스입니다.
     """
     
-    def __init__(self, config_path: str = None, config_dict: Dict[str, Any] = None):
-        super().__init__(config_path, config_dict)
+    def __init__(self, 
+                 config_path: str = None, 
+                 config_dict: Dict[str, Any] = None,
+                 pretrained_model_path: str = None,
+                 merge_strategy: str = "user_priority"):
+        super().__init__(config_path, config_dict, pretrained_model_path, merge_strategy)
         self.policy = None
         self.stats = None
         

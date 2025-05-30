@@ -1,0 +1,73 @@
+camera_names:
+- cam_head
+- cam_wrist_1
+- cam_wrist_2
+chunk_size: 100
+device: cuda
+dim_feedforward: 3200
+dim_model: 512
+dropout: 0.1
+feedforward_activation: relu
+inference:
+  batch_size: 2
+input_features:
+  observation.images.cam_head:
+    shape:
+    - 3
+    - 480
+    - 640
+    type: VISUAL
+  observation.images.cam_wrist_1:
+    shape:
+    - 3
+    - 480
+    - 640
+    type: VISUAL
+  observation.images.cam_wrist_2:
+    shape:
+    - 3
+    - 480
+    - 640
+    type: VISUAL
+  observation.state:
+    shape:
+    - 16
+    type: STATE
+kl_weight: 10.0
+latent_dim: 32
+model:
+  backbone: resnet18
+  chunk_size: 100
+  dec_layers: 7
+  dim_feedforward: 3200
+  enc_layers: 4
+  hidden_dim: 512
+  kl_weight: 10.0
+  nheads: 8
+n_action_steps: 1
+n_decoder_layers: 1
+n_encoder_layers: 4
+n_heads: 8
+n_obs_steps: 1
+n_vae_encoder_layers: 4
+normalization_mapping:
+  ACTION: MEAN_STD
+  STATE: MEAN_STD
+  VISUAL: MEAN_STD
+optimizer_lr: 1.0e-05
+optimizer_lr_backbone: 1.0e-05
+optimizer_weight_decay: 0.0001
+output_features:
+  action:
+    shape:
+    - 16
+    type: ACTION
+policy_type: act
+pre_norm: false
+pretrained_backbone_weights: ResNet18_Weights.IMAGENET1K_V1
+replace_final_stride_with_dilation: false
+temporal_ensemble_coeff: 0.1
+type: act
+use_amp: false
+use_vae: true
+vision_backbone: resnet18

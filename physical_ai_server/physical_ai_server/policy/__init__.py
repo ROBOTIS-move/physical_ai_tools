@@ -30,9 +30,9 @@ from .policy_factory import PolicyFactory, ConfigManager
 
 # Import all policy classes to auto-register them with factory
 from .act_policy import ACTPolicy
-from .diffusion_policy import DiffusionPolicy
-from .pi0_policy import Pi0Policy
-from .gr00t_n1_policy import GR00TN1Policy
+# from .diffusion_policy import DiffusionPolicy
+# from .pi0_policy import Pi0Policy
+# from .gr00t_n1_policy import GR00TN1Policy
 
 __all__ = [
     'BasePolicy',

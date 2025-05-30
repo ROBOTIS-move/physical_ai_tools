@@ -114,10 +114,21 @@ class ModelConfigManager:
         
         if merge_strategy == "user_priority":
             merged = pretrained_config.copy()
+            # Extract camera names from pretrained config if available
+            pretrained_cameras = self._extract_camera_names_from_input_features(pretrained_config)
+            if pretrained_cameras:
+                merged['camera_names'] = pretrained_cameras
             merged.update(user_config)
+            # If user didn't specify camera_names but pretrained has them, keep pretrained ones
+            if pretrained_cameras and 'camera_names' not in user_config:
+                merged['camera_names'] = pretrained_cameras
             
         elif merge_strategy == "pretrained_priority":
             merged = user_config.copy()
+            # Extract camera names from pretrained config if available
+            pretrained_cameras = self._extract_camera_names_from_input_features(pretrained_config)
+            if pretrained_cameras:
+                pretrained_config['camera_names'] = pretrained_cameras
             merged.update(pretrained_config)
             
         elif merge_strategy == "smart_merge":
@@ -146,6 +157,12 @@ class ModelConfigManager:
         """
         merged = pretrained_config.copy()
         
+        # Extract camera names from pretrained config input_features if available
+        pretrained_cameras = self._extract_camera_names_from_input_features(pretrained_config)
+        if pretrained_cameras:
+            merged['camera_names'] = pretrained_cameras
+            self.logger.info(f"Extracted camera names from pretrained config: {pretrained_cameras}")
+        
         for key, user_value in user_config.items():
             if key not in merged:
                 # New field from user config
@@ -158,6 +175,15 @@ class ModelConfigManager:
             elif key in ['device', 'policy_type', 'batch_size', 'num_inference_steps']:
                 # User preferences always take priority for these fields
                 merged[key] = user_value
+                
+            elif key == 'camera_names':
+                # For camera_names, use pretrained if available, otherwise user config
+                if pretrained_cameras:
+                    merged[key] = pretrained_cameras
+                    self.logger.info(f"Using pretrained camera names: {pretrained_cameras}")
+                else:
+                    merged[key] = user_value
+                    self.logger.info(f"Using user-provided camera names: {user_value}")
                 
             elif key in ['model', 'architecture'] and isinstance(user_value, dict):
                 # For model configs, merge intelligently
@@ -173,6 +199,41 @@ class ModelConfigManager:
                 merged[key] = user_value
         
         return merged
+    
+    def _extract_camera_names_from_input_features(self, config: Dict[str, Any]) -> Optional[list]:
+        """
+        Extract camera names from input_features configuration.
+        
+        This method looks for camera-related keys in the input_features section
+        and extracts the camera names from observation.images.* keys.
+        
+        Args:
+            config: Configuration dictionary containing input_features
+            
+        Returns:
+            List of camera names if found, None otherwise
+        """
+        if 'input_features' not in config:
+            return None
+        
+        input_features = config['input_features']
+        camera_names = []
+        
+        for key, feature_config in input_features.items():
+            # Look for observation.images.camera_name pattern
+            if key.startswith('observation.images.') and feature_config.get('type') == 'VISUAL':
+                # Extract camera name from the key
+                camera_name = key.replace('observation.images.', '')
+                camera_names.append(camera_name)
+        
+        # Sort camera names for consistency
+        camera_names.sort()
+        
+        if camera_names:
+            self.logger.info(f"Extracted {len(camera_names)} camera names from input_features: {camera_names}")
+            return camera_names
+        
+        return None
     
     def validate_merged_config(self, 
                              config: Dict[str, Any], 

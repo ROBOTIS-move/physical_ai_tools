@@ -18,15 +18,15 @@ user_config = {
     'policy_type': 'act',
     'model': {
         'chunk_size': 100,  # Override if needed
-        'camera_names': ["top"]  # Specify cameras
+        # camera_names will be automatically extracted from pretrained model
     },
     'inference': {
         'batch_size': 1
     }
 }
 
-# Path to pretrained model
-model_path = '/home/elicer/.cache/huggingface/hub/models--Dongkkka--act_model_ffw/snapshots/2124b18a2a8edf748eeeeb6d853e290f3edd0ecd/pretrained_model'
+# Path to pretrained model (현재 PC의 올바른 경로)
+model_path = '/home/dongyun/.cache/huggingface/hub/models--Dongkkka--act_model_ffw/snapshots/2124b18a2a8edf748eeeeb6d853e290f3edd0ecd/pretrained_model'
 
 print("=" * 80)
 print("ENHANCED ACT POLICY INFERENCE TEST")
@@ -67,6 +67,11 @@ try:
     config_summary = model_info['config_summary']
     print(f"Device: {config_summary['device']}")
     print(f"Policy Type: {config_summary['policy_type']}")
+    
+    # Display camera names if available
+    full_config = policy.get_config()
+    if 'camera_names' in full_config:
+        print(f"Camera Names: {full_config['camera_names']}")
     
     if 'model_config' in config_summary and config_summary['model_config']:
         model_cfg = config_summary['model_config']

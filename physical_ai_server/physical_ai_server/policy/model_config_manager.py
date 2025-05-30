@@ -5,6 +5,11 @@ import yaml
 from pathlib import Path
 import logging
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 
 class ModelConfigManager:
     """
@@ -101,6 +106,7 @@ class ModelConfigManager:
             merge_strategy: Strategy for merging conflicts
                 - "user_priority": User config overrides pretrained config
                 - "pretrained_priority": Pretrained config takes precedence
+                - "pretrained_only": Use only pretrained config (ignore user config)
                 - "smart_merge": Intelligent merging based on field types
             
         Returns:
@@ -112,7 +118,23 @@ class ModelConfigManager:
         if not user_config:
             return pretrained_config.copy()
         
-        if merge_strategy == "user_priority":
+        if merge_strategy == "pretrained_only":
+            merged = pretrained_config.copy()
+            # Extract camera names from pretrained config
+            pretrained_cameras = self._extract_camera_names_from_input_features(pretrained_config)
+            if pretrained_cameras:
+                merged['camera_names'] = pretrained_cameras
+            
+            # Only add essential runtime settings if missing
+            if 'device' not in merged:
+                if torch and torch.cuda.is_available():
+                    merged['device'] = 'cuda'
+                else:
+                    merged['device'] = 'cpu'
+            if 'policy_type' not in merged:
+                merged['policy_type'] = 'act'  # Default for this implementation
+            
+        elif merge_strategy == "user_priority":
             merged = pretrained_config.copy()
             # Extract camera names from pretrained config if available
             pretrained_cameras = self._extract_camera_names_from_input_features(pretrained_config)
@@ -162,6 +184,13 @@ class ModelConfigManager:
         if pretrained_cameras:
             merged['camera_names'] = pretrained_cameras
             self.logger.info(f"Extracted camera names from pretrained config: {pretrained_cameras}")
+        
+        # Extract data configuration from pretrained config if not provided by user
+        if 'data' not in user_config or not user_config['data']:
+            pretrained_data = self._extract_data_config_from_pretrained(pretrained_config)
+            if pretrained_data:
+                merged['data'] = pretrained_data
+                self.logger.info("Using data configuration from pretrained model")
         
         for key, user_value in user_config.items():
             if key not in merged:
@@ -385,26 +414,244 @@ class ModelConfigManager:
         
         return validated_config
     
-    def save_config(self, config: Dict[str, Any], save_path: str) -> None:
+    def save_config(self, config: Dict[str, Any], save_path: str, 
+                   save_mode: str = "user_overrides_only") -> None:
         """
-        Save configuration to a file.
+        Save configuration to a file with different modes.
         
         Args:
             config: Configuration dictionary to save
             save_path: Path where to save the configuration
+            save_mode: Saving mode
+                - "full": Save complete merged configuration (not recommended)
+                - "user_overrides_only": Save only user overrides (recommended)
+                - "minimal": Save only essential runtime settings
         """
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
         
+        if save_mode == "user_overrides_only":
+            # Extract only user-specific overrides
+            user_config = self._extract_user_overrides(config)
+        elif save_mode == "minimal":
+            # Save only essential runtime settings
+            user_config = self._extract_minimal_config(config)
+        else:
+            # Full configuration (legacy mode)
+            user_config = config
+        
         if save_path.suffix.lower() == '.json':
             with open(save_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
+                json.dump(user_config, f, indent=2, ensure_ascii=False)
         elif save_path.suffix.lower() in ['.yaml', '.yml']:
             with open(save_path, 'w', encoding='utf-8') as f:
-                yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+                yaml.dump(user_config, f, default_flow_style=False, 
+                         allow_unicode=True)
         else:
             # Default to JSON
             with open(save_path.with_suffix('.json'), 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
+                json.dump(user_config, f, indent=2, ensure_ascii=False)
         
-        self.logger.info(f"Saved configuration to: {save_path}")
+        self.logger.info(f"Saved {save_mode} configuration to: {save_path}")
+    
+    def _extract_user_overrides(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract only user-specific overrides from full configuration.
+        
+        This method filters out pretrained model parameters and keeps only
+        the settings that user explicitly configured or modified at runtime.
+        """
+        user_overrides = {}
+        
+        # Always save these user-controlled settings
+        user_fields = [
+            'device', 'policy_type', 'inference', 
+            'pretrained_model_path', 'merge_strategy'
+        ]
+        
+        for field in user_fields:
+            if field in config:
+                user_overrides[field] = config[field]
+        
+        # For model config, only save user overrides, not pretrained defaults
+        if 'model' in config:
+            model_config = config['model']
+            user_model_overrides = {}
+            
+            # Only save commonly user-modified fields
+            user_model_fields = [
+                'chunk_size', 'backbone', 'hidden_dim', 
+                'batch_size', 'learning_rate'
+            ]
+            
+            for field in user_model_fields:
+                if field in model_config:
+                    user_model_overrides[field] = model_config[field]
+            
+            if user_model_overrides:
+                user_overrides['model'] = user_model_overrides
+        
+        # Add metadata
+        user_overrides['config_metadata'] = {
+            'config_version': '1.0',
+            'save_mode': 'user_overrides_only',
+            'created_by': 'enhanced_configuration_manager',
+            'purpose': 'Stores only user overrides, relies on pretrained config for defaults'
+        }
+        
+        return user_overrides
+    
+    def _extract_minimal_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract minimal configuration for deployment.
+        
+        This saves only the absolute essentials needed to recreate the setup.
+        """
+        minimal_config = {
+            'device': config.get('device', 'cuda'),
+            'policy_type': config.get('policy_type', 'act'),
+            'pretrained_model_path': config.get('pretrained_model_path'),
+        }
+        
+        # Only save runtime inference settings
+        if 'inference' in config:
+            minimal_config['inference'] = config['inference']
+        
+        # Add metadata
+        minimal_config['config_metadata'] = {
+            'config_version': '1.0',
+            'save_mode': 'minimal',
+            'purpose': 'Minimal config for quick deployment'
+        }
+        
+        return minimal_config
+    
+    def _extract_data_config_from_pretrained(self, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Extract data configuration from pretrained model configuration.
+        
+        This method extracts image_keys and delta_timestamps from the pretrained
+        model's input_features and other relevant settings.
+        
+        Args:
+            config: Pretrained model configuration
+            
+        Returns:
+            Data configuration dictionary if successful, None otherwise
+        """
+        if 'input_features' not in config:
+            return None
+        
+        data_config = {}
+        input_features = config['input_features']
+        
+        # Extract image keys from input_features
+        image_keys = []
+        for key, feature_config in input_features.items():
+            if key.startswith('observation.images.') and feature_config.get('type') == 'VISUAL':
+                image_keys.append(key)
+        
+        if image_keys:
+            # Sort for consistency
+            image_keys.sort()
+            data_config['image_keys'] = image_keys
+            self.logger.info(f"Extracted {len(image_keys)} image keys from pretrained config")
+        
+        # Generate delta_timestamps based on chunk_size and n_obs_steps
+        chunk_size = config.get('chunk_size', 100)
+        n_obs_steps = config.get('n_obs_steps', 1)
+        n_action_steps = config.get('n_action_steps', 1)
+        
+        # Create action timestamps (0.0 to chunk_size * 0.2 with 0.2 intervals)
+        action_timestamps = [round(i * 0.2, 1) for i in range(chunk_size)]
+        
+        # Create observation timestamps (usually just [0.0] for current step)
+        obs_timestamps = [0.0] * n_obs_steps
+        
+        delta_timestamps = {
+            'action': action_timestamps
+        }
+        
+        # Add timestamps for each image key and state
+        for image_key in image_keys:
+            delta_timestamps[image_key] = obs_timestamps
+        
+        # Add state timestamps if state input exists
+        if 'observation.state' in input_features:
+            delta_timestamps['observation.state'] = obs_timestamps
+        
+        data_config['delta_timestamps'] = delta_timestamps
+        
+        self.logger.info(f"Generated delta_timestamps for {len(image_keys)} cameras and actions")
+        
+        return data_config
+    
+    def load_robot_config(self, robot_type: str) -> Dict[str, Any]:
+        """
+        Load robot-specific configuration from robot_configs.yaml
+        
+        Args:
+            robot_type: Type of robot (aloha, xarm, franka, ur5, custom_robot)
+            
+        Returns:
+            Robot-specific configuration dictionary
+            
+        Raises:
+            FileNotFoundError: If robot config file is not found
+            ValueError: If robot type is not supported
+        """
+        # Get the directory where this module is located
+        current_dir = Path(__file__).parent
+        robot_config_path = current_dir / "configs" / "robot_configs.yaml"
+        
+        if not robot_config_path.exists():
+            raise FileNotFoundError(f"Robot config file not found: {robot_config_path}")
+        
+        try:
+            with open(robot_config_path, 'r') as f:
+                robot_configs = yaml.safe_load(f)
+        except Exception as e:
+            self.logger.error(f"Error loading robot config: {e}")
+            return {}
+        
+        if robot_type not in robot_configs:
+            available_types = list(robot_configs.keys())
+            raise ValueError(f"Robot type '{robot_type}' not found. Available types: {available_types}")
+        
+        self.logger.info(f"Loaded configuration for robot type: {robot_type}")
+        return robot_configs[robot_type]
+    
+    def merge_with_robot_config(self, 
+                               base_config: Dict[str, Any], 
+                               robot_type: str) -> Dict[str, Any]:
+        """
+        Merge base configuration with robot-specific configuration
+        
+        Args:
+            base_config: Base policy configuration
+            robot_type: Type of robot to get specific config for
+            
+        Returns:
+            Merged configuration with robot-specific settings
+        """
+        try:
+            robot_config = self.load_robot_config(robot_type)
+            merged = base_config.copy()
+            
+            # Merge robot-specific data configuration
+            if 'data' in robot_config:
+                merged['data'] = robot_config['data']
+                self.logger.info(f"Applied robot-specific data config for {robot_type}")
+            
+            # Add robot metadata
+            merged['robot_type'] = robot_type
+            if 'action_space' in robot_config:
+                merged['action_space'] = robot_config['action_space']
+            if 'observation_space' in robot_config:
+                merged['observation_space'] = robot_config['observation_space']
+            
+            return merged
+            
+        except Exception as e:
+            self.logger.warning(f"Could not load robot config for {robot_type}: {e}")
+            return base_config

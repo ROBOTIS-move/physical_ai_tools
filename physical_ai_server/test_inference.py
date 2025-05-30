@@ -1,9 +1,11 @@
 """
-Enhanced inference test with automatic configuration management
+Simple inference test with automatic configuration loading
 
-This script demonstrates the enhanced configuration management system that
-automatically loads pretrained model configurations and merges them with
-user-provided settings.
+This script demonstrates a clean approach using only:
+1. Pretrained model's config.json 
+2. Optional act_config.yaml (if additional overrides needed)
+
+No additional configuration files are created or stored.
 """
 
 import logging
@@ -12,35 +14,26 @@ from physical_ai_server.policy import PolicyFactory
 # Set up logging for detailed information
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
 
-# User configuration - only specify what you want to override
-user_config = {
-    'device': 'cuda',
-    'policy_type': 'act',
-    'model': {
-        'chunk_size': 100,  # Override if needed
-        # camera_names will be automatically extracted from pretrained model
-    },
-    'inference': {
-        'batch_size': 1
-    }
-}
+# Optional user configuration file path (if you want to override defaults)
+# If None, only pretrained model config.json will be used
+user_config_file = None  # Could be path to act_config.yaml if needed
 
 # Path to pretrained model (현재 PC의 올바른 경로)
 model_path = '/home/dongyun/.cache/huggingface/hub/models--Dongkkka--act_model_ffw/snapshots/2124b18a2a8edf748eeeeb6d853e290f3edd0ecd/pretrained_model'
 
 print("=" * 80)
-print("ENHANCED ACT POLICY INFERENCE TEST")
+print("SIMPLE ACT POLICY INFERENCE TEST")
 print("=" * 80)
 
 try:
-    # Create policy with enhanced configuration management
-    # The system will automatically load pretrained model config and merge with user config
-    print("\n1. Creating ACT policy with enhanced configuration management...")
+    # Create policy using only pretrained model config (no additional overrides)
+    # The system will automatically load config.json from the pretrained model
+    print("\n1. Creating ACT policy with automatic config loading...")
     policy = PolicyFactory.create_policy(
         'act', 
-        config_dict=user_config,
-        pretrained_model_path=model_path,  # This enables automatic config loading
-        merge_strategy="user_priority"     # User config takes priority over pretrained
+        config_dict=None,  # No user overrides needed
+        pretrained_model_path=model_path,  # Only this is needed
+        merge_strategy="pretrained_only"   # Use only pretrained model config
     )
     
     print("✓ Policy created successfully")
@@ -72,6 +65,18 @@ try:
     full_config = policy.get_config()
     if 'camera_names' in full_config:
         print(f"Camera Names: {full_config['camera_names']}")
+    
+    # Display data configuration if available
+    if 'data' in full_config:
+        data_config = full_config['data']
+        if 'image_keys' in data_config:
+            print(f"Image Keys: {data_config['image_keys']}")
+        if 'delta_timestamps' in data_config:
+            delta_ts = data_config['delta_timestamps']
+            print(f"Delta Timestamps Keys: {list(delta_ts.keys())}")
+            if 'action' in delta_ts:
+                action_ts = delta_ts['action']
+                print(f"Action Timestamps: {len(action_ts)} steps ({action_ts[0]} to {action_ts[-1]})")
     
     # Display input/output features if available
     if 'input_features' in full_config:
@@ -121,37 +126,25 @@ try:
         if section in full_config:
             print(f"{section}: {full_config[section]}")
     
-    # Test configuration update
-    print("\n7. Testing Configuration Update:")
+    # Test configuration update (optional, only if needed at runtime)
+    print("\n7. Configuration Information:")
     print("-" * 60)
     
-    # Update some configuration
-    new_config = {'inference': {'batch_size': 2}}
-    policy.update_config(new_config, merge_with_pretrained=True)
-    print("✓ Configuration updated successfully")
-    
+    # Show that all config comes from pretrained model + minimal runtime settings
     updated_info = policy.get_model_info()
-    print(f"Updated batch size: {updated_info['config_summary']['inference_config']['batch_size']}")
-    
-    # Save current configuration for future use
-    print("\n8. Saving Enhanced Configuration:")
-    print("-" * 60)
-    
-    config_save_path = "enhanced_act_config.yaml"
-    policy.save_current_config(config_save_path)
-    print(f"✓ Configuration saved to: {config_save_path}")
+    config_source = updated_info.get('config_source', 'Unknown')
+    print(f"Configuration Source: {config_source}")
+    print("✓ Using clean configuration from pretrained model only")
     
     print("\n" + "=" * 80)
-    print("ENHANCED CONFIGURATION TEST COMPLETED SUCCESSFULLY!")
+    print("SIMPLE ACT POLICY INFERENCE TEST COMPLETED!")
     print("=" * 80)
     
-    print("\nKey Benefits of Enhanced Configuration Management:")
-    print("• Automatic pretrained model configuration loading")
-    print("• Intelligent merging of user and pretrained configurations")
-    print("• Configuration validation and fallback mechanisms")
-    print("• Comprehensive model information reporting")
-    print("• Dynamic configuration updates")
-    print("• Configuration persistence and sharing")
+    print("\nSimple Configuration Benefits:")
+    print("• Only uses pretrained model's config.json")
+    print("• No duplicate or override files needed")
+    print("• Clean and maintainable configuration")
+    print("• Automatic camera names and model parameters detection")
 
 except Exception as e:
     print(f"\n❌ Error during inference test: {e}")

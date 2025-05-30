@@ -23,7 +23,7 @@ import ControlPanel from '../components/ControlPanel';
 import InfoPanel from '../components/InfoPanel';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 
-export default function HomePage({ topics, setTopics, rosHost, yamlContent }) {
+export default function HomePage({ topics, setTopics, rosHost }) {
   const [info, setInfo] = useState({
     taskName: 'ai_worker_task_abcd_12345',
     robotType: 'ai-worker',
@@ -52,9 +52,7 @@ export default function HomePage({ topics, setTopics, rosHost, yamlContent }) {
 
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
-  const { sendRecordCommand } = useRosServiceCaller(
-    `ws://${rosHost.split(':')[0]}:9090`
-  );
+  const { sendRecordCommand } = useRosServiceCaller(`ws://${rosHost.split(':')[0]}:9090`);
 
   const handleControlCommand = (cmd) => {
     console.log('Control command received:', cmd);
@@ -82,8 +80,7 @@ export default function HomePage({ topics, setTopics, rosHost, yamlContent }) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Main content area */}
-      <div className="flex-1 flex min-h-0 pt-0 px-0 justify-center items-start overflow-hidden">
+      <div className="flex-1 flex min-h-0 pt-0 px-0 justify-center items-start overflow-scroll">
         <div
           className={clsx(
             'transition-all',
@@ -138,16 +135,16 @@ export default function HomePage({ topics, setTopics, rosHost, yamlContent }) {
                 'left-[10px]': !isRightPanelCollapsed,
               }
             )}
+            title="Hide"
           >
             <span
-              className={clsx(
-                'text-gray-600',
-                'text-3xl',
-                'transition-transform',
-                'duration-200',
-              )}
+              className={clsx('text-gray-600', 'text-3xl', 'transition-transform', 'duration-200')}
             >
-              {isRightPanelCollapsed ? <MdKeyboardDoubleArrowLeft /> : <MdKeyboardDoubleArrowRight />}
+              {isRightPanelCollapsed ? (
+                <MdKeyboardDoubleArrowLeft />
+              ) : (
+                <MdKeyboardDoubleArrowRight />
+              )}
             </span>
           </button>
           <div
@@ -172,10 +169,9 @@ export default function HomePage({ topics, setTopics, rosHost, yamlContent }) {
         </div>
       </div>
 
-      {/* Control Panel - Fixed at bottom */}
       <div className="flex-shrink-0">
         <ControlPanel onCommand={handleControlCommand} episodeStatus={episodeStatus} />
       </div>
     </div>
   );
-} 
+}

@@ -18,8 +18,36 @@ import React, { useState } from 'react';
 import clsx from 'clsx';
 
 const dummyTaskInfoList = [
-  { taskName: 'Task 1', robotType: 'Type A', taskType: 'Type X', taskInstruction: 'Do X', repoId: 'repo1', fps: 30, tags: ['tag1'], warmupTime: '10', episodeTime: '60', resetTime: '5', numEpisodes: 3, resume: false, pushToHub: false },
-  { taskName: 'Task 2', robotType: 'Type B', taskType: 'Type Y', taskInstruction: 'Do Y', repoId: 'repo2', fps: 20, tags: ['tag2'], warmupTime: '5', episodeTime: '30', resetTime: '2', numEpisodes: 5, resume: true, pushToHub: true },
+  {
+    taskName: 'Task 1',
+    robotType: 'Type A',
+    taskType: 'Type X',
+    taskInstruction: 'Do X',
+    repoId: 'repo1',
+    fps: 30,
+    tags: ['tag1'],
+    warmupTime: '10',
+    episodeTime: '60',
+    resetTime: '5',
+    numEpisodes: 3,
+    resume: false,
+    pushToHub: false,
+  },
+  {
+    taskName: 'Task 2',
+    robotType: 'Type B',
+    taskType: 'Type Y',
+    taskInstruction: 'Do Y',
+    repoId: 'repo2',
+    fps: 20,
+    tags: ['tag2'],
+    warmupTime: '5',
+    episodeTime: '30',
+    resetTime: '2',
+    numEpisodes: 5,
+    resume: true,
+    pushToHub: true,
+  },
 ];
 
 const InfoPanel = ({ info, onChange }) => {

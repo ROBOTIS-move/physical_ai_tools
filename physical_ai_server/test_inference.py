@@ -73,6 +73,21 @@ try:
     if 'camera_names' in full_config:
         print(f"Camera Names: {full_config['camera_names']}")
     
+    # Display input/output features if available
+    if 'input_features' in full_config:
+        print(f"\nInput Features:")
+        for feature_name, feature_config in full_config['input_features'].items():
+            feature_type = feature_config.get('type', 'Unknown')
+            feature_shape = feature_config.get('shape', 'Unknown')
+            print(f"  {feature_name}: {feature_type} {feature_shape}")
+    
+    if 'output_features' in full_config:
+        print(f"\nOutput Features:")
+        for feature_name, feature_config in full_config['output_features'].items():
+            feature_type = feature_config.get('type', 'Unknown')
+            feature_shape = feature_config.get('shape', 'Unknown')
+            print(f"  {feature_name}: {feature_type} {feature_shape}")
+    
     if 'model_config' in config_summary and config_summary['model_config']:
         model_cfg = config_summary['model_config']
         print("\nModel Configuration:")

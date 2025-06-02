@@ -76,83 +76,104 @@ export default function ControlPanel({ onCommand, episodeStatus }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleCommand]);
 
+  const classControlPanelBody = clsx(
+    'h-56',
+    'bg-gray-300',
+    'rounded-3xl',
+    'mx-8',
+    'mt-2',
+    'mb-4',
+    'p-4',
+    'flex',
+    'flex-row',
+    'items-center',
+    'gap-2',
+    'shadow-lg'
+  );
+
+  const classControlPanelButtons = (label, isStartDisabled) =>
+    clsx(
+      'text-4xl',
+      'font-extrabold',
+      'h-full',
+      'flex-grow',
+      'min-w-16',
+      'rounded-2xl',
+      'border-none',
+      'cursor-pointer',
+      'mr-2',
+      'flex',
+      'items-center',
+      'justify-center',
+      'flex-col',
+      'gap-1',
+      'bg-gray-100',
+      {
+        'bg-gray-300': pressed === label,
+        'bg-gray-200': hovered === label && pressed !== label,
+        'opacity-50': isStartDisabled,
+        'cursor-not-allowed': isStartDisabled,
+      }
+    );
+
+  const classControlPanelButtonIcon = clsx(
+    'bg-transparent',
+    'rounded-full',
+    'w-20',
+    'h-20',
+    'flex',
+    'items-center',
+    'justify-center',
+    'mb-1'
+  );
+
+  const handleKeyDown = (e, label, isStartDisabled) => {
+    if (isStartDisabled) return;
+    if (e.key === 'Enter') {
+      handleCommand(label);
+    }
+    if (e.key === ' ') {
+      e.preventDefault();
+    }
+  };
+
+  const handleMouseEnter = (label) => {
+    setHovered(label);
+  };
+
+  const handleMouseLeave = () => {
+    setHovered(null);
+    setPressed(null);
+  };
+
+  const handleMouseDown = (label) => {
+    setPressed(label);
+  };
+
+  const handleMouseUp = () => {
+    setPressed(null);
+  };
+
   return (
-    <div
-      className={clsx(
-        'h-56',
-        'bg-gray-300',
-        'rounded-3xl',
-        'mx-8',
-        'my-4',
-        'p-4',
-        'flex',
-        'flex-row',
-        'items-center',
-        'gap-2',
-        'shadow-lg'
-      )}
-    >
+    <div className={classControlPanelBody}>
       <div className="flex flex-[2] items-center w-full h-full gap-4">
         {buttons.map(({ label, icon: Icon, color }) => {
           const isStartDisabled = label === 'Start' && episodeStatus?.running;
           return (
             <button
               key={label}
-              className={clsx(
-                'text-4xl',
-                'font-extrabold',
-                'h-full',
-                'flex-grow',
-                'min-w-16',
-                'rounded-2xl',
-                'border-none',
-                'cursor-pointer',
-                'mr-2',
-                'flex',
-                'items-center',
-                'justify-center',
-                'flex-col',
-                'gap-1',
-                {
-                  'bg-gray-300': pressed === label,
-                  'bg-gray-200': hovered === label && pressed !== label,
-                  'bg-gray-100': hovered !== label && pressed !== label,
-                  'opacity-50 cursor-not-allowed': isStartDisabled,
-                }
-              )}
+              className={classControlPanelButtons(label, isStartDisabled)}
               style={{ fontFamily: 'Pretendard Variable' }}
               tabIndex={0}
               onClick={() => !isStartDisabled && handleCommand(label)}
-              onKeyDown={(e) => {
-                if (isStartDisabled) return;
-                if (e.key === 'Enter') {
-                  handleCommand(label);
-                }
-                if (e.key === ' ') {
-                  e.preventDefault();
-                }
-              }}
-              onMouseEnter={() => setHovered(label)}
-              onMouseLeave={() => {
-                setHovered(null);
-                setPressed(null);
-              }}
-              onMouseDown={() => setPressed(label)}
-              onMouseUp={() => setPressed(null)}
+              onKeyDown={(e) => handleKeyDown(e, label, isStartDisabled)}
+              onMouseEnter={() => handleMouseEnter(label)}
+              onMouseLeave={handleMouseLeave}
+              onMouseDown={() => handleMouseDown(label)}
+              onMouseUp={handleMouseUp}
               disabled={isStartDisabled}
             >
-              <span
-                className={clsx(
-                  'bg-transparent',
-                  'rounded-full',
-                  'w-20',
-                  'h-20',
-                  'flex',
-                  'items-center',
-                  'justify-center',
-                  'mb-1'
-                )}
-              >
+              <span className={classControlPanelButtonIcon}>
                 <Icon size={icon_size} color={color} />
               </span>
               {label}

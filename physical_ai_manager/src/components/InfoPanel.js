@@ -63,67 +63,113 @@ const InfoPanel = ({ info, onChange }) => {
     setShowPopup(false);
   };
 
+  const classLabel = clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium');
+
+  const classInfoPanel = clsx(
+    'bg-white',
+    'border',
+    'border-gray-200',
+    'rounded-2xl',
+    'shadow-md',
+    'p-4',
+    'w-full',
+    'max-w-[350px]',
+    'relative'
+  );
+
+  const classTaskNameTextarea = clsx(
+    'text-sm',
+    'resize-y',
+    'min-h-8',
+    'max-h-20',
+    'h-10',
+    'w-full',
+    'p-2',
+    'border',
+    'border-gray-300',
+    'rounded-md',
+    'focus:outline-none',
+    'focus:ring-2',
+    'focus:ring-blue-500',
+    'focus:border-transparent'
+  );
+
+  const classTaskInstructionTextarea = clsx(
+    'text-sm',
+    'resize-y',
+    'min-h-16',
+    'max-h-24',
+    'w-full',
+    'p-2',
+    'border',
+    'border-gray-300',
+    'rounded-md',
+    'focus:outline-none',
+    'focus:ring-2',
+    'focus:ring-blue-500',
+    'focus:border-transparent'
+  );
+
+  const classRepoIdTextarea = clsx(
+    'text-sm',
+    'resize-y',
+    'min-h-10',
+    'max-h-24',
+    'h-10',
+    'w-full',
+    'p-2',
+    'border',
+    'border-gray-300',
+    'rounded-md',
+    'focus:outline-none',
+    'focus:ring-2',
+    'focus:ring-blue-500',
+    'focus:border-transparent'
+  );
+
+  const classTextInput = clsx(
+    'text-sm',
+    'w-full',
+    'p-2',
+    'border',
+    'border-gray-300',
+    'rounded-md',
+    'focus:outline-none',
+    'focus:ring-2',
+    'focus:ring-blue-500',
+    'focus:border-transparent'
+  );
+
+  const classCheckbox = clsx(
+    'w-4',
+    'h-4',
+    'text-blue-600',
+    'bg-gray-100',
+    'border-gray-300',
+    'rounded',
+    'focus:ring-blue-500',
+    'focus:ring-2'
+  );
+
   return (
-    <div
-      className={clsx(
-        'bg-white',
-        'border',
-        'border-gray-200',
-        'rounded-2xl',
-        'shadow-md',
-        'p-4',
-        'w-full',
-        'max-w-[350px]',
-        'relative'
-      )}
-    >
+    <div className={classInfoPanel}>
       <div className={clsx('text-lg', 'font-semibold', 'mb-3', 'text-gray-800')}>
         Task Information
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Task Name
-        </span>
+        <span className={classLabel}>Task Name</span>
         <textarea
-          className={clsx(
-            'text-sm',
-            'resize-y',
-            'min-h-8',
-            'max-h-20',
-            'h-10',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classTaskNameTextarea}
           value={info.taskName || ''}
           onChange={(e) => handleChange('taskName', e.target.value)}
         />
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Robot Type
-        </span>
+        <span className={classLabel}>Robot Type</span>
         <input
-          className={clsx(
-            'text-sm',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classTextInput}
           type="text"
           value={info.robotType || ''}
           onChange={(e) => handleChange('robotType', e.target.value)}
@@ -131,22 +177,9 @@ const InfoPanel = ({ info, onChange }) => {
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Task Type
-        </span>
+        <span className={classLabel}>Task Type</span>
         <input
-          className={clsx(
-            'text-sm',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classTextInput}
           type="text"
           value={info.taskType || ''}
           onChange={(e) => handleChange('taskType', e.target.value)}
@@ -167,21 +200,7 @@ const InfoPanel = ({ info, onChange }) => {
           Task Instruction
         </span>
         <textarea
-          className={clsx(
-            'text-sm',
-            'resize-y',
-            'min-h-16',
-            'max-h-24',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classTaskInstructionTextarea}
           value={info.taskInstruction || ''}
           onChange={(e) => handleChange('taskInstruction', e.target.value)}
         />
@@ -201,44 +220,16 @@ const InfoPanel = ({ info, onChange }) => {
           Repo ID
         </span>
         <textarea
-          className={clsx(
-            'text-sm',
-            'resize-y',
-            'min-h-10',
-            'max-h-24',
-            'h-10',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classRepoIdTextarea}
           value={info.repoId || ''}
           onChange={(e) => handleChange('repoId', e.target.value)}
         />
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          FPS
-        </span>
+        <span className={classLabel}>FPS</span>
         <input
-          className={clsx(
-            'text-sm',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classTextInput}
           type="number"
           value={info.fps || ''}
           onChange={(e) => handleChange('fps', Number(e.target.value))}
@@ -246,9 +237,7 @@ const InfoPanel = ({ info, onChange }) => {
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Tags
-        </span>
+        <span className={classLabel}>Tags</span>
         <input
           className={clsx(
             'text-sm',
@@ -277,22 +266,9 @@ const InfoPanel = ({ info, onChange }) => {
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Warmup Time (s)
-        </span>
+        <span className={classLabel}>Warmup Time (s)</span>
         <input
-          className={clsx(
-            'text-sm',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classTextInput}
           type="text"
           value={info.warmupTime || ''}
           onChange={(e) => handleChange('warmupTime', e.target.value)}
@@ -300,22 +276,9 @@ const InfoPanel = ({ info, onChange }) => {
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Episode Time (s)
-        </span>
+        <span className={classLabel}>Episode Time (s)</span>
         <input
-          className={clsx(
-            'text-sm',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classTextInput}
           type="text"
           value={info.episodeTime || ''}
           onChange={(e) => handleChange('episodeTime', e.target.value)}
@@ -323,22 +286,9 @@ const InfoPanel = ({ info, onChange }) => {
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Reset Time (s)
-        </span>
+        <span className={classLabel}>Reset Time (s)</span>
         <input
-          className={clsx(
-            'text-sm',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classTextInput}
           type="text"
           value={info.resetTime || ''}
           onChange={(e) => handleChange('resetTime', e.target.value)}
@@ -346,22 +296,9 @@ const InfoPanel = ({ info, onChange }) => {
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Num Episodes
-        </span>
+        <span className={classLabel}>Num Episodes</span>
         <input
-          className={clsx(
-            'text-sm',
-            'w-full',
-            'p-2',
-            'border',
-            'border-gray-300',
-            'rounded-md',
-            'focus:outline-none',
-            'focus:ring-2',
-            'focus:ring-blue-500',
-            'focus:border-transparent'
-          )}
+          className={classTextInput}
           type="number"
           value={info.numEpisodes || ''}
           onChange={(e) => handleChange('numEpisodes', Number(e.target.value))}
@@ -369,21 +306,10 @@ const InfoPanel = ({ info, onChange }) => {
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Resume
-        </span>
+        <span className={classLabel}>Resume</span>
         <div className={clsx('flex', 'items-center')}>
           <input
-            className={clsx(
-              'w-4',
-              'h-4',
-              'text-blue-600',
-              'bg-gray-100',
-              'border-gray-300',
-              'rounded',
-              'focus:ring-blue-500',
-              'focus:ring-2'
-            )}
+            className={classCheckbox}
             type="checkbox"
             checked={!!info.resume}
             onChange={(e) => handleChange('resume', e.target.checked)}
@@ -395,21 +321,10 @@ const InfoPanel = ({ info, onChange }) => {
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2')}>
-        <span className={clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium')}>
-          Push to Hub
-        </span>
+        <span className={classLabel}>Push to Hub</span>
         <div className={clsx('flex', 'items-center')}>
           <input
-            className={clsx(
-              'w-4',
-              'h-4',
-              'text-blue-600',
-              'bg-gray-100',
-              'border-gray-300',
-              'rounded',
-              'focus:ring-blue-500',
-              'focus:ring-2'
-            )}
+            className={classCheckbox}
             type="checkbox"
             checked={!!info.pushToHub}
             onChange={(e) => handleChange('pushToHub', e.target.checked)}

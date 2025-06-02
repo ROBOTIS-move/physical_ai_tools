@@ -30,22 +30,22 @@ function TopicSelectModal({ topicList, onSelect, onClose }) {
   const [hovered, setHovered] = useState(null);
   const [selected, setSelected] = useState(null);
 
+  const classImageTopicSelectModal = clsx(
+    'fixed',
+    'top-0',
+    'left-0',
+    'w-screen',
+    'h-screen',
+    'bg-black',
+    'bg-opacity-20',
+    'flex',
+    'items-center',
+    'justify-center',
+    'z-50'
+  );
+
   return (
-    <div
-      className={clsx(
-        'fixed',
-        'top-0',
-        'left-0',
-        'w-screen',
-        'h-screen',
-        'bg-black',
-        'bg-opacity-20',
-        'flex',
-        'items-center',
-        'justify-center',
-        'z-50'
-      )}
-    >
+    <div className={classImageTopicSelectModal}>
       <div className="bg-white rounded-xl p-8 min-w-[420px]">
         <h3 className="mb-8 text-4xl">Select Image Topic</h3>
         <ul className="list-none p-0 m-0">
@@ -111,35 +111,43 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
     setTopics(topics.map((t, i) => (i === idx ? null : t)));
   };
 
+  const classImageGridArea = clsx(
+    'flex',
+    'flex-row',
+    'justify-center',
+    'items-center',
+    'gap-[0.5vw]',
+    'w-full',
+    'h-full',
+    'max-w-full',
+    'max-h-full',
+    'overflow-hidden'
+  );
+
+  const classImageGridCell = (idx) =>
+    clsx('min-w-0', 'min-h-0', 'flex', 'items-center', 'justify-center', 'relative', {
+      'flex-[7_1_0]': idx === 1,
+      'flex-[3_1_0]': idx !== 1,
+    });
+
+  const classTopicLabel = clsx(
+    'absolute',
+    'bottom-2',
+    'left-2',
+    'text-xs',
+    'text-white',
+    'bg-black',
+    'bg-opacity-50',
+    'px-2',
+    'py-1',
+    'rounded'
+  );
+
   return (
     <div className="w-full h-full overflow-hidden">
-      <div
-        className={clsx(
-          'flex',
-          'flex-row',
-          'justify-center',
-          'items-center',
-          'gap-[0.5vw]',
-          'w-full',
-          'h-full',
-          'max-w-full',
-          'max-h-full',
-          'overflow-hidden'
-        )}
-      >
+      <div className={classImageGridArea}>
         {layout.map((cell, idx) => (
-          <div
-            key={idx}
-            className={clsx(
-              'min-w-0',
-              'min-h-0',
-              'flex',
-              'items-center',
-              'justify-center',
-              'relative',
-              { 'flex-[7_1_0]': idx === 1, 'flex-[3_1_0]': idx !== 1 }
-            )}
-          >
+          <div key={idx} className={classImageGridCell(idx)}>
             <ImageGridCell
               topic={topics[idx]}
               aspect={cell.aspect}
@@ -148,22 +156,7 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
               onClose={handleCellClose}
               onPlusClick={handlePlusClick}
             />
-            <div
-              className={clsx(
-                'absolute',
-                'bottom-2',
-                'left-2',
-                'text-xs',
-                'text-white',
-                'bg-black',
-                'bg-opacity-50',
-                'px-2',
-                'py-1',
-                'rounded'
-              )}
-            >
-              {topics[idx] || ''}
-            </div>
+            <div className={classTopicLabel}>{topics[idx] || ''}</div>
           </div>
         ))}
         {modalOpen && (

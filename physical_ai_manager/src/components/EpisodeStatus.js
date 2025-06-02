@@ -17,24 +17,24 @@
 import React from 'react';
 import clsx from 'clsx';
 
+const classEpisodeStatusBody = clsx(
+  'h-full',
+  'w-full',
+  'max-w-xs',
+  'text-center',
+  'flex',
+  'flex-col',
+  'items-center',
+  'rounded-xl',
+  'border',
+  'p-2',
+  'box-border',
+  'shadow-md'
+);
+
 export default function EpisodeStatus({ episodeStatus }) {
   return (
-    <div
-      className={clsx(
-        'h-full',
-        'w-full',
-        'max-w-xs',
-        'text-center',
-        'flex',
-        'flex-col',
-        'items-center',
-        'rounded-xl',
-        'border',
-        'p-2',
-        'box-border',
-        'shadow-md'
-      )}
-    >
+    <div className={classEpisodeStatusBody}>
       <div className="mb-1 justify-start text-2xl">Episode</div>
       <div className="h-3"></div>
       <div className="w-full bg-gray-200 rounded-lg py-1.5 px-3 text-3xl font-bold">

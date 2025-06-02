@@ -58,88 +58,113 @@ export default function HomePage({ topics, setTopics, rosHost }) {
     console.log('Control command received:', cmd);
     try {
       if (cmd === 'Start') {
-        console.log('Calling sendRecordCommand with start');
         sendRecordCommand('start_record', info);
       } else if (cmd === 'Stop') {
-        console.log('Calling sendRecordCommand with stop');
         sendRecordCommand('stop', info);
       } else if (cmd === 'Retry') {
-        console.log('Calling sendRecordCommand with retry');
         sendRecordCommand('rerecord', info);
       } else if (cmd === 'Next') {
-        console.log('Calling sendRecordCommand with next');
         sendRecordCommand('next', info);
       } else if (cmd === 'Finish') {
-        console.log('Calling sendRecordCommand with finish');
         sendRecordCommand('terminate_all', info);
       }
+      console.log('Calling sendRecordCommand with', cmd);
     } catch (error) {
       console.error('Error handling control command:', error);
     }
   };
 
+  const classMainContainer = 'h-full flex flex-col overflow-hidden';
+  const classContentsArea = 'flex-1 flex min-h-0 pt-0 px-0 justify-center items-start';
+
+  const classImageGridContainer = clsx(
+    'transition-all',
+    'duration-300',
+    'ease-in-out',
+    'flex',
+    'items-center',
+    'justify-center',
+    'min-h-0',
+    'h-full',
+    'overflow-hidden',
+    'm-2',
+    {
+      'flex-[12]': isRightPanelCollapsed,
+      'flex-[10]': !isRightPanelCollapsed,
+    }
+  );
+
+  const classRightPanelArea = clsx(
+    'h-full',
+    'w-full',
+    'transition-all',
+    'duration-300',
+    'ease-in-out',
+    'relative',
+    'overflow-scroll',
+    {
+      'flex-[0_0_40px]': isRightPanelCollapsed,
+      'flex-[1]': !isRightPanelCollapsed,
+      'min-w-[60px]': isRightPanelCollapsed,
+      'min-w-[400px]': !isRightPanelCollapsed,
+      'max-w-[60px]': isRightPanelCollapsed,
+      'max-w-[400px]': !isRightPanelCollapsed,
+    }
+  );
+
+  const classHideButton = clsx(
+    'absolute',
+    'top-10',
+    'bg-white',
+    'border',
+    'border-gray-300',
+    'rounded-full',
+    'w-12',
+    'h-12',
+    'flex',
+    'items-center',
+    'justify-center',
+    'shadow-md',
+    'hover:bg-gray-50',
+    'transition-all',
+    'duration-200',
+    'z-10',
+    {
+      'left-2': isRightPanelCollapsed,
+      'left-[10px]': !isRightPanelCollapsed,
+    }
+  );
+
+  const classRightPanel = clsx(
+    'h-full',
+    'flex',
+    'flex-col',
+    'items-center',
+    'overflow-hidden',
+    'transition-opacity',
+    'duration-300',
+    'overflow-scroll',
+    {
+      'opacity-0': isRightPanelCollapsed,
+      'opacity-100': !isRightPanelCollapsed,
+      'pointer-events-none': isRightPanelCollapsed,
+      'pointer-events-auto': !isRightPanelCollapsed,
+    }
+  );
+
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex-1 flex min-h-0 pt-0 px-0 justify-center items-start overflow-scroll">
-        <div
-          className={clsx(
-            'transition-all',
-            'duration-300',
-            'ease-in-out',
-            'flex',
-            'items-center',
-            'justify-center',
-            'min-h-0',
-            'h-full',
-            'overflow-hidden',
-            'm-2',
-            {
-              'flex-[12]': isRightPanelCollapsed,
-              'flex-[10]': !isRightPanelCollapsed,
-            }
-          )}
-        >
+    <div className={classMainContainer}>
+      <div className={classContentsArea}>
+        <div className={classImageGridContainer}>
           <ImageGrid topics={topics} setTopics={setTopics} rosHost={rosHost} />
         </div>
-        <div
-          className={clsx('transition-all', 'duration-300', 'ease-in-out', 'relative', {
-            'flex-[0_0_40px]': isRightPanelCollapsed,
-            'flex-[1]': !isRightPanelCollapsed,
-            'min-w-[60px]': isRightPanelCollapsed,
-            'min-w-[400px]': !isRightPanelCollapsed,
-            'max-w-[60px]': isRightPanelCollapsed,
-            'max-w-[400px]': !isRightPanelCollapsed,
-          })}
-        >
+        <div className={classRightPanelArea}>
           <button
             onClick={() => setIsRightPanelCollapsed(!isRightPanelCollapsed)}
-            className={clsx(
-              'absolute',
-              'top-10',
-              'bg-white',
-              'border',
-              'border-gray-300',
-              'rounded-full',
-              'w-12',
-              'h-12',
-              'flex',
-              'items-center',
-              'justify-center',
-              'shadow-md',
-              'hover:bg-gray-50',
-              'transition-all',
-              'duration-200',
-              'z-10',
-              {
-                'left-2': isRightPanelCollapsed,
-                'left-[10px]': !isRightPanelCollapsed,
-              }
-            )}
+            className={classHideButton}
             title="Hide"
           >
-            <span
-              className={clsx('text-gray-600', 'text-3xl', 'transition-transform', 'duration-200')}
-            >
+            <span className="text-gray-600 text-3xl transition-transform duration-200">
               {isRightPanelCollapsed ? (
                 <MdKeyboardDoubleArrowLeft />
               ) : (
@@ -147,31 +172,17 @@ export default function HomePage({ topics, setTopics, rosHost }) {
               )}
             </span>
           </button>
-          <div
-            className={clsx('h-full', 'overflow-hidden', 'transition-opacity', 'duration-300', {
-              'opacity-0': isRightPanelCollapsed,
-              'opacity-100': !isRightPanelCollapsed,
-              'pointer-events-none': isRightPanelCollapsed,
-              'pointer-events-auto': !isRightPanelCollapsed,
-            })}
-          >
-            <div className="ml-1 mr-1 flex flex-col items-center h-full">
-              <div className="w-full h-10"></div>
-              <div className="w-[250px] flex justify-center">
-                <EpisodeStatus episodeStatus={episodeStatus} />
-              </div>
-              <div className="w-full h-10"></div>
-              <div className="flex-1 overflow-y-auto">
-                <InfoPanel info={info} onChange={setInfo} />
-              </div>
+          <div className={classRightPanel}>
+            <div className="w-full min-h-10"></div>
+            <div className="w-[250px] flex justify-center">
+              <EpisodeStatus episodeStatus={episodeStatus} />
             </div>
+            <div className="w-full min-h-10"></div>
+            <InfoPanel info={info} onChange={setInfo} />
           </div>
         </div>
       </div>
-
-      <div className="flex-shrink-0">
-        <ControlPanel onCommand={handleControlCommand} episodeStatus={episodeStatus} />
-      </div>
+      <ControlPanel onCommand={handleControlCommand} episodeStatus={episodeStatus} />
     </div>
   );
 }

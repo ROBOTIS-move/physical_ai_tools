@@ -20,6 +20,7 @@ import cv2
 
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_converter import DataConverter
+from physical_ai_server.inference.inference_manager import InferenceManager
 from physical_ai_server.utils.parameter_utils import (
     declare_parameters,
     load_parameters,

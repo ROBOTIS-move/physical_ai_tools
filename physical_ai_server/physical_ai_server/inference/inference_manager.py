@@ -16,16 +16,10 @@ class InferenceManager:
             self,
             policy_type: str,
             policy_path: str,
-            device: str = "cuda",
-            server_inference: bool = False,
-            server_ip: str = None,
-            server_port: int = None):
+            device: str = "cuda"):
 
         self.policy = self._load_policy(policy_type, policy_path)
         self.device = device
-        self.server_inference = server_inference
-        self.server_ip = server_ip
-        self.server_port = server_port
 
     def _load_policy(self, policy_type: str, policy_path: str):
         policy_cls = self._get_policy_class(policy_type)
@@ -45,24 +39,6 @@ class InferenceManager:
         with torch.inference_mode():
             action = self.policy.select_action(observation)
             action = action.squeeze(0).to("cpu").numpy()
-
-        return action
-
-    def server_predict(
-            self,
-            images: dict[str, np.ndarray],
-            state: np.ndarray,
-            task_instruction: str = None) -> np.array:
-        action = np.array([])
-        # observation = {}
-        # for key, value in images.items():
-        #     obs_name = 'observation.images.' + key
-        #     observation[obs_name] = value
-        # observation['observation.state'] = state
-        # observation['annotation.human.action.task_description'] = task_instruction
-
-        # action = policy_client.get_action(observation)
-        # action = action.squeeze(0).to("cpu").numpy()
 
         return action
 

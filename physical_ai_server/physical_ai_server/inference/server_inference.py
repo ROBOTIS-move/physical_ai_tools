@@ -31,7 +31,7 @@ class ServerInference:
             self,
             policy_type: str,
             policy_path: str,
-            device: str = "cuda",
+            device: str,
             server_address: str,
             port: int = 5555):
 
@@ -44,15 +44,23 @@ class ServerInference:
         self.running = True
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
-        self.socket.bind(f"tcp://{host}:{port}")
+        self.socket.bind(f"tcp://{server_address}:{port}")
+
+        self.inference_manager = InferenceManager(
+            policy_type=policy_type,
+            policy_path=policy_path,
+            device=device
+        )
 
         # Register the ping endpoint by default
         self.register_endpoint("ping", self._handle_ping, requires_input=False)
         self.register_endpoint("kill", self._kill_server, requires_input=False)
         self.register_endpoint("get_action", self.inference_manager.predict)
-        # self.register_endpoint(
-        #     "get_modality_config", model.get_modality_config, requires_input=False
-        # )
+        self.register_endpoint(
+            "get_modality_config",
+            self.inference_manager.get_policy_config,
+            requires_input=False
+        )
 
     def _kill_server(self):
         """

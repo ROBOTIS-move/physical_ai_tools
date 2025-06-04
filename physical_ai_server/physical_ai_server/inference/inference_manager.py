@@ -16,16 +16,22 @@ class InferenceManager:
             self,
             policy_type: str,
             policy_path: str,
-            device: str = "cuda"):
+            device: str = "cuda",
+            server_inference: bool = False,
+            server_ip: str = None,
+            server_port: int = None):
 
         self.policy = self._load_policy(policy_type, policy_path)
         self.device = device
+        self.server_inference = server_inference
+        self.server_ip = server_ip
+        self.server_port = server_port
 
     def _load_policy(self, policy_type: str, policy_path: str):
         policy_cls = self._get_policy_class(policy_type)
         policy = policy_cls.from_pretrained(policy_path)
         return policy
-    
+
     def get_policy_config(self):
         return self.policy.config
 
@@ -38,9 +44,27 @@ class InferenceManager:
         observation = self._preprocess(images, state, task_instruction)
         with torch.inference_mode():
             action = self.policy.select_action(observation)
-            numpy_action = action.squeeze(0).to("cpu").numpy()
+            action = action.squeeze(0).to("cpu").numpy()
 
-        return numpy_action
+        return action
+
+    def server_predict(
+            self,
+            images: dict[str, np.ndarray],
+            state: np.ndarray,
+            task_instruction: str = None) -> np.array:
+        action = np.array([])
+        # observation = {}
+        # for key, value in images.items():
+        #     obs_name = 'observation.images.' + key
+        #     observation[obs_name] = value
+        # observation['observation.state'] = state
+        # observation['annotation.human.action.task_description'] = task_instruction
+
+        # action = policy_client.get_action(observation)
+        # action = action.squeeze(0).to("cpu").numpy()
+
+        return action
 
     def _preprocess(
             self,
@@ -50,8 +74,11 @@ class InferenceManager:
 
         observation = self._convert_images2tensors(images)
         observation['observation.state'] = self._convert_np2tensors(state)
+        for key, value in observation.items():
+            observation[key] = observation[key].to(self.device)
+
         if task_instruction is not None:
-            observation['observation.task_instruction'] = task_instruction
+            observation['task'] = [task_instruction]
 
         return observation
 
@@ -69,7 +96,7 @@ class InferenceManager:
             processed_images['observation.images.' + key] = image
 
         return processed_images
-    
+
     def _convert_np2tensors(
             self,
             data: dict[str, np.ndarray]) -> dict[str, torch.Tensor]:
@@ -111,3 +138,26 @@ class InferenceManager:
         #     return GrootN1Policy
         else:
             raise NotImplementedError(f"Policy with name {name} is not implemented.")
+
+
+inference_manager = InferenceManager(
+    policy_type="pi0",
+    policy_path="/home/elicer/.cache/huggingface/hub/models--Dongkkka--pi0_model_ffw/snapshots/5bff9c085a1c4ee3634eee49fa463f329b93c170/pretrained_model",
+    device="cuda"
+)
+image = np.zeros((480, 640, 3), dtype=np.uint8)
+images = {
+    "cam_head": image,
+    "cam_wrist_1": image,
+    "cam_wrist_2": image,
+}
+
+state = np.zeros(16, dtype=np.float32)
+
+action = inference_manager.predict(
+    images=images,
+    state=state,
+    task_instruction="Sample task"
+)
+
+print(action)

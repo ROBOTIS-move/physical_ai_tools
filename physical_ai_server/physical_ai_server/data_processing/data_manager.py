@@ -24,10 +24,13 @@ from lerobot.common.datasets.utils import DEFAULT_FEATURES
 from lerobot.common.robot_devices.control_configs import RecordControlConfig
 import numpy as np
 from physical_ai_server.data_processing.lerobot_dataset_wrapper import LeRobotDatasetWrapper
+from physical_ai_interfaces.msg import RecordingStatus
 import requests
 
 
 class DataManager:
+    RECORDING = False
+    RECORD_COMPLETED = True
 
     def __init__(
             self,
@@ -44,7 +47,7 @@ class DataManager:
             video=True,
             push_to_hub=False,
             private=False,
-            num_image_writer_processes=4,
+            num_image_writer_processes=1,
             num_image_writer_threads_per_camera=1):
 
         self._record_config = RecordControlConfig(
@@ -68,7 +71,7 @@ class DataManager:
         self._task_instruction = task_instruction
         self._record_episode_count = 0
         self._start_time_s = 0
-        self.status = 'warmup'
+        self._status = 'warmup'
         self.use_image_buffer = use_image_buffer
 
     def record(
@@ -77,20 +80,27 @@ class DataManager:
             state,
             action):
 
-        if self._record_episode_count >= self._record_config.num_episodes:
+        if ((self._record_episode_count >= self._record_config.num_episodes) or 
+            (self._status == 'terminate')):
             if self._lerobot_dataset.check_video_encoding_completed():
-                if self._record_config.push_to_hub:
-                    self.upload_dataset(self._record_config.tags, private=False)
-                return True
+                if (self._record_config.push_to_hub and
+                    self._record_episode_count > 0):
+                    self._upload_dataset(
+                        self._record_config.tags,
+                        self._record_config.private)
+                return self.RECORD_COMPLETED
+
+        if self._status == 'stop':
+            return self.RECORDING
 
         if self._start_time_s == 0:
             self._start_time_s = time.perf_counter()
 
-        if self.status == 'warmup':
+        if self._status == 'warmup':
             if not self._check_time(self._record_config.warmup_time_s, 'run'):
-                return False
+                return self.RECORDING
 
-        elif self.status == 'run':
+        elif self._status == 'run':
             if not self._check_time(self._record_config.episode_time_s, 'save'):
                 frame = {}
                 for camera_name, image in images.items():
@@ -104,18 +114,18 @@ class DataManager:
                 else:
                     self._lerobot_dataset.add_frame(frame)
 
-        elif self.status == 'save':
+        elif self._status == 'save':
             self.save()
             if self._lerobot_dataset.check_video_encoding_completed():
-                self.status = 'reset'
+                self._status = 'reset'
                 self._start_time_s = 0
-            return False
+            return self.RECORDING
 
-        elif self.status == 'reset':
+        elif self._status == 'reset':
             if not self._check_time(self._record_config.reset_time_s, 'run'):
-                return False
+                return self.RECORDING
 
-        return False
+        return self.RECORDING
 
     def save(self):
         if self.use_image_buffer:
@@ -123,19 +133,51 @@ class DataManager:
         else:
             self._lerobot_dataset.save_episode()
 
-        self._lerobot_dataset.episode_buffer = None
+        self._episode_reset()
         self._record_episode_count += 1
-        self._start_time_s = 0
-        self.status = 'reset'
+        self._status = 'reset'
+
+    def record_early_save(self):
+        if self._lerobot_dataset.episode_buffer is not None:
+            self._status = 'save'
 
     def record_stop(self):
+        self._episode_reset()
+        self._status = 'stop'
+
+    def record_terminate(self):
+        self._status = 'terminate'
+
+    def get_current_record_status(self):
+        current_record_status = {
+            'num_episodes': self._record_config.num_episodes,
+            'current_episode': self._record_episode_count,
+            'proceed_time': self._proceed_time,
+            'total_time': -1,
+            'status': RecordingStatus.NONE
+        }
+
+        if self._status == 'warmup':
+            current_record_status['status'] = RecordingStatus.ON_WARM_UP
+            current_record_status['total_time'] = self._record_config.warmup_time_s
+        elif self._status == 'run':
+            current_record_status['status'] = RecordingStatus.ON_EPISODE
+            current_record_status['total_time'] = self._record_config.episode_time_s
+        elif self._status == 'reset':
+            current_record_status['status'] = RecordingStatus.ON_RESET
+            current_record_status['total_time'] = self._record_config.reset_time_s
+
+        return current_record_status
+
+    def _episode_reset(self):
         self._lerobot_dataset.episode_buffer = None
         self._start_time_s = 0
-        self.status = 'stop'
+        
 
     def _check_time(self, limit_time, next_status):
-        if time.perf_counter() - self._start_time_s > limit_time:
-            self.status = next_status
+        self._proceed_time = time.perf_counter() - self._start_time_s
+        if self._proceed_time > limit_time:
+            self._status = next_status
             self._start_time_s = 0
             return True
         else:
@@ -152,7 +194,7 @@ class DataManager:
 
         if response.status_code == url_exist_code:
             print(f'Dataset {repo_id} exists on Huggingface, downloading...')
-            self.download_dataset(repo_id)
+            self._download_dataset(repo_id)
             return True
 
         return False
@@ -217,10 +259,10 @@ class DataManager:
                 use_videos=True
             )
 
-    def upload_dataset(self, tags, private=False):
+    def _upload_dataset(self, tags, private=False):
         self._lerobot_dataset.push_to_hub(tags=tags, private=private)
 
-    def download_dataset(self, repo_id):
+    def _download_dataset(self, repo_id):
         snapshot_download(
             repo_id,
             repo_type='dataset',

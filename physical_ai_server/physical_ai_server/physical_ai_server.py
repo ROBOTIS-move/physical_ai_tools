@@ -73,11 +73,17 @@ class PhysicalAIServer(Node):
         # Create data_collection_timer for periodic data collection with specified frequency
         self.timer_manager = TimerManager(
             node=self)
+        
+        # Determine which callback function to use based on the operation mode
+        if operation_mode == 'inference':
+            callback_function = self.inference_timer_callback
+        else:
+            callback_function = self.data_collection_timer_callback
 
         self.timer_manager.set_timer(
             timer_name=operation_mode,
             timer_frequency=timer_frequency,
-            callback_function=self.data_collection_timer_callback
+            callback_function=callback_function
         )
 
         self.data_converter = DataConverter()
@@ -225,11 +231,37 @@ class PhysicalAIServer(Node):
             return
 
     def inference_timer_callback(self):
-        camera_data, follower_data, _ = self.update_latest_data()
+        camera_data = {}
+        follower_data = []
+        leader_data = []
 
-        if camera_data and follower_data:
-            self.latest_camera_data = camera_data
-            self.latest_joint_data = follower_data
+        if not self.update_latest_data(
+                camera_data,
+                follower_data,
+                leader_data):
+            return
+
+        # TODO: Implement inference logic here
+        # leader_data = 
+
+        if self.save_inference:
+            if not self.data_manager.check_lerobot_dataset(
+                    camera_data,
+                    self.total_joint_order):
+                self.get_logger().info(
+                    'Invalid Repository Folder, Please check the repository folder')
+                self.timer_manager.stop(timer_name=self.operation_mode)
+                return
+
+            record_completed = self.data_manager.record(
+                images=camera_data,
+                state=follower_data,
+                action=leader_data)
+
+            if record_completed:
+                self.get_logger().info('Recording stopped')
+                self.timer_manager.stop(timer_name=self.operation_mode)
+                return
 
     def user_interaction_callback(self, request, response):
         save_path = self.default_save_root_path / request.repo_id
@@ -264,11 +296,34 @@ class PhysicalAIServer(Node):
 
         elif request.command == SendRecordingCommand.Request.STOP:
             self.get_logger().info('Stopping recording')
-            if self.timer_manager is not None:
-                self.timer_manager.stop(timer_name=self.operation_mode)
-                self.data_manager.record_stop()
+            self.data_manager.record_stop()
             response.success = True
             response.message = 'Recording stopped'
+
+        elif request.command == SendRecordingCommand.Request.MOVE_TO_NEXT:
+            self.get_logger().info('Moving to next episode')
+            self.data_manager.record_early_save()
+            response.success = True
+            response.message = 'Moved to next episode'  
+
+        elif request.command == SendRecordingCommand.Request.TERMINATE_ALL:
+            self.get_logger().info('Terminating all operations')
+            self.data_manager.record_terminate()
+            response.success = True
+            response.message = 'All operations terminated'
+
+        elif request.command == SendRecordingCommand.Request.START_INFERENCE:
+            self.get_logger().info('Starting inference')
+            self.operation_mode = 'inference'
+            self.init_robot_control_parameters_from_user_task(
+                request.robot_type,
+                self.operation_mode,
+                request.frequency
+            )
+            self.timer_manager.start(timer_name=self.operation_mode)
+            response.success = True
+            response.message = 'Inference started'
+
         return response
 
 

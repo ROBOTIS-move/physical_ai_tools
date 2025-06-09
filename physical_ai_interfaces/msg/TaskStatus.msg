@@ -12,7 +12,6 @@ TaskInfo task_info
 uint8 phase                     # (0: NONE, 1: WARMING_UP, 2: RESETTING 3: RECORDING, 4: STOPED)
 uint16 total_time               # [s]
 uint16 proceed_time             # [s]
-uint16 num_episodes
 uint16 current_episode_number
 float32 used_storage_size       # [GB]
 float32 total_storage_size      # [GB]

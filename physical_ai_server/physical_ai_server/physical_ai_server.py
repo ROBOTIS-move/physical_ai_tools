@@ -19,7 +19,7 @@
 from pathlib import Path
 
 import cv2
-from physical_ai_interfaces.srv import SendRecordingCommand
+from physical_ai_interfaces.srv import SendCommand
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_converter import DataConverter
 from physical_ai_server.data_processing.data_manager import DataManager
@@ -43,7 +43,7 @@ class PhysicalAIServer(Node):
 
         # Create service
         self.recording_cmd_service = self.create_service(
-            SendRecordingCommand,
+            SendCommand,
             'recording/command',
             self.user_interaction_callback
         )
@@ -289,7 +289,7 @@ class PhysicalAIServer(Node):
         save_path = self.default_save_root_path / request.repo_id
         self.get_logger().info(f'Save path: {save_path}')
 
-        if request.command == SendRecordingCommand.Request.START_RECORD:
+        if request.command == SendCommand.Request.START_RECORD:
             self.get_logger().info('Starting recording with task: ' + request.task_name)
             self.operation_mode = 'collection'
             self.init_robot_control_parameters_from_user_task(
@@ -316,25 +316,25 @@ class PhysicalAIServer(Node):
             response.success = True
             response.message = 'Recording started'
 
-        elif request.command == SendRecordingCommand.Request.STOP:
+        elif request.command == SendCommand.Request.STOP:
             self.get_logger().info('Stopping recording')
             self.data_manager.record_stop()
             response.success = True
             response.message = 'Recording stopped'
 
-        elif request.command == SendRecordingCommand.Request.MOVE_TO_NEXT:
+        elif request.command == SendCommand.Request.MOVE_TO_NEXT:
             self.get_logger().info('Moving to next episode')
             self.data_manager.record_early_save()
             response.success = True
             response.message = 'Moved to next episode'  
 
-        elif request.command == SendRecordingCommand.Request.TERMINATE_ALL:
+        elif request.command == SendCommand.Request.TERMINATE_ALL:
             self.get_logger().info('Terminating all operations')
             self.data_manager.record_terminate()
             response.success = True
             response.message = 'All operations terminated'
 
-        elif request.command == SendRecordingCommand.Request.START_INFERENCE:
+        elif request.command == SendCommand.Request.START_INFERENCE:
             self.get_logger().info('Starting inference')
             self.operation_mode = 'inference'
             self.init_robot_control_parameters_from_user_task(

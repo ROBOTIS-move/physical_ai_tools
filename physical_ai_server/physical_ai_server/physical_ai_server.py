@@ -45,7 +45,7 @@ class PhysicalAIServer(Node):
         # Create service
         self.recording_cmd_service = self.create_service(
             SendCommand,
-            'recording/command',
+            '/task/command',
             self.user_interaction_callback
         )
 
@@ -233,6 +233,7 @@ class PhysicalAIServer(Node):
             action=leader_data)
 
         current_status = self.data_manager.get_current_record_status()
+        self.communicator.publish_status(status=current_status)
 
         if record_completed:
             self.get_logger().info('Recording stopped')

@@ -89,7 +89,7 @@ class DataManager:
                     frame[f'observation.images.{camera_name}'] = image
                 frame['observation.state'] = np.array(state)
                 frame['action'] = np.array(action)
-                frame['task'] = self._task_info.single_task
+                frame['task'] = self._task_info.task_instruction
 
                 if self._task_info.use_image_buffer:
                     self._lerobot_dataset.add_frame_without_write_image(frame)

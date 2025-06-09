@@ -11,9 +11,9 @@ uint8 MOVE_TO_NEXT = 5
 uint8 RERECORD = 6
 uint8 TERMINATE_ALL = 7
 
-uint8_t command
+uint8 command
 TaskInfo task_info
-std::string model_path
+string model_path
 ---
 bool success
 string message

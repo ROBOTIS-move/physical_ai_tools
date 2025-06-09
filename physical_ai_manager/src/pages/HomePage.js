@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight } from 'react-icons/md';
 import ImageGrid from '../components/ImageGrid';
@@ -22,37 +22,40 @@ import EpisodeStatus from '../components/EpisodeStatus';
 import ControlPanel from '../components/ControlPanel';
 import InfoPanel from '../components/InfoPanel';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import { useRosTaskStatus } from '../hooks/useRosTaskStatus';
 
 export default function HomePage({ topics, setTopics, rosHost }) {
-  const [info, setInfo] = useState({
-    taskName: 'ai_worker_task_abcd_12345',
-    robotType: 'ai-worker',
-    taskType: 'record',
-    taskInstruction: 'pick and place objects',
-    repoId: 'robotis/ai_worker_dataset',
-    fps: 30,
-    tags: ['tutorial'],
-    warmupTime: 5,
-    episodeTime: 60,
-    resetTime: 60,
-    numEpisodes: 100,
-    resume: true,
-    pushToHub: true,
-  });
+  const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
 
-  const [episodeStatus, setEpisodeStatus] = useState({
-    taskName: 'idle',
-    running: false,
-    phase: 4,
-    progress: 60,
-    numEpisodes: 0,
-    currentEpisodeNumber: 0,
-    repoId: '',
-  });
+  // Subscribe to task status (includes task info) from ROS topic
+  const {
+    taskStatus,
+    taskInfo,
+    connected: taskStatusConnected,
+  } = useRosTaskStatus(rosbridgeUrl, '/task/status');
+
+  // Start with default values and update with data from topic
+  const [info, setInfo] = useState(taskInfo);
+
+  // Update info state when taskInfo changes
+  useEffect(() => {
+    if (taskInfo) {
+      setInfo(taskInfo);
+    }
+  }, [taskInfo]);
+
+  const [episodeStatus, setEpisodeStatus] = useState(taskStatus);
+
+  // Update episodeStatus when taskStatus changes
+  useEffect(() => {
+    if (taskStatus) {
+      setEpisodeStatus(taskStatus);
+    }
+  }, [taskStatus]);
 
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
-  const { sendRecordCommand } = useRosServiceCaller(`ws://${rosHost.split(':')[0]}:9090`);
+  const { sendRecordCommand } = useRosServiceCaller(rosbridgeUrl);
 
   const handleControlCommand = (cmd) => {
     console.log('Control command received:', cmd);
@@ -175,10 +178,15 @@ export default function HomePage({ topics, setTopics, rosHost }) {
           <div className={classRightPanel}>
             <div className="w-full min-h-10"></div>
             <div className="w-[250px] flex justify-center">
-              <EpisodeStatus episodeStatus={episodeStatus} />
+              <EpisodeStatus
+                episodeStatus={{
+                  ...episodeStatus,
+                  numEpisodes: taskInfo?.numEpisodes,
+                }}
+              />
             </div>
             <div className="w-full min-h-10"></div>
-            <InfoPanel info={info} onChange={setInfo} />
+            <InfoPanel info={info} onChange={setInfo} disabled={taskStatus?.phase !== 0} />
           </div>
         </div>
       </div>

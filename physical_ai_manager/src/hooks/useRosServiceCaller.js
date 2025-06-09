@@ -69,7 +69,7 @@ export function useRosServiceCaller(rosbridgeUrl) {
   );
 
   const sendRecordCommand = useCallback(
-    (command, task_info) => {
+    (command, task_info, model_path = '') => {
       let command_enum;
       switch (command) {
         case 'none':
@@ -93,19 +93,26 @@ export function useRosServiceCaller(rosbridgeUrl) {
         case 'terminate_all':
           command_enum = 6;
       }
-      callService('recording/command', 'physical_ai_interfaces/srv/SendRecordingCommand', {
+      callService('/task/command', 'physical_ai_interfaces/srv/SendCommand', {
+        task_info: {
+          task_name: String(task_info.taskName),
+          robot_type: String(task_info.robotType),
+          task_type: String(task_info.taskType),
+          repo_id: String(task_info.repoId),
+          task_instruction: String(task_info.taskInstruction),
+          fps: Number(task_info.fps),
+          tags: task_info.tags,
+          warmup_time_s: Number(task_info.warmupTime),
+          episode_time_s: Number(task_info.episodeTime),
+          reset_time_s: Number(task_info.resetTime),
+          num_episodes: Number(task_info.numEpisodes),
+          resume: Boolean(task_info.resume),
+          push_to_hub: Boolean(task_info.pushToHub),
+          private_mode: Boolean(task_info.privateMode),
+          use_image_buffer: Boolean(task_info.useImageBuffer),
+        },
         command: Number(command_enum),
-        task_name: String(task_info.taskName),
-        robot_type: String(task_info.robotType),
-        frequency: Number(task_info.fps),
-        task_instruction: String(task_info.taskInstruction),
-        repo_id: String(task_info.repoId),
-        use_image_buffer: Boolean(task_info.useImageBuffer),
-        reset_time: Number(task_info.resetTime),
-        episode_time: Number(task_info.episodeTime),
-        episode_num: Number(task_info.numEpisodes),
-        push_to_hub: Boolean(task_info.pushToHub),
-        private_mode: Boolean(task_info.privateMode),
+        model_path: String(model_path),
       });
     },
     [callService]

@@ -120,23 +120,26 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task_status') {
 
         // Extract TaskInfo from TaskStatus message
         if (msg.task_info) {
-          setTaskInfo({
-            taskName: msg.task_info.task_name || '',
-            robotType: msg.task_info.robot_type || '',
-            taskType: msg.task_info.task_type || '',
-            taskInstruction: msg.task_info.task_instruction || '',
-            repoId: msg.task_info.repo_id || '',
-            fps: msg.task_info.fps || 0,
-            tags: msg.task_info.tags || [],
-            warmupTime: msg.task_info.warmup_time_s || 0,
-            episodeTime: msg.task_info.episode_time_s || 0,
-            resetTime: msg.task_info.reset_time_s || 0,
-            numEpisodes: msg.task_info.num_episodes || 0,
-            resume: msg.task_info.resume || false,
-            pushToHub: msg.task_info.push_to_hub || false,
-            privateMode: msg.task_info.private_mode || false,
-            useImageBuffer: msg.task_info.use_image_buffer || false,
-          });
+          if (msg.phase != 0) {
+            // update task info only when task is not stopped
+            setTaskInfo({
+              taskName: msg.task_info.task_name || '',
+              robotType: msg.task_info.robot_type || '',
+              taskType: msg.task_info.task_type || '',
+              taskInstruction: msg.task_info.task_instruction || '',
+              repoId: msg.task_info.repo_id || '',
+              fps: msg.task_info.fps || 0,
+              tags: msg.task_info.tags || [],
+              warmupTime: msg.task_info.warmup_time_s || 0,
+              episodeTime: msg.task_info.episode_time_s || 0,
+              resetTime: msg.task_info.reset_time_s || 0,
+              numEpisodes: msg.task_info.num_episodes || 0,
+              resume: msg.task_info.resume || false,
+              pushToHub: msg.task_info.push_to_hub || false,
+              privateMode: msg.task_info.private_mode || false,
+              useImageBuffer: msg.task_info.use_image_buffer || false,
+            });
+          }
         }
       });
     } catch (error) {

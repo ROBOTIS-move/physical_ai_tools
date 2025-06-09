@@ -17,6 +17,11 @@
 # Author: Dongyun Kim
 
 import threading
+import sys
+
+dev_lerobot_path = '/root/ros2_ws/src/physical_ai_tools/lerobot'
+if dev_lerobot_path not in sys.path:
+    sys.path.insert(0, dev_lerobot_path)
 
 from lerobot.common.datasets.compute_stats import (
     get_feature_stats
@@ -155,6 +160,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             self.encoders = {}
 
         if self._check_nvenc_availability():
+            print("Using NVIDIA NVENC encoder for video encoding.")
             self.encoders[save_path] = JetsonGPUEncoder(
                     vcodec='hevc_nvenc',
                     fps=30,

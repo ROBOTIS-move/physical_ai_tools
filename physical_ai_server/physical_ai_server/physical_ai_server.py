@@ -19,6 +19,7 @@
 from pathlib import Path
 
 import cv2
+from physical_ai_interfaces.msg import TaskInfo
 from physical_ai_interfaces.srv import SendCommand
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_converter import DataConverter
@@ -60,14 +61,13 @@ class PhysicalAIServer(Node):
     def init_robot_control_parameters_from_user_task(
             self,
             robot_type,
-            operation_mode,
             timer_frequency):
         self.get_ros_params(robot_type)
 
         # Initialize observation manager
         self.communicator = Communicator(
             node=self,
-            operation_mode=operation_mode,
+            operation_mode=self.operation_mode,
             params=self.params
         )
 
@@ -76,13 +76,13 @@ class PhysicalAIServer(Node):
             node=self)
         
         # Determine which callback function to use based on the operation mode
-        if operation_mode == 'inference':
+        if self.operation_mode == 'inference':
             callback_function = self.inference_timer_callback
         else:
             callback_function = self.data_collection_timer_callback
 
         self.timer_manager.set_timer(
-            timer_name=operation_mode,
+            timer_name=self.operation_mode,
             timer_frequency=timer_frequency,
             callback_function=callback_function
         )
@@ -178,7 +178,13 @@ class PhysicalAIServer(Node):
         else:
             self.get_logger().error('Camera or Follower topic is not found')
             return False
-
+        self.get_logger().info(
+            f'{len(camera_data)} camera data received, ' +
+            f'{len(self.params['camera_topic_list'])} cameras'
+        )
+        for camera_topic_name in self.params['camera_topic_list']:
+            self.get_logger().info(
+                f'Camera topic {camera_topic_name} not found in received data')
         if len(camera_data) != len(self.params['camera_topic_list']):
             self.get_logger().error(
                 'Camera data length does not match the number of cameras')
@@ -225,6 +231,8 @@ class PhysicalAIServer(Node):
             images=camera_data,
             state=follower_data,
             action=leader_data)
+
+        current_status = self.data_manager.get_current_record_status()
 
         if record_completed:
             self.get_logger().info('Recording stopped')
@@ -286,31 +294,22 @@ class PhysicalAIServer(Node):
                 return
 
     def user_interaction_callback(self, request, response):
-        save_path = self.default_save_root_path / request.repo_id
-        self.get_logger().info(f'Save path: {save_path}')
-
         if request.command == SendCommand.Request.START_RECORD:
-            self.get_logger().info('Starting recording with task: ' + request.task_name)
+            task_info = request.task_info
+            self.get_logger().info(
+                'Starting recording with task: ' + task_info.task_name)
+            self.get_logger().info(
+                'Robot Type: ' + task_info.robot_type)
             self.operation_mode = 'collection'
+
             self.init_robot_control_parameters_from_user_task(
-                request.robot_type,
-                self.operation_mode,
-                request.frequency
+                task_info.robot_type,
+                task_info.fps
             )
 
             self.data_manager = DataManager(
-                repo_id=request.repo_id,
-                save_path=save_path,
-                task_instruction=request.task_instruction,
-                tags=['ROBOTIS', request.robot_type],
-                use_image_buffer=request.use_image_buffer,
-                save_fps=request.frequency,
-                reset_time_s=request.reset_time,
-                episode_time_s=request.episode_time,
-                warmup_time_s=request.warmup_time,
-                num_episodes=request.episode_num,
-                push_to_hub=request.push_to_hub,
-                private=request.private_mode)
+                save_root_path=self.default_save_root_path,
+                task_info=task_info)
 
             self.timer_manager.start(timer_name=self.operation_mode)
             response.success = True
@@ -338,9 +337,8 @@ class PhysicalAIServer(Node):
             self.get_logger().info('Starting inference')
             self.operation_mode = 'inference'
             self.init_robot_control_parameters_from_user_task(
-                request.robot_type,
-                self.operation_mode,
-                request.frequency
+                task_info.robot_type,
+                task_info.fps
             )
             self.timer_manager.start(timer_name=self.operation_mode)
             response.success = True

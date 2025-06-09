@@ -17,6 +17,7 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { MdHome } from 'react-icons/md';
+import { Toaster } from 'react-hot-toast';
 import './App.css';
 import HomePage from './pages/HomePage';
 import SettingPage from './pages/SettingPage';
@@ -92,6 +93,29 @@ function App() {
           />
         )}
       </main>
+      <Toaster
+        position="top-center"
+        gutter={8}
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            duration: 2000,
+            style: {
+              background: '#10b981',
+            },
+          },
+          error: {
+            duration: 4000,
+            style: {
+              background: '#ef4444',
+            },
+          },
+        }}
+      />
     </div>
   );
 }

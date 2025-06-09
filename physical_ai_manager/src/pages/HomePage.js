@@ -17,6 +17,7 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight } from 'react-icons/md';
+import toast, { useToasterStore } from 'react-hot-toast';
 import ImageGrid from '../components/ImageGrid';
 import EpisodeStatus from '../components/EpisodeStatus';
 import ControlPanel from '../components/ControlPanel';
@@ -26,6 +27,17 @@ import { useRosTaskStatus } from '../hooks/useRosTaskStatus';
 
 export default function HomePage({ topics, setTopics, rosHost }) {
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
+
+  // Toast limit implementation using useToasterStore
+  const { toasts } = useToasterStore();
+  const TOAST_LIMIT = 3;
+
+  useEffect(() => {
+    toasts
+      .filter((t) => t.visible) // Only consider visible toasts
+      .filter((_, i) => i >= TOAST_LIMIT) // Is toast index over limit?
+      .forEach((t) => toast.dismiss(t.id)); // Dismiss – Use toast.remove(t.id) for no exit animation
+  }, [toasts]);
 
   // Subscribe to task status (includes task info) from ROS topic
   const {
@@ -57,23 +69,33 @@ export default function HomePage({ topics, setTopics, rosHost }) {
 
   const { sendRecordCommand } = useRosServiceCaller(rosbridgeUrl);
 
-  const handleControlCommand = (cmd) => {
+  const handleControlCommand = async (cmd) => {
     console.log('Control command received:', cmd);
     try {
+      let result;
       if (cmd === 'Start') {
-        sendRecordCommand('start_record', info);
+        result = await sendRecordCommand('start_record', info);
       } else if (cmd === 'Stop') {
-        sendRecordCommand('stop', info);
+        result = await sendRecordCommand('stop', info);
       } else if (cmd === 'Retry') {
-        sendRecordCommand('rerecord', info);
+        result = await sendRecordCommand('rerecord', info);
       } else if (cmd === 'Next') {
-        sendRecordCommand('next', info);
+        result = await sendRecordCommand('next', info);
       } else if (cmd === 'Finish') {
-        sendRecordCommand('terminate_all', info);
+        result = await sendRecordCommand('finish', info);
       }
-      console.log('Calling sendRecordCommand with', cmd);
+
+      console.log('Service call result:', result);
+      // Handle service response
+      if (result && !result.success) {
+        toast.error(`Command failed: ${result.message || 'Unknown error'}`);
+      } else if (result && result.success) {
+        toast.success(`Command [${cmd}] executed successfully`);
+        console.log(`Command '${cmd}' executed successfully`);
+      }
     } catch (error) {
       console.error('Error handling control command:', error);
+      toast.error(`Failed to execute command [${cmd}]: ${error.message || error}`);
     }
   };
 

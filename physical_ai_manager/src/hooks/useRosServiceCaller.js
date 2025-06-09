@@ -27,28 +27,33 @@ export function useRosServiceCaller(rosbridgeUrl) {
 
   const callService = useCallback(
     (serviceName, serviceType, request) => {
-      try {
-        const ros = getRosConnection();
+      return new Promise((resolve, reject) => {
+        try {
+          const ros = getRosConnection();
 
-        const service = new ROSLIB.Service({
-          ros,
-          name: serviceName,
-          serviceType: serviceType,
-        });
-        const req = new ROSLIB.ServiceRequest(request);
+          const service = new ROSLIB.Service({
+            ros,
+            name: serviceName,
+            serviceType: serviceType,
+          });
+          const req = new ROSLIB.ServiceRequest(request);
 
-        service.callService(
-          req,
-          (result) => {
-            console.log('Service call successful:', result);
-          },
-          (error) => {
-            console.error('Service call failed:', error);
-          }
-        );
-      } catch (error) {
-        console.error('Failed to create ROS connection:', error);
-      }
+          service.callService(
+            req,
+            (result) => {
+              console.log('Service call successful:', result);
+              resolve(result);
+            },
+            (error) => {
+              console.error('Service call failed:', error);
+              reject(error);
+            }
+          );
+        } catch (error) {
+          console.error('Failed to create ROS connection:', error);
+          reject(error);
+        }
+      });
     },
     [getRosConnection]
   );
@@ -69,7 +74,7 @@ export function useRosServiceCaller(rosbridgeUrl) {
   );
 
   const sendRecordCommand = useCallback(
-    (command, task_info, model_path = '') => {
+    async (command, task_info, model_path = '') => {
       let command_enum;
       switch (command) {
         case 'none':
@@ -90,10 +95,11 @@ export function useRosServiceCaller(rosbridgeUrl) {
         case 'rerecord':
           command_enum = 5;
           break;
-        case 'terminate_all':
+        case 'finish':
           command_enum = 6;
       }
-      callService('/task/command', 'physical_ai_interfaces/srv/SendCommand', {
+
+      return await callService('/task/command', 'physical_ai_interfaces/srv/SendCommand', {
         task_info: {
           task_name: String(task_info.taskName),
           robot_type: String(task_info.robotType),

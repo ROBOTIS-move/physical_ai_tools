@@ -1,0 +1,19 @@
+########################################
+# Constants
+########################################
+# command
+uint8 NONE = 0
+uint8 START_RECORD = 1
+uint8 STOP_RECORD = 2
+uint8 START_INFERENCE = 3
+uint8 STOP_INFERENCE = 4
+uint8 MOVE_TO_NEXT = 5
+uint8 RERECORD = 6
+uint8 TERMINATE_ALL = 7
+
+uint8_t command
+TaskInfo task_info
+std::string model_path
+---
+bool success
+string message

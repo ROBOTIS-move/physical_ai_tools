@@ -124,5 +124,19 @@ export function useRosServiceCaller(rosbridgeUrl) {
     [callService]
   );
 
-  return { callService, setGuiPage, sendRecordCommand };
+  const getImageTopicList = useCallback(async () => {
+    try {
+      const result = await callService(
+        '/get_image_topic_list',
+        'physical_ai_interfaces/srv/GetImageTopicList',
+        {}
+      );
+      return result;
+    } catch (error) {
+      console.error('Failed to get image topic list:', error);
+      throw error;
+    }
+  }, [callService]);
+
+  return { callService, setGuiPage, sendRecordCommand, getImageTopicList };
 }

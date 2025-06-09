@@ -32,8 +32,8 @@ class InferenceManager:
     def predict(
             self,
             images: dict[str, np.ndarray],
-            state: np.ndarray,
-            task_instruction: str = None) -> np.array:
+            state: list[float],
+            task_instruction: str = None) -> list:
 
         observation = self._preprocess(images, state, task_instruction)
         with torch.inference_mode():
@@ -45,12 +45,12 @@ class InferenceManager:
     def _preprocess(
             self,
             images: dict[str, np.ndarray],
-            state: np.ndarray,
+            state: list,
             task_instruction: str = None) -> dict:
 
         observation = self._convert_images2tensors(images)
         observation['observation.state'] = self._convert_np2tensors(state)
-        for key, value in observation.items():
+        for key in observation.keys():
             observation[key] = observation[key].to(self.device)
 
         if task_instruction is not None:
@@ -114,26 +114,3 @@ class InferenceManager:
         #     return GrootN1Policy
         else:
             raise NotImplementedError(f"Policy with name {name} is not implemented.")
-
-
-inference_manager = InferenceManager(
-    policy_type="pi0",
-    policy_path="/home/elicer/.cache/huggingface/hub/models--Dongkkka--pi0_model_ffw/snapshots/5bff9c085a1c4ee3634eee49fa463f329b93c170/pretrained_model",
-    device="cuda"
-)
-image = np.zeros((480, 640, 3), dtype=np.uint8)
-images = {
-    "cam_head": image,
-    "cam_wrist_1": image,
-    "cam_wrist_2": image,
-}
-
-state = np.zeros(16, dtype=np.float32)
-
-action = inference_manager.predict(
-    images=images,
-    state=state,
-    task_instruction="Sample task"
-)
-
-print(action)

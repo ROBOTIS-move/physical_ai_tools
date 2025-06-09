@@ -243,7 +243,28 @@ class PhysicalAIServer(Node):
             return
 
         # TODO: Implement inference logic here
-        # leader_data = 
+        # inference_manager = InferenceManager(
+        #     policy_type="pi0",
+        #     policy_path="/home/elicer/.cache/huggingface/hub/models--Dongkkka--pi0_model_ffw/snapshots/5bff9c085a1c4ee3634eee49fa463f329b93c170/pretrained_model",
+        #     device="cuda"
+        # )
+        # image = np.zeros((480, 640, 3), dtype=np.uint8)
+        # images = {
+        #     "cam_head": image,
+        #     "cam_wrist_1": image,
+        #     "cam_wrist_2": image,
+        # }
+        # state = np.array(follower_data, dtype=np.float32)
+
+        # state = np.zeros(16, dtype=np.float32)
+
+        # action = inference_manager.predict(
+        #     images=images,
+        #     state=state,
+        #     task_instruction="Sample task"
+        # )
+
+        # print(action)
 
         if self.save_inference:
             if not self.data_manager.check_lerobot_dataset(

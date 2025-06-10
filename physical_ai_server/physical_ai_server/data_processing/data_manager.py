@@ -49,11 +49,11 @@ class DataManager:
 
         self._save_repo_name = f'{task_info.repo_id}/{task_info.robot_type}_{task_info.task_name}'
         self._save_path = save_root_path / self._save_repo_name
-        print('Save Path : ',self._save_path)
         self._task_info = task_info
         self._lerobot_dataset = None
         self._record_episode_count = 0
         self._start_time_s = 0
+        self._proceed_time = 0
         self._status = 'warmup'
 
     def record(
@@ -69,7 +69,7 @@ class DataManager:
                     self._record_episode_count > 0):
                     self._upload_dataset(
                         self._task_info.tags,
-                        self._task_info.private)
+                        self._task_info.private_mode)
                 return self.RECORD_COMPLETED
 
         if self._status == 'stop':
@@ -100,9 +100,8 @@ class DataManager:
             self.save()
             self._episode_reset()
             self._record_episode_count += 1
-            if self._lerobot_dataset.check_video_encoding_completed():
-                self._status = 'reset'
-                self._start_time_s = 0
+            self._status = 'reset'
+            self._start_time_s = 0
             return self.RECORDING
 
         elif self._status == 'reset':
@@ -122,6 +121,7 @@ class DataManager:
             self._status = 'save'
 
     def record_stop(self):
+        self.save()
         self._episode_reset()
         self._status = 'stop'
 
@@ -129,27 +129,29 @@ class DataManager:
         self._episode_reset()
         self._status = 'reset'
 
-    def record_terminate(self):
-        self._status = 'terminate'
-
     def get_current_record_status(self):
         current_status = TaskStatus()
         current_status.task_info = self._task_info
-        current_status.proceed_time = self._proceed_time
-        current_status.current_episode_number = self._record_episode_count
+
+        current_status.proceed_time = int(getattr(self, '_proceed_time', 0))  # uint16
+        current_status.current_episode_number = int(self._record_episode_count)  # uint16
+
         total_storage, used_storage = StorageChecker.get_storage_gb("/")
-        current_status.used_storage_size = used_storage
-        current_status.total_storage_size = total_storage
+        current_status.used_storage_size = float(used_storage)  # float32
+        current_status.total_storage_size = float(total_storage)  # float32
 
         if self._status == 'warmup':
             current_status.phase = TaskStatus.WARMING_UP
-            current_status.total_time = self._task_info.warmup_time_s
+            current_status.total_time = int(self._task_info.warmup_time_s)  # uint16
         elif self._status == 'run':
             current_status.phase = TaskStatus.RECORDING
-            current_status.total_time = self._task_info.episode_time_s
+            current_status.total_time = int(self._task_info.episode_time_s)  # uint16
         elif self._status == 'reset':
             current_status.phase = TaskStatus.RESETTING
-            current_status.total_time = self._task_info.reset_time_s
+            current_status.total_time = int(self._task_info.reset_time_s)  # uint16
+        else:
+            current_status.phase = TaskStatus.NONE
+            current_status.total_time = 0
 
         return current_status
 

@@ -19,7 +19,7 @@
 from pathlib import Path
 
 import cv2
-from physical_ai_interfaces.msg import TaskInfo
+from physical_ai_interfaces.msg import TaskInfo, TaskStatus
 from physical_ai_interfaces.srv import SendCommand, GetImageTopicList
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_converter import DataConverter
@@ -184,13 +184,7 @@ class PhysicalAIServer(Node):
         else:
             self.get_logger().error('Camera or Follower topic is not found')
             return False
-        self.get_logger().info(
-            f'{len(camera_data)} camera data received, ' +
-            f'{len(self.params['camera_topic_list'])} cameras'
-        )
-        for camera_topic_name in self.params['camera_topic_list']:
-            self.get_logger().info(
-                f'Camera topic {camera_topic_name} not found in received data')
+
         if len(camera_data) != len(self.params['camera_topic_list']):
             self.get_logger().error(
                 'Camera data length does not match the number of cameras')
@@ -237,7 +231,7 @@ class PhysicalAIServer(Node):
             images=camera_data,
             state=follower_data,
             action=leader_data)
-
+        current_status = TaskStatus()
         current_status = self.data_manager.get_current_record_status()
         self.communicator.publish_status(status=current_status)
 
@@ -361,7 +355,7 @@ class PhysicalAIServer(Node):
 
     def get_image_topic_list_callback(self, request, response):
         self.get_logger().info('Getting image topic list')
-        camera_topic_list = self.communicator.get_image_topic_list()
+        camera_topic_list = self.communicator.get_camera_topic_list()
         if len(camera_topic_list) == 0:
             self.get_logger().error('No image topics found')
             response.image_topic_list = []

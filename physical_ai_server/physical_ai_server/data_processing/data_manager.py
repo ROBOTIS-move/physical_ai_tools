@@ -98,6 +98,8 @@ class DataManager:
 
         elif self._status == 'save':
             self.save()
+            self._episode_reset()
+            self._record_episode_count += 1
             if self._lerobot_dataset.check_video_encoding_completed():
                 self._status = 'reset'
                 self._start_time_s = 0
@@ -115,10 +117,6 @@ class DataManager:
         else:
             self._lerobot_dataset.save_episode()
 
-        self._episode_reset()
-        self._record_episode_count += 1
-        self._status = 'reset'
-
     def record_early_save(self):
         if self._lerobot_dataset.episode_buffer is not None:
             self._status = 'save'
@@ -126,6 +124,10 @@ class DataManager:
     def record_stop(self):
         self._episode_reset()
         self._status = 'stop'
+
+    def re_record(self):
+        self._episode_reset()
+        self._status = 'reset'
 
     def record_terminate(self):
         self._status = 'terminate'

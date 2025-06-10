@@ -20,7 +20,7 @@ from pathlib import Path
 
 import cv2
 from physical_ai_interfaces.msg import TaskInfo
-from physical_ai_interfaces.srv import SendCommand
+from physical_ai_interfaces.srv import SendCommand, GetImageTopicList
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_converter import DataConverter
 from physical_ai_server.data_processing.data_manager import DataManager
@@ -47,6 +47,12 @@ class PhysicalAIServer(Node):
             SendCommand,
             '/task/command',
             self.user_interaction_callback
+        )
+
+        self.image_topic_list_service = self.create_service(
+            GetImageTopicList,
+            '/image/get_available_list',
+            self.get_image_topic_list_callback
         )
 
         self.communicator = None
@@ -327,8 +333,14 @@ class PhysicalAIServer(Node):
             self.data_manager.record_early_save()
             response.success = True
             response.message = 'Moved to next episode'  
+        
+        elif request.command == SendCommand.Request.RERECORD:
+            self.get_logger().info('Re-recording current episode')
+            self.data_manager.re_record()
+            response.success = True
+            response.message = 'Re-recording current episode'
 
-        elif request.command == SendCommand.Request.TERMINATE_ALL:
+        elif request.command == SendCommand.Request.FINISH:
             self.get_logger().info('Terminating all operations')
             self.data_manager.record_terminate()
             response.success = True
@@ -347,6 +359,20 @@ class PhysicalAIServer(Node):
 
         return response
 
+    def get_image_topic_list_callback(self, request, response):
+        self.get_logger().info('Getting image topic list')
+        camera_topic_list = self.communicator.get_image_topic_list()
+        if len(camera_topic_list) == 0:
+            self.get_logger().error('No image topics found')
+            response.image_topic_list = []
+            response.success = False
+            response.message = 'No image topics found'
+            return response
+
+        response.image_topic_list = camera_topic_list
+        response.success = True
+        response.message = 'Image topic list retrieved successfully'
+        return response
 
 def main(args=None):
     rclpy.init(args=args)

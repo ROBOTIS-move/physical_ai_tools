@@ -17,7 +17,7 @@
 # Author: Dongyun Kim
 
 from functools import partial
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_server.communication.multi_subscriber import MultiSubscriber
@@ -166,3 +166,6 @@ class Communicator:
 
     def publish_status(self, status: TaskStatus):
         self.status_publisher.publish(status)
+
+    def get_camera_topic_list(self) -> List[str]:
+        return list(self.camera_topics.values())

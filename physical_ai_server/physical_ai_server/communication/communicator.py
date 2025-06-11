@@ -167,5 +167,12 @@ class Communicator:
     def publish_status(self, status: TaskStatus):
         self.status_publisher.publish(status)
 
-    def get_camera_topic_list(self) -> List[str]:
-        return list(self.camera_topics.values())
+    def get_camera_topic_list(self) -> List[str] | None:
+        camera_topic_list = []
+        for topic_name in self.camera_topics.values():
+            # Remove '/compressed' suffix if present
+            topic = topic_name
+            if topic.endswith('/compressed'):
+                topic = topic[:-11]  # Remove '/compressed' suffix
+            camera_topic_list.append(topic)
+        return camera_topic_list

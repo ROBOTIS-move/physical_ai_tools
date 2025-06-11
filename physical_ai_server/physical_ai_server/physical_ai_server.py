@@ -54,7 +54,7 @@ class PhysicalAIServer(Node):
             '/image/get_available_list',
             self.get_image_topic_list_callback
         )
-
+        self.on_recording = False
         self.communicator = None
         self.timer_manager = None
         self.data_converter = None
@@ -237,6 +237,7 @@ class PhysicalAIServer(Node):
 
         if record_completed:
             self.get_logger().info('Recording stopped')
+            self.on_recording = False
             self.timer_manager.stop(timer_name=self.operation_mode)
             return
 
@@ -313,50 +314,64 @@ class PhysicalAIServer(Node):
                 task_info=task_info)
 
             self.timer_manager.start(timer_name=self.operation_mode)
+
+            self.on_recording = True
             response.success = True
             response.message = 'Recording started'
 
-        elif request.command == SendCommand.Request.STOP:
-            self.get_logger().info('Stopping recording')
-            self.data_manager.record_stop()
-            response.success = True
-            response.message = 'Recording stopped'
+        else:
+            if not self.on_recording:
+                response.success = False
+                response.message = 'Not currently recording'
+            else:
+                if request.command == SendCommand.Request.STOP:
+                    self.get_logger().info('Stopping recording')
+                    self.data_manager.record_stop()
+                    response.success = True
+                    response.message = 'Recording stopped'
 
-        elif request.command == SendCommand.Request.MOVE_TO_NEXT:
-            self.get_logger().info('Moving to next episode')
-            self.data_manager.record_early_save()
-            response.success = True
-            response.message = 'Moved to next episode'  
-        
-        elif request.command == SendCommand.Request.RERECORD:
-            self.get_logger().info('Re-recording current episode')
-            self.data_manager.re_record()
-            response.success = True
-            response.message = 'Re-recording current episode'
+                elif request.command == SendCommand.Request.MOVE_TO_NEXT:
+                    self.get_logger().info('Moving to next episode')
+                    self.data_manager.record_early_save()
+                    response.success = True
+                    response.message = 'Moved to next episode'  
+                
+                elif request.command == SendCommand.Request.RERECORD:
+                    self.get_logger().info('Re-recording current episode')
+                    self.data_manager.re_record()
+                    response.success = True
+                    response.message = 'Re-recording current episode'
 
-        elif request.command == SendCommand.Request.FINISH:
-            self.get_logger().info('Terminating all operations')
-            self.data_manager.record_terminate()
-            response.success = True
-            response.message = 'All operations terminated'
+                elif request.command == SendCommand.Request.FINISH:
+                    self.get_logger().info('Terminating all operations')
+                    self.data_manager.record_finish()
+                    response.success = True
+                    response.message = 'All operations terminated'
 
-        elif request.command == SendCommand.Request.START_INFERENCE:
-            self.get_logger().info('Starting inference')
-            self.operation_mode = 'inference'
-            self.init_robot_control_parameters_from_user_task(
-                task_info.robot_type,
-                task_info.fps
-            )
-            self.timer_manager.start(timer_name=self.operation_mode)
-            response.success = True
-            response.message = 'Inference started'
+                # TODO: Implement inference start command
+                # elif request.command == SendCommand.Request.START_INFERENCE:
+                #     self.get_logger().info('Starting inference')
+                #     self.operation_mode = 'inference'
+                #     self.init_robot_control_parameters_from_user_task(
+                #         task_info.robot_type,
+                #         task_info.fps
+                #     )
+                #     self.timer_manager.start(timer_name=self.operation_mode)
+                #     response.success = True
+                #     response.message = 'Inference started'
 
         return response
 
     def get_image_topic_list_callback(self, request, response):
-        self.get_logger().info('Getting image topic list')
+        if not self.on_recording:
+            self.get_logger().error('Not currently recording')
+            response.image_topic_list = []
+            response.success = False
+            response.message = 'Not currently recording'
+            return response
+
         camera_topic_list = self.communicator.get_camera_topic_list()
-        if len(camera_topic_list) == 0:
+        if camera_topic_list == None or len(camera_topic_list) == 0:
             self.get_logger().error('No image topics found')
             response.image_topic_list = []
             response.success = False

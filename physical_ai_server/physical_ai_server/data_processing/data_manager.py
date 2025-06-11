@@ -49,6 +49,7 @@ class DataManager:
 
         self._save_repo_name = f'{task_info.repo_id}/{task_info.robot_type}_{task_info.task_name}'
         self._save_path = save_root_path / self._save_repo_name
+        self._on_saving = False
         self._task_info = task_info
         self._lerobot_dataset = None
         self._record_episode_count = 0
@@ -63,7 +64,7 @@ class DataManager:
             action):
 
         if ((self._record_episode_count >= self._task_info.num_episodes) or 
-            (self._status == 'terminate')):
+            (self._status == 'finish')):
             if self._lerobot_dataset.check_video_encoding_completed():
                 if (self._task_info.push_to_hub and
                     self._record_episode_count > 0):
@@ -97,12 +98,17 @@ class DataManager:
                     self._lerobot_dataset.add_frame(frame)
 
         elif self._status == 'save':
-            self.save()
-            self._episode_reset()
-            self._record_episode_count += 1
-            self._status = 'reset'
-            self._start_time_s = 0
-            return self.RECORDING
+            if self._on_saving:
+                if self._lerobot_dataset.check_video_encoding_completed():
+                    self._episode_reset()
+                    self._record_episode_count += 1
+                    self._status = 'reset'
+                    self._start_time_s = 0
+                    self._on_saving = False
+            else:
+                self.save()
+                self._on_saving = True
+            return self.RECORDING            
 
         elif self._status == 'reset':
             if not self._check_time(self._task_info.reset_time_s, 'run'):
@@ -111,6 +117,8 @@ class DataManager:
         return self.RECORDING
 
     def save(self):
+        if self._lerobot_dataset.episode_buffer is None:
+            return
         if self._task_info.use_image_buffer:
             self._lerobot_dataset.save_episode_without_write_image()
         else:
@@ -125,6 +133,11 @@ class DataManager:
         self._episode_reset()
         self._status = 'stop'
 
+    def record_finish(self):
+        self.save()
+        self._episode_reset()
+        self._status = 'finish'
+
     def re_record(self):
         self._episode_reset()
         self._status = 'reset'
@@ -133,25 +146,25 @@ class DataManager:
         current_status = TaskStatus()
         current_status.task_info = self._task_info
 
-        current_status.proceed_time = int(getattr(self, '_proceed_time', 0))  # uint16
-        current_status.current_episode_number = int(self._record_episode_count)  # uint16
+        current_status.proceed_time = int(getattr(self, '_proceed_time', 0))
+        current_status.current_episode_number = int(self._record_episode_count)
 
         total_storage, used_storage = StorageChecker.get_storage_gb("/")
-        current_status.used_storage_size = float(used_storage)  # float32
-        current_status.total_storage_size = float(total_storage)  # float32
+        current_status.used_storage_size = float(used_storage)
+        current_status.total_storage_size = float(total_storage)
 
         if self._status == 'warmup':
             current_status.phase = TaskStatus.WARMING_UP
-            current_status.total_time = int(self._task_info.warmup_time_s)  # uint16
+            current_status.total_time = int(self._task_info.warmup_time_s)
         elif self._status == 'run':
             current_status.phase = TaskStatus.RECORDING
-            current_status.total_time = int(self._task_info.episode_time_s)  # uint16
+            current_status.total_time = int(self._task_info.episode_time_s)
         elif self._status == 'reset':
             current_status.phase = TaskStatus.RESETTING
-            current_status.total_time = int(self._task_info.reset_time_s)  # uint16
-        else:
-            current_status.phase = TaskStatus.NONE
-            current_status.total_time = 0
+            current_status.total_time = int(self._task_info.reset_time_s)
+        elif self._status == 'save':
+            current_status.phase = TaskStatus.SAVING
+            current_status.total_time = int(0)
 
         return current_status
 

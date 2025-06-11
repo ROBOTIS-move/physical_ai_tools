@@ -30,7 +30,9 @@ from lerobot.common.datasets.utils import DEFAULT_FEATURES
 from lerobot.common.robot_devices.control_configs import RecordControlConfig
 import numpy as np
 from physical_ai_server.data_processing.lerobot_dataset_wrapper import LeRobotDatasetWrapper
-from physical_ai_server.data_processing.storage_checker import StorageChecker
+from physical_ai_server.device_manager.storage_checker import StorageChecker
+from physical_ai_server.device_manager.cpu_checker import CPUChecker
+from physical_ai_server.device_manager.ram_checker import RAMChecker
 from physical_ai_interfaces.msg import TaskInfo
 from physical_ai_interfaces.msg import TaskStatus
 import requests
@@ -153,6 +155,13 @@ class DataManager:
         current_status.used_storage_size = float(used_storage)
         current_status.total_storage_size = float(total_storage)
 
+        cpu_usage = CPUChecker.get_cpu_usage()
+        current_status.used_cpu = float(cpu_usage)
+
+        ram_total, ram_used = RAMChecker.get_ram_gb()
+        current_status.used_ram_size = float(ram_used)
+        current_status.total_ram_size = float(ram_total)
+
         if self._status == 'warmup':
             current_status.phase = TaskStatus.WARMING_UP
             current_status.total_time = int(self._task_info.warmup_time_s)
@@ -164,6 +173,7 @@ class DataManager:
             current_status.total_time = int(self._task_info.reset_time_s)
         elif self._status == 'save':
             current_status.phase = TaskStatus.SAVING
+            current_status.proceed_time = int(0)
             current_status.total_time = int(0)
 
         return current_status
@@ -175,7 +185,7 @@ class DataManager:
 
     def _check_time(self, limit_time, next_status):
         self._proceed_time = time.perf_counter() - self._start_time_s
-        if self._proceed_time > limit_time:
+        if self._proceed_time >= limit_time:
             self._status = next_status
             self._start_time_s = 0
             return True

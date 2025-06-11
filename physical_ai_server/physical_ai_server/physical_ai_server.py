@@ -237,6 +237,11 @@ class PhysicalAIServer(Node):
 
         if record_completed:
             self.get_logger().info('Recording stopped')
+
+            current_status.phase = TaskStatus.READY
+            current_status.proceed_time = int(0)
+            current_status.total_time = int(0)
+            self.communicator.publish_status(status=current_status)
             self.on_recording = False
             self.timer_manager.stop(timer_name=self.operation_mode)
             return

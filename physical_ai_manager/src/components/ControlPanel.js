@@ -20,6 +20,7 @@ import ProgressBar from './ProgressBar';
 import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck } from 'react-icons/md';
 import CompactStorageStatus from './CompactStorageStatus';
 import StorageStatus from './StorageStatus';
+import EpisodeStatus from './EpisodeStatus';
 import Tooltip from './Tooltip';
 
 const buttons = [
@@ -69,7 +70,7 @@ const phaseGuideMessages = {
   5: '⚡ Inference in progress',
 };
 
-export default function ControlPanel({ onCommand, episodeStatus }) {
+export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
   const icon_size = 70;
   const [hovered, setHovered] = useState(null);
   const [pressed, setPressed] = useState(null);
@@ -352,6 +353,14 @@ export default function ControlPanel({ onCommand, episodeStatus }) {
           {phaseGuideMessages[episodeStatus?.phase]}
         </div>
         <ProgressBar percent={episodeStatus?.progress} />
+      </div>
+      <div className="w-[250px] h-full p-1">
+        <EpisodeStatus
+          episodeStatus={{
+            ...episodeStatus,
+            numEpisodes: taskInfo?.numEpisodes,
+          }}
+        />
       </div>
       <StorageStatus
         totalCapacity={episodeStatus?.totalStorageSize * 1024 * 1024 * 1024 || 0}

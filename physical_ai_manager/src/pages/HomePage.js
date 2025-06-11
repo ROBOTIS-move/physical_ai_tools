@@ -69,6 +69,44 @@ export default function HomePage({ topics, setTopics, rosHost }) {
 
   const { sendRecordCommand } = useRosServiceCaller(rosbridgeUrl);
 
+  // Validation function for required fields
+  const validateTaskInfo = (taskInfo) => {
+    const requiredFields = [
+      { key: 'taskName', label: 'Task Name' },
+      { key: 'robotType', label: 'Robot Type' },
+      { key: 'taskType', label: 'Task Type' },
+      { key: 'taskInstruction', label: 'Task Instruction' },
+      { key: 'repoId', label: 'Repo ID' },
+      { key: 'fps', label: 'FPS' },
+      { key: 'warmupTime', label: 'Warmup Time' },
+      { key: 'episodeTime', label: 'Episode Time' },
+      { key: 'resetTime', label: 'Reset Time' },
+      { key: 'numEpisodes', label: 'Num Episodes' },
+    ];
+
+    const missingFields = [];
+
+    for (const field of requiredFields) {
+      const value = taskInfo[field.key];
+
+      // Check if field is empty or invalid
+      if (
+        value === null ||
+        value === undefined ||
+        value === '' ||
+        (typeof value === 'string' && value.trim() === '') ||
+        (typeof value === 'number' && (isNaN(value) || value <= 0))
+      ) {
+        missingFields.push(field.label);
+      }
+    }
+
+    return {
+      isValid: missingFields.length === 0,
+      missingFields,
+    };
+  };
+
   const handleControlCommand = async (cmd) => {
     console.log('Control command received:', cmd);
     let result;
@@ -76,6 +114,16 @@ export default function HomePage({ topics, setTopics, rosHost }) {
     try {
       // Execute the appropriate command
       if (cmd === 'Start') {
+        // Validate info before starting
+        const validation = validateTaskInfo(info);
+        if (!validation.isValid) {
+          toast.error(`❌ Missing required fields: ${validation.missingFields.join(', ')}`, {
+            duration: 4000,
+          });
+          console.error('Validation failed. Missing fields:', validation.missingFields);
+          return;
+        }
+
         result = await sendRecordCommand('start_record', info);
       } else if (cmd === 'Stop') {
         result = await sendRecordCommand('stop', info);

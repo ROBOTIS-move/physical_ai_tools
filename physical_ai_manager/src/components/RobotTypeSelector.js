@@ -30,7 +30,7 @@ export default function RobotTypeSelector({
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
   const { getRobotTypeList, setRobotType } = useRosServiceCaller(rosbridgeUrl);
 
-  const [robotTypes, setRobotTypes] = useState([]);
+  const [robotTypes, setRobotTypes] = useState(['a']);
   const [selectedRobotType, setSelectedRobotType] = useState(currentRobotType || '');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -41,16 +41,23 @@ export default function RobotTypeSelector({
     try {
       const result = await getRobotTypeList();
       console.log('Robot types received:', result);
+      console.log('Current currentRobotType before update:', currentRobotType);
 
       if (result && result.robot_types) {
         setRobotTypes(result.robot_types);
-        // Update current robot type (assuming first item is current)
+
+        // Only set current robot type if server returns it
         if (result.current_robot_type) {
+          console.log('Server returned current_robot_type:', result.current_robot_type);
           setCurrentRobotType(result.current_robot_type);
           setSelectedRobotType(result.current_robot_type);
-        } else if (result.robot_types.length > 0) {
-          setCurrentRobotType(result.robot_types[0]);
-          setSelectedRobotType(result.robot_types[0]);
+        } else {
+          console.log('No current_robot_type from server, only setting selectedRobotType');
+          // Don't set currentRobotType, let user select and set it explicitly
+          // Only set selectedRobotType to first item for UI convenience
+          if (result.robot_types.length > 0) {
+            setSelectedRobotType(result.robot_types[0]);
+          }
         }
         toast.success('Robot types loaded successfully');
       } else {
@@ -75,8 +82,9 @@ export default function RobotTypeSelector({
       return;
     }
 
-    // Fix: Allow setting robot type even if currentRobotType is empty/undefined on first load
-    if (selectedRobotType === currentRobotType && currentRobotType) {
+    // Only prevent setting if currentRobotType exists and matches selectedRobotType
+    if (currentRobotType && selectedRobotType === currentRobotType) {
+      console.log('Robot type already set, skipping');
       toast.warning('Robot type is already set to this value');
       return;
     }

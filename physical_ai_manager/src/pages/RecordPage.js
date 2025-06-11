@@ -22,9 +22,14 @@ import ImageGrid from '../components/ImageGrid';
 import ControlPanel from '../components/ControlPanel';
 import InfoPanel from '../components/InfoPanel';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
-import { useRosTaskStatus } from '../hooks/useRosTaskStatus';
-
-export default function HomePage({ topics, setTopics, rosHost }) {
+export default function RecordPage({
+  topics,
+  setTopics,
+  rosHost,
+  yamlContent,
+  taskStatus: propsTaskStatus,
+  taskInfo: propsTaskInfo,
+}) {
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
 
   // Toast limit implementation using useToasterStore
@@ -38,13 +43,9 @@ export default function HomePage({ topics, setTopics, rosHost }) {
       .forEach((t) => toast.dismiss(t.id)); // Dismiss – Use toast.remove(t.id) for no exit animation
   }, [toasts]);
 
-  // Subscribe to task status (includes task info) from ROS topic
-  const {
-    taskStatus,
-    taskInfo,
-    connected: taskStatusConnected,
-    resetTaskToIdle,
-  } = useRosTaskStatus(rosbridgeUrl, '/task/status');
+  // Use taskStatus and taskInfo from props (received from App.js)
+  const taskStatus = propsTaskStatus;
+  const taskInfo = propsTaskInfo;
 
   // Start with default values and update with data from topic
   const [info, setInfo] = useState(taskInfo);
@@ -149,10 +150,7 @@ export default function HomePage({ topics, setTopics, rosHost }) {
         toast.success(`Command [${cmd}] executed successfully`);
         console.log(`Command '${cmd}' executed successfully`);
 
-        // Reset task status to idle for Stop and Finish commands
-        if (cmd === 'Stop' || cmd === 'Finish') {
-          resetTaskToIdle();
-        }
+        // Task status will be updated automatically from ROS
       } else {
         // Handle case where result is undefined or doesn't have success field
         console.warn(`Unexpected result format for command '${cmd}':`, result);

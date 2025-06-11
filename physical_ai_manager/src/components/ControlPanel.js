@@ -66,8 +66,9 @@ const phaseGuideMessages = {
   1: '🔥 Warmup in progress',
   2: '🏠 Reset in progress',
   3: '🔴 Recording in progress',
-  4: '◼️ Task Stopped',
-  5: '⚡ Inference in progress',
+  4: '💾 Saving...',
+  5: '◼️ Task Stopped',
+  6: '⚡ Inference in progress',
 };
 
 export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
@@ -87,7 +88,7 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
       const phase = episodeStatus?.phase;
 
       let isNone = phase == 0;
-      let isStopped = phase == 4;
+      let isStopped = phase == 5;
 
       switch (label) {
         case 'Start':

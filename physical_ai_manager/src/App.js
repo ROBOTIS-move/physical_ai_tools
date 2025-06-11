@@ -16,15 +16,15 @@
 
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { MdHome } from 'react-icons/md';
+import { MdHome, MdVideocam } from 'react-icons/md';
 import { Toaster } from 'react-hot-toast';
 import './App.css';
-import HomePage from './pages/HomePage';
+import RecordPage from './pages/RecordPage';
 import SettingPage from './pages/SettingPage';
 
 function App() {
   const defaultRosHost = window.location.hostname + ':8080';
-  const [page, setPage] = useState('home');
+  const [page, setPage] = useState('record');
   const [topics, setTopics] = useState([null, null, null, null]);
   const [rosHost, setRosHost] = useState(defaultRosHost);
 
@@ -66,19 +66,19 @@ function App() {
             'outline-none',
             'min-w-20',
             {
-              'hover:bg-gray-300 active:bg-gray-400': page !== 'home',
-              'bg-gray-300': page === 'home',
+              'hover:bg-gray-300 active:bg-gray-400': page !== 'record',
+              'bg-gray-300': page === 'record',
             }
           )}
-          onClick={() => setPage('home')}
+          onClick={() => setPage('record')}
         >
-          <MdHome size={32} className="mb-1.5" />
-          <span className="mt-1 text-sm">Home</span>
+          <MdVideocam size={32} className="mb-1.5" />
+          <span className="mt-1 text-sm">Record</span>
         </button>
       </aside>
       <main className="flex-1 flex flex-col h-screen min-h-0">
-        {page === 'home' ? (
-          <HomePage
+        {page === 'record' ? (
+          <RecordPage
             topics={topics}
             setTopics={setTopics}
             rosHost={rosHost}

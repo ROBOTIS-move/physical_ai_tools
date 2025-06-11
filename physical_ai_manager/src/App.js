@@ -19,12 +19,13 @@ import clsx from 'clsx';
 import { MdHome, MdVideocam } from 'react-icons/md';
 import { Toaster } from 'react-hot-toast';
 import './App.css';
+import HomePage from './pages/HomePage';
 import RecordPage from './pages/RecordPage';
 import SettingPage from './pages/SettingPage';
 
 function App() {
   const defaultRosHost = window.location.hostname + ':8080';
-  const [page, setPage] = useState('record');
+  const [page, setPage] = useState('home');
   const [topics, setTopics] = useState([null, null, null, null]);
   const [rosHost, setRosHost] = useState(defaultRosHost);
 
@@ -66,6 +67,34 @@ function App() {
             'outline-none',
             'min-w-20',
             {
+              'hover:bg-gray-300 active:bg-gray-400': page !== 'home',
+              'bg-gray-300': page === 'home',
+            }
+          )}
+          onClick={() => setPage('home')}
+        >
+          <MdHome size={32} className="mb-1.5" />
+          <span className="mt-1 text-sm">Home</span>
+        </button>
+        <button
+          className={clsx(
+            'flex',
+            'flex-col',
+            'items-center',
+            'bg-gray-100',
+            'rounded-2xl',
+            'border-none',
+            'py-5',
+            'px-4',
+            'mb-3',
+            'text-base',
+            'text-gray-800',
+            'cursor-pointer',
+            'transition-colors',
+            'duration-150',
+            'outline-none',
+            'min-w-20',
+            {
               'hover:bg-gray-300 active:bg-gray-400': page !== 'record',
               'bg-gray-300': page === 'record',
             }
@@ -77,7 +106,9 @@ function App() {
         </button>
       </aside>
       <main className="flex-1 flex flex-col h-screen min-h-0">
-        {page === 'record' ? (
+        {page === 'home' ? (
+          <HomePage topics={topics} setTopics={setTopics} rosHost={rosHost} />
+        ) : page === 'record' ? (
           <RecordPage
             topics={topics}
             setTopics={setTopics}

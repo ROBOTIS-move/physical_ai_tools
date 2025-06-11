@@ -378,15 +378,15 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
               <SystemStatus
                 label="CPU"
                 type="cpu"
-                cpuPercentage={65} // CPU usage percentage
+                cpuPercentage={episodeStatus?.usedCpu} // CPU usage percentage
               />
             ) : expandedSystemIndex === 1 ? (
               /* RAM Details */
               <SystemStatus
                 label="RAM"
                 type="ram"
-                totalCapacity={16 * 1024 * 1024 * 1024} // 16GB
-                usedCapacity={10 * 1024 * 1024 * 1024} // 10GB used
+                totalCapacity={episodeStatus?.totalRamSize * 1024 * 1024 * 1024 || 0}
+                usedCapacity={episodeStatus?.usedRamSize * 1024 * 1024 * 1024 || 0}
               />
             ) : (
               /* Storage Details */
@@ -406,7 +406,7 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
               <CompactSystemStatus
                 label="CPU"
                 type="cpu"
-                cpuPercentage={65} // CPU usage percentage
+                cpuPercentage={episodeStatus?.usedCpu} // CPU usage percentage
               />
             </div>
 
@@ -415,8 +415,8 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
               <CompactSystemStatus
                 label="RAM"
                 type="ram"
-                totalCapacity={16 * 1024 * 1024 * 1024} // 16GB
-                usedCapacity={10 * 1024 * 1024 * 1024} // 10GB used
+                totalCapacity={episodeStatus?.totalRamSize * 1024 * 1024 * 1024 || 0}
+                usedCapacity={episodeStatus?.usedRamSize * 1024 * 1024 * 1024 || 0}
               />
             </div>
 

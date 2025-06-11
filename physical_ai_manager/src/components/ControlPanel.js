@@ -159,9 +159,22 @@ export default function ControlPanel({ onCommand, episodeStatus }) {
   }, []);
 
   useEffect(() => {
+    const isInputFocused = () => {
+      const activeElement = document.activeElement;
+      if (!activeElement) return false;
+
+      const tagName = activeElement.tagName.toLowerCase();
+      const isEditable = activeElement.contentEditable === 'true';
+
+      return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || isEditable;
+    };
+
     const handleKeyDown = (e) => {
       // Ignore repeated keydown events when holding the key
       if (e.repeat) return;
+
+      // Ignore keyboard shortcuts when user is typing in input fields
+      if (isInputFocused()) return;
 
       const buttonLabel = getButtonFromKey(e);
       if (buttonLabel) {
@@ -172,6 +185,9 @@ export default function ControlPanel({ onCommand, episodeStatus }) {
     const handleKeyUp = (e) => {
       // Always release pressed state on keyup
       handleKeyboardRelease();
+
+      // Ignore keyboard shortcuts when user is typing in input fields
+      if (isInputFocused()) return;
 
       // Get the button label and execute the command
       const buttonLabel = getButtonFromKey(e);

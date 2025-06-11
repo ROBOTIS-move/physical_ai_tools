@@ -25,7 +25,7 @@ import RecordPage from './pages/RecordPage';
 import SettingPage from './pages/SettingPage';
 import { useRosTaskStatus } from './hooks/useRosTaskStatus';
 
-let debug = true;
+let debug = false;
 
 function App() {
   const defaultRosHost = window.location.hostname + ':8080';

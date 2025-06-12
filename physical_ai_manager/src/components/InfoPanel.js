@@ -305,6 +305,7 @@ const InfoPanel = ({ info, onChange, disabled = false }) => {
         <input
           className={classTextInput}
           type="number"
+          step="5"
           value={info.fps || ''}
           onChange={(e) => handleChange('fps', Number(e.target.value))}
           disabled={!isEditable}
@@ -330,6 +331,7 @@ const InfoPanel = ({ info, onChange, disabled = false }) => {
         <input
           className={classTextInput}
           type="number"
+          step="5"
           value={info.warmupTime || ''}
           onChange={(e) => handleChange('warmupTime', e.target.value)}
           disabled={!isEditable}
@@ -341,6 +343,7 @@ const InfoPanel = ({ info, onChange, disabled = false }) => {
         <input
           className={classTextInput}
           type="number"
+          step="5"
           value={info.episodeTime || ''}
           onChange={(e) => handleChange('episodeTime', e.target.value)}
           disabled={!isEditable}
@@ -352,6 +355,7 @@ const InfoPanel = ({ info, onChange, disabled = false }) => {
         <input
           className={classTextInput}
           type="number"
+          step="5"
           value={info.resetTime || ''}
           onChange={(e) => handleChange('resetTime', e.target.value)}
           disabled={!isEditable}
@@ -363,19 +367,27 @@ const InfoPanel = ({ info, onChange, disabled = false }) => {
         <input
           className={classTextInput}
           type="number"
+          step="1"
           value={info.numEpisodes || ''}
           onChange={(e) => handleChange('numEpisodes', Number(e.target.value))}
           disabled={!isEditable}
         />
       </div>
 
-      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={classLabel}>Token</span>
-        <textarea
-          className={classTokenTextarea}
-          onChange={(e) => handleChange('token', e.target.value)}
-          disabled={!isEditable}
-        />
+      <div className={clsx('flex', 'items-center', 'mb-2')}>
+        <span className={classLabel}>Use Image Buffer</span>
+        <div className={clsx('flex', 'items-center')}>
+          <input
+            className={classCheckbox}
+            type="checkbox"
+            checked={!!info.useImageBuffer}
+            onChange={(e) => handleChange('useImageBuffer', e.target.checked)}
+            disabled={!isEditable}
+          />
+          <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
+            {info.pushToHub ? 'Enabled' : 'Disabled'}
+          </span>
+        </div>
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
@@ -410,6 +422,19 @@ const InfoPanel = ({ info, onChange, disabled = false }) => {
         </div>
       </div>
 
+      {/* Token is only visible when push to hub is enabled */}
+      {info.pushToHub && (
+        <div className={clsx('flex', 'items-center', 'mb-2.5')}>
+          <span className={classLabel}>Token</span>
+          <textarea
+            className={classTokenTextarea}
+            value={info.token || ''}
+            onChange={(e) => handleChange('token', e.target.value)}
+            disabled={!isEditable}
+          />
+        </div>
+      )}
+
       <div className={clsx('flex', 'items-center', 'mb-2')}>
         <span className={classLabel}>Private Mode</span>
         <div className={clsx('flex', 'items-center')}>
@@ -418,22 +443,6 @@ const InfoPanel = ({ info, onChange, disabled = false }) => {
             type="checkbox"
             checked={!!info.privateMode}
             onChange={(e) => handleChange('privateMode', e.target.checked)}
-            disabled={!isEditable}
-          />
-          <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
-            {info.pushToHub ? 'Enabled' : 'Disabled'}
-          </span>
-        </div>
-      </div>
-
-      <div className={clsx('flex', 'items-center', 'mb-2')}>
-        <span className={classLabel}>Use Image Buffer</span>
-        <div className={clsx('flex', 'items-center')}>
-          <input
-            className={classCheckbox}
-            type="checkbox"
-            checked={!!info.useImageBuffer}
-            onChange={(e) => handleChange('useImageBuffer', e.target.checked)}
             disabled={!isEditable}
           />
           <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>

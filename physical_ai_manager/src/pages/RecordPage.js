@@ -84,7 +84,6 @@ export default function RecordPage({
   const validateTaskInfo = (taskInfo) => {
     const requiredFields = [
       { key: 'taskName', label: 'Task Name' },
-      { key: 'robotType', label: 'Robot Type' },
       { key: 'taskType', label: 'Task Type' },
       { key: 'taskInstruction', label: 'Task Instruction' },
       { key: 'userId', label: 'User ID' },

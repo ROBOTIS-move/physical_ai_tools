@@ -589,13 +589,13 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2')}>
-        <span className={classLabel}>Use Image Buffer</span>
+        <span className={classLabel}>Optimized Save</span>
         <div className={clsx('flex', 'items-center')}>
           <input
             className={classCheckbox}
             type="checkbox"
-            checked={!!info.useImageBuffer}
-            onChange={(e) => handleChange('useImageBuffer', e.target.checked)}
+            checked={!!info.useOptimizedSave}
+            onChange={(e) => handleChange('useOptimizedSave', e.target.checked)}
             disabled={!isEditable}
           />
           <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>

@@ -53,7 +53,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
     token: '',
     pushToHub: true,
     privateMode: false,
-    useImageBuffer: true,
+    useOptimizedSave: true,
   });
 
   const [connected, setConnected] = useState(false);
@@ -144,7 +144,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
               numEpisodes: msg.task_info.num_episodes || 0,
               pushToHub: msg.task_info.push_to_hub || false,
               privateMode: msg.task_info.private_mode || false,
-              useImageBuffer: msg.task_info.use_image_buffer || false,
+              useOptimizedSave: msg.task_info.use_optimized_save_mode || false,
             });
           }
         }

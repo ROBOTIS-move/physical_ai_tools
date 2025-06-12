@@ -132,7 +132,7 @@ export function useRosServiceCaller(rosbridgeUrl) {
             num_episodes: Number(task_info.numEpisodes) || 0,
             push_to_hub: Boolean(task_info.pushToHub),
             private_mode: Boolean(task_info.privateMode),
-            use_image_buffer: Boolean(task_info.useImageBuffer),
+            use_optimized_save_mode: Boolean(task_info.useOptimizedSave),
           },
           command: Number(command_enum),
           model_path: String(model_path),

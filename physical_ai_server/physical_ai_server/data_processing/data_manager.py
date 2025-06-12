@@ -50,7 +50,7 @@ class DataManager:
             robot_type,
             task_info):
 
-        self._save_repo_name = f'{task_info.user_id}/{robot_type}_{task_info.task_name}_99'
+        self._save_repo_name = f'{task_info.user_id}/{robot_type}_{task_info.task_name}'
         self._save_path = save_root_path / self._save_repo_name
         self._on_saving = False
         self._task_info = task_info
@@ -237,15 +237,17 @@ class DataManager:
         # Local dataset check
         if os.path.exists(root):
             return True
-        # Huggingface dataset check
-        url = f'https://huggingface.co/api/datasets/{repo_id}'
-        response = requests.get(url)
-        url_exist_code = 200
 
-        if response.status_code == url_exist_code:
-            print(f'Dataset {repo_id} exists on Huggingface, downloading...')
-            self._download_dataset(repo_id)
-            return True
+        if self.task_info.push_to_hub:
+            # Huggingface dataset check
+            url = f'https://huggingface.co/api/datasets/{repo_id}'
+            response = requests.get(url)
+            url_exist_code = 200
+
+            if response.status_code == url_exist_code:
+                print(f'Dataset {repo_id} exists on Huggingface, downloading...')
+                self._download_dataset(repo_id)
+                return True
 
         return False
 

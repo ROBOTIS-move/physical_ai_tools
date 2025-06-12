@@ -30,7 +30,6 @@ def generate_launch_description():
     config_dir = os.path.join(pkg_dir, 'config')
     config_files = glob.glob(os.path.join(config_dir, '*.yaml'))
     config_files.sort()
-    print(f"Loading config files: {config_files}")
 
     physical_ai_server = Node(
         package='physical_ai_server',

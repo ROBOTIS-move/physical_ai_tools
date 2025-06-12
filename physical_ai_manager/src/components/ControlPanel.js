@@ -86,11 +86,11 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
     startedRef.current = started;
   }, [started]);
 
-  // // Spinner animation effect - update whenever taskStatus changes (ROS topic received)
-  // useEffect(() => {
-  //   // Update spinner index whenever episodeStatus changes (regardless of phase)
-  //   updateSpinnerFrame();
-  // }, [episodeStatus]);
+  // Spinner animation effect - update whenever taskStatus changes (ROS topic received)
+  useEffect(() => {
+    // Update spinner index whenever episodeStatus changes (regardless of phase)
+    updateSpinnerFrame();
+  }, [episodeStatus]);
 
   const isReadyState = (phase) => {
     return phase == 0;
@@ -373,11 +373,18 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
         })}
       </div>
       <div className="w-full h-full rounded-2xl flex flex-1 flex-col justify-center items-center gap-2">
-        <div className="flex min-w-0 text-3xl text-center items-center gap-2">
-          {phaseGuideMessages[episodeStatus?.phase]}
-          {isRunningState(episodeStatus?.phase) && (
-            <span className="font-mono text-blue-500">{spinnerFrames[spinnerIndex]}</span>
-          )}
+        <div className="flex items-center justify-center gap-5">
+          <div className="flex min-w-0 text-3xl text-center items-center gap-2">
+            {phaseGuideMessages[episodeStatus?.phase]}
+          </div>
+          <div>
+            {/* Spinner */}
+            {isRunningState(episodeStatus?.phase) && (
+              <span className="font-mono text-blue-500 text-4xl">
+                {spinnerFrames[spinnerIndex]}
+              </span>
+            )}
+          </div>
         </div>
         <div className="w-full flex flex-col items-center gap-1">
           <div className="flex px-10 w-full justify-end text-xl text-gray-700 font-bold">

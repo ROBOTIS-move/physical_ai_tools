@@ -10,4 +10,4 @@ uint16 reset_time_s     # [s]
 uint16 num_episodes
 bool push_to_hub
 bool private_mode
-bool use_optimized_save
+bool use_optimized_save_mode

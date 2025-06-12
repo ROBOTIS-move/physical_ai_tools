@@ -333,9 +333,9 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
 
           const tooltipContent = (
             <div className="text-center">
-              <div className="font-semibold">{description}</div>
+              <div className="font-semibold text-lg">{description}</div>
               {!isDisabled && (
-                <div className="text-xs mt-1 text-gray-300">
+                <div className="text-md mt-1 text-gray-300">
                   Press <span className="font-mono bg-gray-700 px-1 rounded">{shortcut}</span>
                 </div>
               )}
@@ -352,7 +352,7 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
             >
               <button
                 className={classControlPanelButtons(label, isDisabled)}
-                style={{ fontFamily: 'Pretendard Variable' }}
+                style={{ fontFamily: 'Pretendard Variable', fontSize: 'clamp(1rem, 2vw, 2.2rem)' }}
                 tabIndex={isDisabled ? -1 : 0}
                 onClick={() => !isDisabled && handleCommand(label)}
                 onKeyUp={(e) => handleButtonKeyUp(e, label, isDisabled)}
@@ -374,7 +374,10 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
       </div>
       <div className="w-full h-full rounded-2xl flex flex-1 flex-col justify-center items-center gap-2">
         <div className="flex items-center justify-center gap-5">
-          <div className="flex min-w-0 text-3xl text-center items-center gap-2">
+          <div
+            className="flex min-w-0 text-center items-center gap-2"
+            style={{ fontSize: 'clamp(1rem, 2vw, 2.5rem)' }}
+          >
             {phaseGuideMessages[episodeStatus?.phase]}
           </div>
           <div>
@@ -387,13 +390,15 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
           </div>
         </div>
         <div className="w-full flex flex-col items-center gap-1">
-          <div className="flex px-10 w-full justify-end text-xl text-gray-700 font-bold">
-            {episodeStatus?.proceedTime} / {episodeStatus?.totalTime} (s)
+          <div className="w-full max-w-xl flex flex-col items-center gap-1">
+            <div className="flex px-3 w-full justify-end text-xl text-gray-500 font-bold whitespace-nowrap ">
+              {episodeStatus?.proceedTime} / {episodeStatus?.totalTime} (s)
+            </div>
+            <ProgressBar percent={episodeStatus?.progress} />
           </div>
-          <ProgressBar percent={episodeStatus?.progress} />
         </div>
       </div>
-      <div className="w-[250px] h-full p-1">
+      <div className="flex justify-end flex-[0.4] min-w-30 h-full p-1">
         <EpisodeStatus
           episodeStatus={{
             ...episodeStatus,

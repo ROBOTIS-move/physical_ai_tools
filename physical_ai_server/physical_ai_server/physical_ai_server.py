@@ -24,13 +24,13 @@ import cv2
 from ament_index_python.packages import get_package_share_directory
 from physical_ai_interfaces.msg import TaskInfo, TaskStatus
 from physical_ai_interfaces.srv import (
-    GetImageTopicList,
     GetRobotTypeList,
+    GetHFUser,
     SendCommand,
-    SetRobotType
+    SetRobotType,
+    SetHFUser,
     )
 from physical_ai_server.communication.communicator import Communicator
-from physical_ai_server.data_processing.data_converter import DataConverter
 from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.timer.timer_manager import TimerManager
 from physical_ai_server.inference.inference_manager import InferenceManager
@@ -50,17 +50,28 @@ class PhysicalAIServer(Node):
     def __init__(self):
         super().__init__('physical_ai_server')
 
-        # Create service
+        self.communicator = None
+        self.data_manager = None
+        self.timer_manager = None
+
+        self.params = None
+        self.total_joint_order = None
+
+        self.on_recording = False
+        self.default_save_root_path = Path.home() / '.cache/huggingface/lerobot'
+
+        self.init_ros_service()
+        self.robot_type_list = self.get_robot_type_list()
+        self.timer_callback_dict = {
+            'collection': self.data_collection_timer_callback,
+            'inference': self.inference_timer_callback
+        }
+
+    def init_ros_service(self):
         self.recording_cmd_service = self.create_service(
             SendCommand,
             '/task/command',
             self.user_interaction_callback
-        )
-
-        self.image_topic_list_service = self.create_service(
-            GetImageTopicList,
-            '/image/get_available_list',
-            self.get_image_topic_list_callback
         )
 
         self.get_robot_types_service = self.create_service(
@@ -68,67 +79,51 @@ class PhysicalAIServer(Node):
             '/get_robot_types',
             self.get_robot_types_callback
         )
+
         self.set_robot_type_service = self.create_service(
             SetRobotType,
             '/set_robot_type',
             self.set_robot_type_callback
         )
 
-        self.on_recording = False
-        self.communicator = None
-        self.timer_manager = None
-        self.data_converter = None
-        self.data_collection_config = None
-        self.params = None
-        self.joint_order = None
-        self.total_joint_order = None
-        self.default_save_root_path = Path.home() / '.cache/huggingface/lerobot'
-
-        pkg_dir = get_package_share_directory('physical_ai_server')
-        config_dir = os.path.join(pkg_dir, 'config')
-        config_files = glob.glob(os.path.join(config_dir, '*.yaml'))
-        config_files.sort()
-        
-        self.robot_type_list = []
-        for config_file in config_files:
-            robot_type = os.path.splitext(os.path.basename(config_file))[0]
-            if robot_type.endswith('_config'):
-                robot_type = robot_type[:-7]
-            self.robot_type_list.append(robot_type)
-        
-        self.get_logger().info(f"Initialized robot_type_list: {self.robot_type_list}")
-
-    def init_robot_control_parameters_from_user_task(
-            self,
-            timer_frequency):
-
-        # Create data_collection_timer for periodic data collection with specified frequency
-        self.timer_manager = TimerManager(
-            node=self)
-        
-        # Determine which callback function to use based on the operation mode
-        if self.operation_mode == 'inference':
-            callback_function = self.inference_timer_callback
-        else:
-            callback_function = self.data_collection_timer_callback
-
-        self.timer_manager.set_timer(
-            timer_name=self.operation_mode,
-            timer_frequency=timer_frequency,
-            callback_function=callback_function
+        self.set_hf_user_service = self.create_service(
+            SetHFUser,
+            '/register_hf_user',
+            self.set_hf_user_callback
         )
 
-        self.data_converter = DataConverter()
-        self.data_collection_config = None
+        self.get_hf_user_service = self.create_service(
+            GetHFUser,
+            '/get_registered_hf_user',
+            self.get_hf_user_callback
+        )
 
-    def clear_robot_control_parameters(self):
-        self.communicator = None
-        self.timer_manager = None
-        self.data_converter = None
-        self.data_collection_config = None
-        self.params = None
-        self.joint_order = None
-        self.total_joint_order = None
+    def set_hf_user_callback(self, request, response):
+        request_hf_token = request.hf_token
+        if DataManager.register_huggingface_token(request_hf_token):
+            self.get_logger().info('Hugging Face user token registered successfully')
+            response.success = True
+            response.message = 'Hugging Face user token registered successfully'
+        else:
+            self.get_logger().error('Failed to register Hugging Face user token')
+            response.success = False
+            response.message = 'Failed to register Hugging Face user token, Please check your token'
+        return response
+        
+    def get_hf_user_callback(self, request, response):
+        user_ids = DataManager.get_huggingface_user_id()
+        if user_ids is not None:
+            self.get_logger().info(f'Hugging Face user IDs: {user_ids}')
+            response.success = True
+            response.message = 'Hugging Face user IDs retrieved successfully'
+            response.user_ids = user_ids
+        else:
+            self.get_logger().error('Failed to retrieve Hugging Face user ID')
+            response.success = False
+            response.message = 'Failed to retrieve Hugging Face user ID'
+            response.user_ids = []
+
+        return response
 
     def init_ros_params(self, robot_type):
         # Define parameter names to load
@@ -186,69 +181,64 @@ class PhysicalAIServer(Node):
             params=self.params
         )
 
-    def update_latest_data(
+    def init_robot_control_parameters_from_user_task(
             self,
-            camera_data: dict,
-            follower_data: list,
-            leader_data: list) -> bool:
+            task_info):
+        
+        self.data_manager = DataManager(
+            save_root_path=self.default_save_root_path,
+            robot_type=self.robot_type,
+            task_info=task_info
+        )
 
-        image_msgs, follower_msgs, leader_msgs = self.communicator.get_latest_data()
+        self.timer_manager = TimerManager(node=self)
+        self.timer_manager.set_timer(
+            timer_name=self.operation_mode,
+            timer_frequency=task_info.fps,
+            callback_function=self.timer_callback_dict[self.operation_mode]
+        )
+        self.timer_manager.start(timer_name=self.operation_mode)
 
-        if image_msgs is not None and follower_msgs is not None:
-            for key, value in image_msgs.items():
-                camera_data[key] = cv2.cvtColor(
-                    self.data_converter.compressed_image2cvmat(value),
-                    cv2.COLOR_BGR2RGB)
+    def clear_robot_control_parameters(self):
+        self.communicator = None
+        self.timer_manager = None
+        self.params = None
+        self.total_joint_order = None
+        self.joint_order = None
 
-            for key, value in follower_msgs.items():
-                if value is not None:
-                    follower_data.extend(self.data_converter.joint_state2tensor_array(
-                        value, self.total_joint_order))
-
-            if self.operation_mode == 'collection':
-                if leader_msgs is not None:
-                    for key, value in leader_msgs.items():
-                        leader_data.extend(self.data_converter.joint_trajectory2tensor_array(
-                            value, self.joint_order[f'joint_order.{key}']))
-                else:
-                    self.get_logger().error('Leader topic is not found')
-                    return False
-        else:
-            self.get_logger().error('Camera or Follower topic is not found')
-            return False
-
-        if len(camera_data) != len(self.params['camera_topic_list']):
-            self.get_logger().error(
-                'Camera data length does not match the number of cameras')
-            return False
-
-        if len(self.total_joint_order) != len(follower_data):
-            self.get_logger().error(
-                'Follower data length does not match the number of joints')
-            return False
-
-        if len(self.total_joint_order) != len(leader_data):
-            self.get_logger().error(
-                'Leader data length does not match the number of joints')
-            return False
-
-        return True
-
-    def send_action(self, action):
-        joint_msgs = self.data_converter.tensor_array2joint_trajectory(
-            action,
-            self.total_joint_order)
-        self.communicator.send_action(joint_msgs)
+    def get_robot_type_list(self):
+        pkg_dir = get_package_share_directory('physical_ai_server')
+        config_dir = os.path.join(pkg_dir, 'config')
+        config_files = glob.glob(os.path.join(config_dir, '*.yaml'))
+        config_files.sort()
+        
+        robot_type_list = []
+        for config_file in config_files:
+            robot_type = os.path.splitext(os.path.basename(config_file))[0]
+            if robot_type.endswith('_config'):
+                robot_type = robot_type[:-7]
+            robot_type_list.append(robot_type)
+        
+        return robot_type_list
 
     def data_collection_timer_callback(self):
-        camera_data = {}
-        follower_data = []
-        leader_data = []
 
-        if not self.update_latest_data(
-                camera_data,
-                follower_data,
-                leader_data):
+        camera_msgs, follower_msgs, leader_msgs = self.communicator.get_latest_data()
+        camera_data, follower_data, leader_data = self.data_manager.convert_msgs_to_raw_datas(
+            camera_msgs, follower_msgs, leader_msgs)
+
+        if (not camera_data or
+            len(camera_data) != len(self.params['camera_topic_list'])):
+            self.get_logger().error(
+                'No camera data received or data length mismatch')
+            return
+        if not follower_data or len(follower_data) != len(self.total_joint_order):
+            self.get_logger().error(
+                'No follower data received or data length mismatch')
+            return
+        if not leader_data or len(leader_data) != len(self.total_joint_order):
+            self.get_logger().error(
+                'No leader data received or data length mismatch')
             return
 
         if not self.data_manager.check_lerobot_dataset(
@@ -263,6 +253,7 @@ class PhysicalAIServer(Node):
             images=camera_data,
             state=follower_data,
             action=leader_data)
+
         current_status = TaskStatus()
         current_status = self.data_manager.get_current_record_status()
         self.communicator.publish_status(status=current_status)
@@ -283,83 +274,15 @@ class PhysicalAIServer(Node):
         follower_data = []
         leader_data = []
 
-        if not self.update_latest_data(
-                camera_data,
-                follower_data,
-                leader_data):
-            return
-
-        # TODO: Implement inference logic here
-        # inference_manager = InferenceManager(
-        #     policy_type="pi0",
-        #     policy_path="/home/elicer/.cache/huggingface/hub/models--Dongkkka--pi0_model_ffw/snapshots/5bff9c085a1c4ee3634eee49fa463f329b93c170/pretrained_model",
-        #     device="cuda"
-        # )
-        # image = np.zeros((480, 640, 3), dtype=np.uint8)
-        # images = {
-        #     "cam_head": image,
-        #     "cam_wrist_1": image,
-        #     "cam_wrist_2": image,
-        # }
-        # state = np.array(follower_data, dtype=np.float32)
-
-        # state = np.zeros(16, dtype=np.float32)
-
-        # action = inference_manager.predict(
-        #     images=images,
-        #     state=state,
-        #     task_instruction="Sample task"
-        # )
-
-        # print(action)
-
-        if self.save_inference:
-            if not self.data_manager.check_lerobot_dataset(
-                    camera_data,
-                    self.total_joint_order):
-                self.get_logger().info(
-                    'Invalid Repository Folder, Please check the repository folder')
-                self.timer_manager.stop(timer_name=self.operation_mode)
-                return
-
-            record_completed = self.data_manager.record(
-                images=camera_data,
-                state=follower_data,
-                action=leader_data)
-
-            if record_completed:
-                self.get_logger().info('Recording stopped')
-                self.timer_manager.stop(timer_name=self.operation_mode)
-                return
-
     def user_interaction_callback(self, request, response):
         try:
             if request.command == SendCommand.Request.START_RECORD:
-                task_info = request.task_info
-                self.get_logger().info(
-                    'Starting recording with task: ' + task_info.task_name)
-                self.get_logger().info(
-                    'Robot Type: ' + self.robot_type)
+                self.get_logger().info('Start recording')
                 self.operation_mode = 'collection'
-                self.get_logger().info(f'fps : {task_info.fps}')
+                task_info = request.task_info
                 self.init_robot_control_parameters_from_user_task(
-                    task_info.fps
+                    task_info
                 )
-
-                self.data_manager = DataManager(
-                    save_root_path=self.default_save_root_path,
-                    robot_type=self.robot_type,
-                    task_info=task_info)
-
-                if not self.data_manager.validate_huggingface_token(task_info.token):
-                    self.get_logger().info(
-                        'Invalid Hugging Face token. Please check your token.')
-                    response.success = False
-                    response.message = 'Invalid Hugging Face token. Please check your token.'
-                    return
-
-                self.timer_manager.start(timer_name=self.operation_mode)
-
                 self.on_recording = True
                 response.success = True
                 response.message = 'Recording started'
@@ -379,7 +302,7 @@ class PhysicalAIServer(Node):
                         self.get_logger().info('Moving to next episode')
                         self.data_manager.record_early_save()
                         response.success = True
-                        response.message = 'Moved to next episode'  
+                        response.message = 'Moved to next episode'
                     
                     elif request.command == SendCommand.Request.RERECORD:
                         self.get_logger().info('Re-recording current episode')
@@ -393,43 +316,11 @@ class PhysicalAIServer(Node):
                         response.success = True
                         response.message = 'All operations terminated'
 
-                    # TODO: Implement inference start command
-                    # elif request.command == SendCommand.Request.START_INFERENCE:
-                    #     self.get_logger().info('Starting inference')
-                    #     self.operation_mode = 'inference'
-                    #     self.init_robot_control_parameters_from_user_task(
-                    #         task_info.robot_type,
-                    #         task_info.fps
-                    #     )
-                    #     self.timer_manager.start(timer_name=self.operation_mode)
-                    #     response.success = True
-                    #     response.message = 'Inference started'
         except Exception as e:
             self.get_logger().error(f'Error in user interaction: {str(e)}')
             response.success = False
             response.message = f'Error in user interaction: {str(e)}'
             return response
-        return response
-
-    def get_image_topic_list_callback(self, request, response):
-        if self.communicator is None:
-            self.get_logger().error('Communicator is not initialized')
-            response.image_topic_list = []
-            response.success = False
-            response.message = 'Please select a robot type on the Home page.'
-            return response
-
-        camera_topic_list = self.communicator.get_camera_topic_list()
-        if len(camera_topic_list) == 0:
-            self.get_logger().error('No image topics found')
-            response.image_topic_list = []
-            response.success = False
-            response.message = 'Please check image topics in your robot configuration.'
-            return response
-
-        response.image_topic_list = camera_topic_list
-        response.success = True
-        response.message = 'Image topic list retrieved successfully'
         return response
 
     def get_robot_types_callback(self, request, response):
@@ -455,12 +346,12 @@ class PhysicalAIServer(Node):
             response.success = True
             response.message = f'Robot type set to {self.robot_type}'
             return response
+
         except Exception as e:
             self.get_logger().error(f'Failed to set robot type: {str(e)}')
             response.success = False
             response.message = f'Failed to set robot type: {str(e)}'
             return response
-
 
 
 def main(args=None):

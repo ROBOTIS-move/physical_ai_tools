@@ -20,6 +20,7 @@ import os
 import time
 import subprocess
 import sys
+import cv2
 
 from huggingface_hub import HfApi, snapshot_download
 
@@ -29,6 +30,7 @@ if dev_lerobot_path not in sys.path:
 from lerobot.common.datasets.utils import DEFAULT_FEATURES
 from lerobot.common.robot_devices.control_configs import RecordControlConfig
 import numpy as np
+from physical_ai_server.data_processing.data_converter import DataConverter
 from physical_ai_server.data_processing.lerobot_dataset_wrapper import LeRobotDatasetWrapper
 from physical_ai_server.device_manager.storage_checker import StorageChecker
 from physical_ai_server.device_manager.cpu_checker import CPUChecker
@@ -46,9 +48,7 @@ class DataManager:
             self,
             save_root_path,
             robot_type,
-            task_info,
-            num_image_writer_processes=1,
-            num_image_writer_threads_per_camera=1):
+            task_info):
 
         self._save_repo_name = f'{task_info.repo_id}/{robot_type}_{task_info.task_name}_99'
         self._save_path = save_root_path / self._save_repo_name
@@ -60,25 +60,13 @@ class DataManager:
         self._proceed_time = 0
         self._status = 'warmup'
         self._cpu_checker = CPUChecker()
+        self.data_converter = DataConverter()
 
     def record(
             self,
             images,
             state,
             action):
-
-        if ((self._record_episode_count >= self._task_info.num_episodes) or 
-            (self._status == 'finish')):
-            if self._lerobot_dataset.check_video_encoding_completed():
-                if (self._task_info.push_to_hub and
-                    self._record_episode_count > 0):
-                    self._upload_dataset(
-                        self._task_info.tags,
-                        self._task_info.private_mode)
-                return self.RECORD_COMPLETED
-
-        if self._status == 'stop':
-            return self.RECORDING
 
         if self._start_time_s == 0:
             self._start_time_s = time.perf_counter()
@@ -89,13 +77,7 @@ class DataManager:
 
         elif self._status == 'run':
             if not self._check_time(self._task_info.episode_time_s, 'save'):
-                frame = {}
-                for camera_name, image in images.items():
-                    frame[f'observation.images.{camera_name}'] = image
-                frame['observation.state'] = np.array(state)
-                frame['action'] = np.array(action)
-                frame['task'] = self._task_info.task_instruction
-
+                frame = self.create_frame(images, state, action)
                 if self._task_info.use_image_buffer:
                     self._lerobot_dataset.add_frame_without_write_image(frame)
                 else:
@@ -118,6 +100,19 @@ class DataManager:
             if not self._check_time(self._task_info.reset_time_s, 'run'):
                 return self.RECORDING
 
+        elif self._status == 'stop':
+            return self.RECORDING
+
+        if ((self._record_episode_count >= self._task_info.num_episodes) or 
+            (self._status == 'finish')):
+            if self._lerobot_dataset.check_video_encoding_completed():
+                if (self._task_info.push_to_hub and
+                    self._record_episode_count > 0):
+                    self._upload_dataset(
+                        self._task_info.tags,
+                        self._task_info.private_mode)
+                return self.RECORD_COMPLETED
+
         return self.RECORDING
 
     def save(self):
@@ -127,6 +122,20 @@ class DataManager:
             self._lerobot_dataset.save_episode_without_write_image()
         else:
             self._lerobot_dataset.save_episode()
+
+    def create_frame(
+            self,
+            images: dict,
+            state: list,
+            action: list) -> dict:
+
+        frame = {}
+        for camera_name, image in images.items():
+            frame[f'observation.images.{camera_name}'] = image
+        frame['observation.state'] = np.array(state)
+        frame['action'] = np.array(action)
+        frame['task'] = self._task_info.task_instruction
+        return frame
 
     def record_early_save(self):
         if self._lerobot_dataset.episode_buffer is not None:
@@ -161,7 +170,6 @@ class DataManager:
             current_status.total_time = int(self._task_info.reset_time_s)
         elif self._status == 'save':
             current_status.phase = TaskStatus.SAVING
-            current_status.proceed_time = int(0)
             current_status.total_time = int(0)
 
         current_status.proceed_time = int(getattr(self, '_proceed_time', 0))
@@ -178,6 +186,36 @@ class DataManager:
         current_status.total_ram_size = float(ram_total)
 
         return current_status
+
+    def convert_msgs_to_raw_datas(
+            self,
+            image_msgs,
+            follower_msgs,
+            leader_msgs,
+            total_joint_order,
+            leader_joint_order) -> tuple:
+
+        camera_data = {}
+        follower_data = []
+        leader_data = []
+
+        if image_msgs is not None:
+            for key, value in image_msgs.items():
+                camera_data[key] = cv2.cvtColor(
+                    self.data_converter.compressed_image2cvmat(value),
+                    cv2.COLOR_BGR2RGB)
+        if follower_msgs is not None:
+            for key, value in follower_msgs.items():
+                if value is not None:
+                    follower_data.extend(self.data_converter.joint_state2tensor_array(
+                        value, total_joint_order))
+
+        if leader_msgs is not None:
+            for key, value in leader_msgs.items():
+                leader_data.extend(self.data_converter.joint_trajectory2tensor_array(
+                    value, leader_joint_order[f'joint_order.{key}']))
+
+        return camera_data, follower_data, leader_data
 
     def _episode_reset(self):
         self._lerobot_dataset.episode_buffer = None
@@ -269,40 +307,6 @@ class DataManager:
                 use_videos=True
             )
 
-    def validate_and_login_huggingface_token(
-            self,
-            hf_token):
-
-        if hf_token is None or hf_token.strip() == "":
-            return False
-
-        # First validate the token
-        api = HfApi(token=hf_token)
-        try:
-            user_info = api.whoami()
-            print(f"Token validated for user: {user_info['name']}")
-        except Exception as e:
-            print(f"Token validation failed: {e}")
-            return False
-
-        # If validation successful, login using huggingface-cli
-        try:
-            # Use huggingface-cli login with token
-            result = subprocess.run([
-                'huggingface-cli', 'login', '--token', hf_token
-            ], capture_output=True, text=True, check=True)
-            
-            print("Successfully logged in to HuggingFace Hub")
-            return True
-            
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to login with huggingface-cli: {e}")
-            print(f"Error output: {e.stderr}")
-            return False
-        except FileNotFoundError:
-            print("huggingface-cli not found. Please install package.")
-            return False
-
     def _upload_dataset(self, tags, private=False):
         try:
             self._lerobot_dataset.push_to_hub(tags=tags, private=private)
@@ -315,3 +319,56 @@ class DataManager:
             repo_type='dataset',
             local_dir=self._save_path,
         )
+
+    def convert_action_to_joint_trajectory_msg(self, action):
+        joint_trajectory_msgs = self.data_converter.tensor_array2joint_trajectory(
+            action,
+            self.total_joint_order)
+        return joint_trajectory_msgs
+
+    @staticmethod
+    def get_huggingface_user_id():
+        api = HfApi()
+        try:
+            user_info = api.whoami()
+            user_ids = [user_info['name']]
+            for org_info in user_info['orgs']:
+                user_ids.append(org_info['name'])
+            print(user_ids)
+            return user_ids
+
+        except Exception as e:
+            print(f"Token validation failed: {e}")
+            return None
+
+    @staticmethod
+    def register_huggingface_token(hf_token):
+        api = HfApi(token = hf_token)
+        try:
+            user_info = api.whoami()
+            user_name = user_info['name']
+            print(f"Successfully validated HuggingFace token for user: {user_name}")
+
+        except Exception as e:
+            print(f"Token is invalid, please check hf token: {e}")
+            return False
+
+        try:
+            result = subprocess.run([
+                'huggingface-cli', 'login', '--token', hf_token
+            ], capture_output=True, text=True, check=True)
+
+            print("Successfully logged in to HuggingFace Hub")
+            return result
+            
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to login with huggingface-cli: {e}")
+            print(f"Error output: {e.stderr}")
+            return False
+        except FileNotFoundError:
+            print("huggingface-cli not found. Please install package.")
+            return False
+
+if DataManager.register_huggingface_token("123"):
+    print("CHECK")
+DataManager.get_huggingface_user_id()

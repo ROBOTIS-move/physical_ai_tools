@@ -130,7 +130,6 @@ export function useRosServiceCaller(rosbridgeUrl) {
             episode_time_s: Number(task_info.episodeTime) || 0,
             reset_time_s: Number(task_info.resetTime) || 0,
             num_episodes: Number(task_info.numEpisodes) || 0,
-            resume: Boolean(task_info.resume),
             push_to_hub: Boolean(task_info.pushToHub),
             private_mode: Boolean(task_info.privateMode),
             use_image_buffer: Boolean(task_info.useImageBuffer),

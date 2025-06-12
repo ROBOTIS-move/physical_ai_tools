@@ -34,7 +34,6 @@ const dummyTaskInfoList = [
     episodeTime: '60',
     resetTime: '5',
     numEpisodes: 3,
-    resume: false,
     pushToHub: false,
   },
   {
@@ -49,7 +48,6 @@ const dummyTaskInfoList = [
     episodeTime: '30',
     resetTime: '2',
     numEpisodes: 5,
-    resume: true,
     pushToHub: true,
   },
 ];
@@ -584,22 +582,6 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
           />
           <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
             {info.pushToHub ? 'Enabled' : 'Disabled'}
-          </span>
-        </div>
-      </div>
-
-      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={classLabel}>Resume</span>
-        <div className={clsx('flex', 'items-center')}>
-          <input
-            className={classCheckbox}
-            type="checkbox"
-            checked={!!info.resume}
-            onChange={(e) => handleChange('resume', e.target.checked)}
-            disabled={!isEditable}
-          />
-          <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
-            {info.resume ? 'Enabled' : 'Disabled'}
           </span>
         </div>
       </div>

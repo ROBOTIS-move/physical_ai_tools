@@ -98,33 +98,6 @@ class PhysicalAIServer(Node):
             self.get_hf_user_callback
         )
 
-    def set_hf_user_callback(self, request, response):
-        request_hf_token = request.hf_token
-        if DataManager.register_huggingface_token(request_hf_token):
-            self.get_logger().info('Hugging Face user token registered successfully')
-            response.success = True
-            response.message = 'Hugging Face user token registered successfully'
-        else:
-            self.get_logger().error('Failed to register Hugging Face user token')
-            response.success = False
-            response.message = 'Failed to register Hugging Face user token, Please check your token'
-        return response
-        
-    def get_hf_user_callback(self, request, response):
-        user_ids = DataManager.get_huggingface_user_id()
-        if user_ids is not None:
-            self.get_logger().info(f'Hugging Face user IDs: {user_ids}')
-            response.success = True
-            response.message = 'Hugging Face user IDs retrieved successfully'
-            response.user_ids = user_ids
-        else:
-            self.get_logger().error('Failed to retrieve Hugging Face user ID')
-            response.success = False
-            response.message = 'Failed to retrieve Hugging Face user ID'
-            response.user_ids = []
-
-        return response
-
     def init_ros_params(self, robot_type):
         # Define parameter names to load
         param_names = [
@@ -206,6 +179,36 @@ class PhysicalAIServer(Node):
         self.total_joint_order = None
         self.joint_order = None
 
+    def set_hf_user_callback(self, request, response):
+        request_hf_token = request.token
+        if DataManager.register_huggingface_token(request_hf_token):
+            self.get_logger().info('Hugging Face user token registered successfully')
+            response.user_id_list = DataManager.get_huggingface_user_id()
+            response.success = True
+            response.message = 'Hugging Face user token registered successfully'
+        else:
+            self.get_logger().error('Failed to register Hugging Face user token')
+            response.user_id_list = []
+            response.success = False
+            response.message = 'Failed to register Hugging Face user token, Please check your token'
+        return response
+
+    def get_hf_user_callback(self, request, response):
+        user_ids = DataManager.get_huggingface_user_id()
+        if user_ids is not None:
+            response.user_id_list = user_ids
+            self.get_logger().info(f'Hugging Face user IDs: {user_ids}')
+            response.success = True
+            response.message = 'Hugging Face user IDs retrieved successfully'
+
+        else:
+            self.get_logger().error('Failed to retrieve Hugging Face user ID')
+            response.user_id_list = []
+            response.success = False
+            response.message = 'Failed to retrieve Hugging Face user ID'
+
+        return response
+
     def get_robot_type_list(self):
         pkg_dir = get_package_share_directory('physical_ai_server')
         config_dir = os.path.join(pkg_dir, 'config')
@@ -222,30 +225,44 @@ class PhysicalAIServer(Node):
         return robot_type_list
 
     def data_collection_timer_callback(self):
-
+        error_msg = ''
+        current_status = TaskStatus()
         camera_msgs, follower_msgs, leader_msgs = self.communicator.get_latest_data()
         camera_data, follower_data, leader_data = self.data_manager.convert_msgs_to_raw_datas(
-            camera_msgs, follower_msgs, leader_msgs)
+            camera_msgs,
+            follower_msgs,
+            leader_msgs,
+            self.total_joint_order,
+            self.joint_order)
 
         if (not camera_data or
             len(camera_data) != len(self.params['camera_topic_list'])):
-            self.get_logger().error(
-                'No camera data received or data length mismatch')
-            return
+            error_msg = 'No camera data received or data length mismatch'
+            self.get_logger().error(error_msg)
+
+
         if not follower_data or len(follower_data) != len(self.total_joint_order):
-            self.get_logger().error(
-                'No follower data received or data length mismatch')
-            return
+            error_msg = 'No follower data received or data length mismatch'
+            self.get_logger().error(error_msg)
+
+
         if not leader_data or len(leader_data) != len(self.total_joint_order):
-            self.get_logger().error(
-                'No leader data received or data length mismatch')
-            return
+            error_msg = 'No leader data received or data length mismatch'
+            self.get_logger().error(error_msg)
+
 
         if not self.data_manager.check_lerobot_dataset(
                 camera_data,
                 self.total_joint_order):
-            self.get_logger().info(
-                'Invalid Repository Folder, Please check the repository folder')
+            error_msg = 'Invalid Repository Folder, Please check the repository folder'
+            self.get_logger().error(error_msg)
+
+
+        if error_msg:
+            self.on_recording = False
+            current_status.phase = TaskStatus.READY
+            current_status.error = error_msg
+            self.communicator.publish_status(status=current_status)
             self.timer_manager.stop(timer_name=self.operation_mode)
             return
 
@@ -254,13 +271,11 @@ class PhysicalAIServer(Node):
             state=follower_data,
             action=leader_data)
 
-        current_status = TaskStatus()
         current_status = self.data_manager.get_current_record_status()
         self.communicator.publish_status(status=current_status)
 
         if record_completed:
             self.get_logger().info('Recording stopped')
-
             current_status.phase = TaskStatus.READY
             current_status.proceed_time = int(0)
             current_status.total_time = int(0)

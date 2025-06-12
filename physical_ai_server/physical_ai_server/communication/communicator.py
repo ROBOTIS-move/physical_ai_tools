@@ -148,7 +148,7 @@ class Communicator:
         )
 
     def init_services(self):
-        self.image_topic_list_service = self.create_service(
+        self.image_topic_list_service = self.node.create_service(
             GetImageTopicList,
             '/image/get_available_list',
             self.get_image_topic_list_callback

@@ -50,7 +50,7 @@ class DataManager:
             robot_type,
             task_info):
 
-        self._save_repo_name = f'{task_info.repo_id}/{robot_type}_{task_info.task_name}_99'
+        self._save_repo_name = f'{task_info.user_id}/{robot_type}_{task_info.task_name}_99'
         self._save_path = save_root_path / self._save_repo_name
         self._on_saving = False
         self._task_info = task_info
@@ -78,7 +78,7 @@ class DataManager:
         elif self._status == 'run':
             if not self._check_time(self._task_info.episode_time_s, 'save'):
                 frame = self.create_frame(images, state, action)
-                if self._task_info.use_image_buffer:
+                if self._task_info.use_optimized_save:
                     self._lerobot_dataset.add_frame_without_write_image(frame)
                 else:
                     self._lerobot_dataset.add_frame(frame)
@@ -118,7 +118,7 @@ class DataManager:
     def save(self):
         if self._lerobot_dataset.episode_buffer is None:
             return
-        if self._task_info.use_image_buffer:
+        if self._task_info.use_optimized_save:
             self._lerobot_dataset.save_episode_without_write_image()
         else:
             self._lerobot_dataset.save_episode()
@@ -149,6 +149,7 @@ class DataManager:
     def record_finish(self):
         self.save()
         self._episode_reset()
+        self._record_episode_count += 1
         self._status = 'finish'
 
     def re_record(self):
@@ -263,7 +264,7 @@ class DataManager:
                         self._save_repo_name,
                         images, joint_list)
 
-                if not self._task_info.use_image_buffer:
+                if not self._task_info.use_optimized_save:
                     self._lerobot_dataset.start_image_writer(
                             num_processes=1,
                             num_threads=1
@@ -368,7 +369,3 @@ class DataManager:
         except FileNotFoundError:
             print("huggingface-cli not found. Please install package.")
             return False
-
-if DataManager.register_huggingface_token("123"):
-    print("CHECK")
-DataManager.get_huggingface_user_id()

@@ -78,7 +78,7 @@ class DataManager:
         elif self._status == 'run':
             if not self._check_time(self._task_info.episode_time_s, 'save'):
                 frame = self.create_frame(images, state, action)
-                if self._task_info.use_optimized_save:
+                if self._task_info.use_optimized_save_mode:
                     self._lerobot_dataset.add_frame_without_write_image(frame)
                 else:
                     self._lerobot_dataset.add_frame(frame)
@@ -118,7 +118,7 @@ class DataManager:
     def save(self):
         if self._lerobot_dataset.episode_buffer is None:
             return
-        if self._task_info.use_optimized_save:
+        if self._task_info.use_optimized_save_mode:
             self._lerobot_dataset.save_episode_without_write_image()
         else:
             self._lerobot_dataset.save_episode()
@@ -264,7 +264,7 @@ class DataManager:
                         self._save_repo_name,
                         images, joint_list)
 
-                if not self._task_info.use_optimized_save:
+                if not self._task_info.use_optimized_save_mode:
                     self._lerobot_dataset.start_image_writer(
                             num_processes=1,
                             num_threads=1

@@ -27,10 +27,8 @@ export default function RecordPage({
   topics,
   setTopics,
   rosHost,
-  yamlContent,
   taskStatus: propsTaskStatus,
   taskInfo: propsTaskInfo,
-  updateTaskInfo,
 }) {
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
 
@@ -42,17 +40,16 @@ export default function RecordPage({
   const taskStatus = propsTaskStatus;
   const taskInfo = propsTaskInfo;
 
+  const [info, setInfo] = useState({ ...taskInfo, taskType: 'record' } || { taskType: 'record' });
+  const [episodeStatus, setEpisodeStatus] = useState(taskStatus);
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
+
   useEffect(() => {
     toasts
       .filter((t) => t.visible) // Only consider visible toasts
       .filter((_, i) => i >= TOAST_LIMIT) // Is toast index over limit?
       .forEach((t) => toast.dismiss(t.id)); // Dismiss – Use toast.remove(t.id) for no exit animation
   }, [toasts]);
-
-  // Start with default values - let user manage editing independently
-  const [info, setInfo] = useState({ ...taskInfo, taskType: 'record' } || { taskType: 'record' });
-
-  const [episodeStatus, setEpisodeStatus] = useState(taskStatus);
 
   // Update episodeStatus when taskStatus changes
   useEffect(() => {
@@ -74,8 +71,6 @@ export default function RecordPage({
       );
     }
   }, [taskInfo]);
-
-  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
   const { sendRecordCommand } = useRosServiceCaller(rosbridgeUrl);
 
@@ -135,7 +130,7 @@ export default function RecordPage({
         // Validate info before starting
         const validation = validateTaskInfo(info);
         if (!validation.isValid) {
-          toast.error(`❌ Missing required fields: ${validation.missingFields.join(', ')}`, {
+          toast.error(`Missing required fields: ${validation.missingFields.join(', ')}`, {
             duration: 4000,
           });
           console.error('Validation failed. Missing fields:', validation.missingFields);
@@ -196,7 +191,6 @@ export default function RecordPage({
 
   const classMainContainer = 'h-full flex flex-col overflow-hidden';
   const classContentsArea = 'flex-1 flex min-h-0 pt-0 px-0 justify-center items-start';
-
   const classImageGridContainer = clsx(
     'transition-all',
     'duration-300',
@@ -298,7 +292,6 @@ export default function RecordPage({
     <div className={classMainContainer}>
       <div className={classContentsArea}>
         <div className="w-full h-full flex flex-col relative">
-          {/* Robot Type Overlay */}
           <div className={classRobotTypeContainer}>
             <div className={classRobotType}>Robot Type</div>
             <div className={classRobotTypeValue}>{taskInfo?.robotType}</div>

@@ -1,11 +1,27 @@
+// Copyright 2025 ROBOTIS CO., LTD.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// Author: Kiwoong Park
+
 import React from 'react';
 import clsx from 'clsx';
 
 const SystemStatus = ({
   label = 'System',
   type = 'storage', // 'cpu', 'ram', 'storage'
-  totalCapacity,
-  usedCapacity,
+  totalCapacity, // For RAM/Storage
+  usedCapacity, // For RAM/Storage
   cpuPercentage, // For CPU usage
   className,
 }) => {
@@ -66,10 +82,6 @@ const SystemStatus = ({
         {/* Header */}
         <div className="flex items-center justify-center gap-2 mb-3">
           <h3 className="text-sm font-medium text-gray-700">{label} Usage</h3>
-          {/* <div className="flex items-center space-x-1"> */}
-          {/* <div className="w-2 h-2 rounded-full bg-gray-400"></div> */}
-          {/* <span className="text-xs text-gray-500">{usagePercentage.toFixed(1)}%</span> */}
-          {/* </div> */}
         </div>
 
         {/* CPU Usage Display */}

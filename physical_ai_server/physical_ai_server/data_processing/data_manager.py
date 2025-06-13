@@ -231,7 +231,7 @@ class DataManager:
         if os.path.exists(root):
             return True
 
-        if self.task_info.push_to_hub:
+        if self._task_info.push_to_hub:
             # Huggingface dataset check
             url = f'https://huggingface.co/api/datasets/{repo_id}'
             response = requests.get(url)

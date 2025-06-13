@@ -137,6 +137,7 @@ class DataManager:
     def record_stop(self):
         self.save()
         self._episode_reset()
+        self._record_episode_count += 1
         self._status = 'stop'
 
     def record_finish(self):

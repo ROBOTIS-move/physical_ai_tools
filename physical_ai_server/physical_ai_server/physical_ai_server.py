@@ -269,7 +269,7 @@ class PhysicalAIServer(Node):
         self.communicator.publish_status(status=current_status)
 
         if record_completed:
-            self.get_logger().info('Recording stopped')
+            self.get_logger().info('Recording completed')
             current_status.phase = TaskStatus.READY
             current_status.proceed_time = int(0)
             current_status.total_time = int(0)
@@ -288,6 +288,13 @@ class PhysicalAIServer(Node):
     def user_interaction_callback(self, request, response):
         try:
             if request.command == SendCommand.Request.START_RECORD:
+                if self.on_recording:
+                    self.get_logger().info('Restarting the recording.')
+                    self.data_manager.re_record()
+                    response.success = True
+                    response.message = 'Restarting the recording.'
+                    return response
+
                 self.get_logger().info('Start recording')
                 self.operation_mode = 'collection'
                 task_info = request.task_info

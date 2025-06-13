@@ -290,6 +290,13 @@ class GStreamerEncoder(VideoEncoder):
                 self.clear_buffer()
 
     def _cleanup(self):
+        """
+        Clean up GStreamer resources and reset pipeline components.
+        
+        This method properly shuts down the GStreamer pipeline by setting it to NULL state,
+        releases references to pipeline components, and resets internal variables to prevent
+        memory leaks and ensure proper resource management.
+        """
         if self.pipeline:
             self.pipeline.set_state(Gst.State.NULL)
             self.pipeline = None
@@ -298,4 +305,281 @@ class GStreamerEncoder(VideoEncoder):
         self.loop = None
 
     def get_last_error(self) -> Optional[str]:
+        """
+        Retrieve the last encoding error message if any occurred.
+        
+        Returns:
+            Optional[str]: The error message string if an error occurred during encoding,
+                          or None if no error has been recorded.
+        """
         return self.encoding_error
+
+
+def create_dummy_frames(num_frames: int = 1000, width: int = 640, height: int = 480) -> List[np.ndarray]:
+    """
+    Generate a list of dummy RGB frames for testing video encoding functionality.
+    
+    Creates synthetic video frames with animated gradient patterns that change over time,
+    providing meaningful visual content for encoder testing. Each frame contains:
+    - Red channel: horizontal gradient with sinusoidal modulation
+    - Green channel: vertical gradient with cosinusoidal modulation  
+    - Blue channel: radial gradient with circular pattern
+    
+    Args:
+        num_frames (int): Number of frames to generate (default: 1000)
+        width (int): Frame width in pixels (default: 640)
+        height (int): Frame height in pixels (default: 480)
+        
+    Returns:
+        List[np.ndarray]: List of numpy arrays representing RGB frames with shape (height, width, 3)
+                         and dtype uint8, suitable for video encoding
+    """
+    frames = []
+    
+    print(f"Generating {num_frames} dummy frames ({width}x{height})...")
+    
+    for i in range(num_frames):
+        # Create a frame with gradient colors that change over time
+        frame = np.zeros((height, width, 3), dtype=np.uint8)
+        
+        # Calculate animation progress as normalized value between 0 and 1
+        progress = i / num_frames
+        
+        # Red channel: horizontal gradient with sinusoidal time-based modulation
+        # Creates a left-to-right gradient that oscillates in intensity over time
+        for x in range(width):
+            frame[:, x, 0] = int((x / width) * 255 * (0.5 + 0.5 * np.sin(progress * 2 * np.pi)))
+        
+        # Green channel: vertical gradient with cosinusoidal time-based modulation
+        # Creates a top-to-bottom gradient that oscillates in intensity over time
+        for y in range(height):
+            frame[y, :, 1] = int((y / height) * 255 * (0.5 + 0.5 * np.cos(progress * 2 * np.pi)))
+        
+        # Blue channel: radial gradient pattern emanating from center
+        # Creates a circular pattern that pulses from center outward over time
+        center_x, center_y = width // 2, height // 2
+        max_dist = np.sqrt(center_x**2 + center_y**2)
+        
+        for y in range(height):
+            for x in range(width):
+                # Calculate distance from center point
+                dist = np.sqrt((x - center_x)**2 + (y - center_y)**2)
+                # Apply inverse distance gradient with time-based modulation
+                frame[y, x, 2] = int((1 - dist / max_dist) * 255 * (0.5 + 0.5 * np.sin(progress * 4 * np.pi)))
+        
+        frames.append(frame)
+        
+        # Progress indicator every 100 frames to show generation status
+        if (i + 1) % 100 == 0:
+            print(f"Generated {i + 1}/{num_frames} frames")
+    
+    print(f"Dummy frame generation completed!")
+    return frames
+
+
+def test_gstreamer_encoder():
+    """
+    Comprehensive test function for GStreamerEncoder class functionality.
+    
+    This function performs extensive testing of the GStreamerEncoder with multiple
+    quality settings and resolutions. It creates dummy video frames, tests encoding
+    with different parameters, monitors encoding progress, and validates output files.
+    
+    Test cases include:
+    - Low quality 360p encoding with 300 frames
+    - Medium quality 720p encoding with 500 frames  
+    - High quality 1080p encoding with 200 frames
+    
+    For each test case, the function:
+    1. Creates an encoder instance with specific quality settings
+    2. Generates dummy frames with appropriate resolution
+    3. Performs video encoding and monitors progress
+    4. Validates output file creation and measures performance metrics
+    5. Reports encoding statistics including time, file size, and FPS
+    """
+    
+    # Define test cases with different quality and resolution parameters
+    test_cases = [
+        {
+            'name': 'Low Quality 360p',
+            'width': 640,
+            'height': 360,
+            'quality': 'low',
+            'fps': 30,
+            'num_frames': 300
+        },
+        {
+            'name': 'Medium Quality 720p', 
+            'width': 1280,
+            'height': 720,
+            'quality': 'medium',
+            'fps': 30,
+            'num_frames': 500
+        },
+        {
+            'name': 'High Quality 1080p',
+            'width': 1920,
+            'height': 1080, 
+            'quality': 'high',
+            'fps': 30,
+            'num_frames': 200
+        }
+    ]
+    
+    # Create output directory for test video files
+    output_dir = Path('./test_outputs')
+    output_dir.mkdir(exist_ok=True)
+    
+    print("Starting GStreamerEncoder tests...")
+    print("=" * 60)
+    
+    # Execute each test case sequentially
+    for i, test_case in enumerate(test_cases, 1):
+        print(f"\nTest {i}/{len(test_cases)}: {test_case['name']}")
+        print("-" * 40)
+        
+        try:
+            # Create encoder instance with test-specific parameters
+            encoder = GStreamerEncoder(
+                fps=test_case['fps'],
+                quality=test_case['quality'],
+                clear_after_encode=True
+            )
+            
+            # Generate dummy frames for this test case
+            frames = create_dummy_frames(
+                num_frames=test_case['num_frames'],
+                width=test_case['width'],
+                height=test_case['height']
+            )
+            
+            # Set frame buffer in encoder
+            print("Setting frame buffer...")
+            encoder.set_buffer(frames)
+            
+            # Define output path for encoded video
+            output_path = output_dir / f"test_video_{i}_{test_case['quality']}_{test_case['width']}x{test_case['height']}.mp4"
+            
+            # Begin encoding process and measure performance
+            print(f"Starting encoding to: {output_path}")
+            start_time = time.time()
+            
+            # Execute video encoding
+            encoder.encode_video(output_path)
+            
+            end_time = time.time()
+            
+            # Retrieve final encoding status and statistics
+            final_status = encoder.get_encoding_status()
+            
+            print(f"\nEncoding completed successfully!")
+            print(f"Encoding time: {end_time - start_time:.2f} seconds")
+            print(f"Output file: {output_path}")
+            print(f"File size: {final_status.get('file_size_kb', 0):.2f} KB")
+            print(f"Encoding FPS: {final_status.get('encoding_fps', 0):.2f}")
+            
+            # Verify output file creation and report file statistics
+            if output_path.exists():
+                print(f"✓ Video file created successfully")
+                file_size_mb = output_path.stat().st_size / (1024 * 1024)
+                print(f"✓ File size: {file_size_mb:.2f} MB")
+            else:
+                print("✗ Video file was not created")
+                
+        except Exception as e:
+            print(f"✗ Test failed: {e}")
+            
+            # Report detailed error information from encoder
+            if 'encoder' in locals():
+                error = encoder.get_last_error()
+                if error:
+                    print(f"Encoder error: {error}")
+            
+            continue
+    
+    print("\n" + "=" * 60)
+    print("All tests completed!")
+
+
+def test_simple_encoding():
+    """
+    Simple and quick test function for basic GStreamerEncoder functionality verification.
+    
+    This function provides a lightweight test case for rapid verification of encoder
+    functionality without the overhead of multiple test scenarios. It creates a
+    small set of dummy frames (100 frames at 640x480 resolution) and performs
+    basic encoding with medium quality settings.
+    
+    The test includes:
+    - Creation of encoder instance with default medium quality
+    - Generation of 100 dummy frames at standard resolution
+    - Video encoding to a simple output file
+    - Basic validation of output file creation and size
+    - Performance metrics reporting (encoding time and FPS)
+    
+    This function is ideal for quick functionality checks during development
+    or when full test suite execution is not required.
+    """
+    print("Running simple GStreamerEncoder test...")
+    
+    try:
+        # Create encoder instance with medium quality defaults
+        encoder = GStreamerEncoder(fps=30, quality='medium')
+        
+        # Generate small set of test frames for quick validation
+        frames = create_dummy_frames(num_frames=100, width=640, height=480)
+        
+        # Configure encoder with generated frames
+        encoder.set_buffer(frames)
+        
+        # Define simple output path
+        output_path = Path('./simple_test_output.mp4')
+        print(f"Encoding to: {output_path}")
+        
+        # Execute encoding process
+        encoder.encode_video(output_path)
+        
+        # Validate results and report statistics
+        if output_path.exists():
+            file_size = output_path.stat().st_size / (1024 * 1024)
+            print(f"✓ Success! Video created: {file_size:.2f} MB")
+            
+            # Extract and display encoding performance metrics
+            status = encoder.get_encoding_status()
+            print(f"Encoding time: {status.get('encoding_time', 0):.2f} seconds")
+            print(f"Encoding FPS: {status.get('encoding_fps', 0):.2f}")
+        else:
+            print("✗ Failed! Video file not created")
+            
+    except Exception as e:
+        print(f"✗ Test failed: {e}")
+
+
+# Test execution entry point
+if __name__ == '__main__':
+    """
+    Main execution block for running GStreamerEncoder tests.
+    
+    This block provides command-line interface for test execution with two modes:
+    1. Simple test mode (--simple flag): Executes quick basic functionality test
+    2. Full test mode (default): Runs comprehensive test suite with multiple scenarios
+    
+    Usage:
+        python3 gstreamer_encoder.py           # Run full test suite
+        python3 gstreamer_encoder.py --simple  # Run simple quick test
+    """
+    import sys
+    
+    print("GStreamerEncoder Test Script")
+    print("=" * 60)
+    
+    # Determine test mode based on command line arguments
+    if len(sys.argv) > 1 and sys.argv[1] == '--simple':
+        test_simple_encoding()
+    else:
+        print("Running full test suite...")
+        print("Use '--simple' flag for quick test")
+        print()
+        test_gstreamer_encoder()
+
+

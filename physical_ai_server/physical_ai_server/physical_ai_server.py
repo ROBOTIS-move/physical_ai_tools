@@ -16,24 +16,22 @@
 #
 # Author: Dongyun Kim
 
-import os
 import glob
+import os
 from pathlib import Path
 
-import cv2
 from ament_index_python.packages import get_package_share_directory
-from physical_ai_interfaces.msg import TaskInfo, TaskStatus
+from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_interfaces.srv import (
-    GetRobotTypeList,
     GetHFUser,
+    GetRobotTypeList,
     SendCommand,
-    SetRobotType,
     SetHFUser,
+    SetRobotType,
     )
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.timer.timer_manager import TimerManager
-from physical_ai_server.inference.inference_manager import InferenceManager
 from physical_ai_server.utils.parameter_utils import (
     declare_parameters,
     load_parameters,
@@ -157,7 +155,7 @@ class PhysicalAIServer(Node):
     def init_robot_control_parameters_from_user_task(
             self,
             task_info):
-        
+
         self.data_manager = DataManager(
             save_root_path=self.default_save_root_path,
             robot_type=self.robot_type,
@@ -190,7 +188,7 @@ class PhysicalAIServer(Node):
             self.get_logger().error('Failed to register Hugging Face user token')
             response.user_id_list = []
             response.success = False
-            response.message = 'Failed to register Hugging Face user token, Please check your token'
+            response.message = 'Failed to register token, Please check your token'
         return response
 
     def get_hf_user_callback(self, request, response):
@@ -214,14 +212,14 @@ class PhysicalAIServer(Node):
         config_dir = os.path.join(pkg_dir, 'config')
         config_files = glob.glob(os.path.join(config_dir, '*.yaml'))
         config_files.sort()
-        
+
         robot_type_list = []
         for config_file in config_files:
             robot_type = os.path.splitext(os.path.basename(config_file))[0]
             if robot_type.endswith('_config'):
                 robot_type = robot_type[:-7]
             robot_type_list.append(robot_type)
-        
+
         return robot_type_list
 
     def data_collection_timer_callback(self):
@@ -236,27 +234,23 @@ class PhysicalAIServer(Node):
             self.joint_order)
 
         if (not camera_data or
-            len(camera_data) != len(self.params['camera_topic_list'])):
+                len(camera_data) != len(self.params['camera_topic_list'])):
             error_msg = 'No camera data received or data length mismatch'
             self.get_logger().error(error_msg)
-
 
         if not follower_data or len(follower_data) != len(self.total_joint_order):
             error_msg = 'No follower data received or data length mismatch'
             self.get_logger().error(error_msg)
 
-
         if not leader_data or len(leader_data) != len(self.total_joint_order):
             error_msg = 'No leader data received or data length mismatch'
             self.get_logger().error(error_msg)
-
 
         if not self.data_manager.check_lerobot_dataset(
                 camera_data,
                 self.total_joint_order):
             error_msg = 'Invalid Repository Folder, Please check the repository folder'
             self.get_logger().error(error_msg)
-
 
         if error_msg:
             self.on_recording = False
@@ -285,9 +279,11 @@ class PhysicalAIServer(Node):
             return
 
     def inference_timer_callback(self):
+        # TODO: Implement inference timer callback logic
         camera_data = {}
         follower_data = []
         leader_data = []
+        print(camera_data, follower_data, leader_data)
 
     def user_interaction_callback(self, request, response):
         try:
@@ -318,7 +314,7 @@ class PhysicalAIServer(Node):
                         self.data_manager.record_early_save()
                         response.success = True
                         response.message = 'Moved to next episode'
-                    
+
                     elif request.command == SendCommand.Request.RERECORD:
                         self.get_logger().info('Re-recording current episode')
                         self.data_manager.re_record()

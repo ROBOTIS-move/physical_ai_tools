@@ -17,27 +17,26 @@
 # Author: Dongyun Kim
 
 import os
-import time
 import subprocess
 import sys
-import cv2
+import time
 
+import cv2
 from huggingface_hub import HfApi, snapshot_download
+
+import numpy as np
+from physical_ai_interfaces.msg import TaskStatus
+from physical_ai_server.data_processing.data_converter import DataConverter
+from physical_ai_server.data_processing.lerobot_dataset_wrapper import LeRobotDatasetWrapper
+from physical_ai_server.device_manager.cpu_checker import CPUChecker
+from physical_ai_server.device_manager.ram_checker import RAMChecker
+from physical_ai_server.device_manager.storage_checker import StorageChecker
+import requests
 
 dev_lerobot_path = '/root/ros2_ws/src/physical_ai_tools/lerobot'
 if dev_lerobot_path not in sys.path:
     sys.path.insert(0, dev_lerobot_path)
 from lerobot.common.datasets.utils import DEFAULT_FEATURES
-from lerobot.common.robot_devices.control_configs import RecordControlConfig
-import numpy as np
-from physical_ai_server.data_processing.data_converter import DataConverter
-from physical_ai_server.data_processing.lerobot_dataset_wrapper import LeRobotDatasetWrapper
-from physical_ai_server.device_manager.storage_checker import StorageChecker
-from physical_ai_server.device_manager.cpu_checker import CPUChecker
-from physical_ai_server.device_manager.ram_checker import RAMChecker
-from physical_ai_interfaces.msg import TaskInfo
-from physical_ai_interfaces.msg import TaskStatus
-import requests
 
 
 class DataManager:
@@ -94,7 +93,7 @@ class DataManager:
             else:
                 self.save()
                 self._on_saving = True
-            return self.RECORDING            
+            return self.RECORDING
 
         elif self._status == 'reset':
             if not self._check_time(self._task_info.reset_time_s, 'run'):
@@ -103,11 +102,11 @@ class DataManager:
         elif self._status == 'stop':
             return self.RECORDING
 
-        if ((self._record_episode_count >= self._task_info.num_episodes) or 
-            (self._status == 'finish')):
+        if ((self._record_episode_count >= self._task_info.num_episodes) or
+                (self._status == 'finish')):
             if self._lerobot_dataset.check_video_encoding_completed():
                 if (self._task_info.push_to_hub and
-                    self._record_episode_count > 0):
+                        self._record_episode_count > 0):
                     self._upload_dataset(
                         self._task_info.tags,
                         self._task_info.private_mode)
@@ -176,7 +175,7 @@ class DataManager:
         current_status.proceed_time = int(getattr(self, '_proceed_time', 0))
         current_status.current_episode_number = int(self._record_episode_count)
 
-        total_storage, used_storage = StorageChecker.get_storage_gb("/")
+        total_storage, used_storage = StorageChecker.get_storage_gb('/')
         current_status.used_storage_size = float(used_storage)
         current_status.total_storage_size = float(total_storage)
 
@@ -221,7 +220,6 @@ class DataManager:
     def _episode_reset(self):
         self._lerobot_dataset.episode_buffer = None
         self._start_time_s = 0
-        
 
     def _check_time(self, limit_time, next_status):
         self._proceed_time = time.perf_counter() - self._start_time_s
@@ -314,7 +312,7 @@ class DataManager:
         try:
             self._lerobot_dataset.push_to_hub(tags=tags, private=private)
         except Exception as e:
-            print(f"Error uploading dataset: {e}")
+            print(f'Error uploading dataset: {e}')
 
     def _download_dataset(self, repo_id):
         snapshot_download(
@@ -341,19 +339,19 @@ class DataManager:
             return user_ids
 
         except Exception as e:
-            print(f"Token validation failed: {e}")
+            print(f'Token validation failed: {e}')
             return None
 
     @staticmethod
     def register_huggingface_token(hf_token):
-        api = HfApi(token = hf_token)
+        api = HfApi(token=hf_token)
         try:
             user_info = api.whoami()
             user_name = user_info['name']
-            print(f"Successfully validated HuggingFace token for user: {user_name}")
+            print(f'Successfully validated HuggingFace token for user: {user_name}')
 
         except Exception as e:
-            print(f"Token is invalid, please check hf token: {e}")
+            print(f'Token is invalid, please check hf token: {e}')
             return False
 
         try:
@@ -361,13 +359,13 @@ class DataManager:
                 'huggingface-cli', 'login', '--token', hf_token
             ], capture_output=True, text=True, check=True)
 
-            print("Successfully logged in to HuggingFace Hub")
+            print('Successfully logged in to HuggingFace Hub')
             return result
-            
+
         except subprocess.CalledProcessError as e:
-            print(f"Failed to login with huggingface-cli: {e}")
-            print(f"Error output: {e.stderr}")
+            print(f'Failed to login with huggingface-cli: {e}')
+            print(f'Error output: {e.stderr}')
             return False
         except FileNotFoundError:
-            print("huggingface-cli not found. Please install package.")
+            print('huggingface-cli not found. Please install package.')
             return False

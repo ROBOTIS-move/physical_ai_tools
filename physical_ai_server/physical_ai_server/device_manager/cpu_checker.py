@@ -16,46 +16,25 @@
 #
 # Author: Dongyun Kim
 
-import psutil
 from collections import deque
+
+import psutil
 
 
 class CPUChecker:
-    
     def __init__(self, window_size: int = 30):
-        """
-        Initialize CPU checker with moving average capability.
-        
-        Args:
-            window_size (int): Number of samples to average (default: 30)
-        """
         self.window_size = window_size
         self.cpu_samples = deque(maxlen=window_size)
-        # Initialize CPU monitoring (first call may return 0.0)
         psutil.cpu_percent(interval=None)
 
     def get_cpu_usage(self) -> float:
-        """
-        Returns the current overall CPU usage percentage with moving average.
-
-        This method retrieves the current CPU utilization across all cores
-        as a percentage value and applies moving average to smooth out spikes.
-
-        Returns:
-            float: Smoothed CPU usage percentage (0.0 to 100.0). Returns 0.0 if an error occurs.
-        """
         try:
-            # Get current CPU usage percentage without blocking
             current_cpu = psutil.cpu_percent(interval=None)
-            
-            # Add to samples queue
             self.cpu_samples.append(current_cpu)
-            
-            # Calculate and return moving average
             if len(self.cpu_samples) > 0:
                 return sum(self.cpu_samples) / len(self.cpu_samples)
             else:
                 return 0.0
-                
+
         except Exception:
             return 0.0

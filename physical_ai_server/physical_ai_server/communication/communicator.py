@@ -17,7 +17,7 @@
 # Author: Dongyun Kim
 
 from functools import partial
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Set, Tuple
 
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_interfaces.srv import (
@@ -139,7 +139,6 @@ class Communicator:
         #             topic_name,
         #             100
         #         )
-        #         self.node.get_logger().info(f'Initialized joint publisher: {name} -> {topic_name}')
 
         self.status_publisher = self.node.create_publisher(
             TaskStatus,
@@ -177,7 +176,7 @@ class Communicator:
 
     def publish_status(self, status: TaskStatus):
         self.status_publisher.publish(status)
-    
+
     def get_image_topic_list_callback(self, request, response):
         camera_topic_list = []
         for topic_name in self.camera_topics.values():

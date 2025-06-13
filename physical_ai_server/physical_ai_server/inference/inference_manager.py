@@ -16,15 +16,9 @@
 #
 # Author: Dongyun Kim
 
-import sys
-
-dev_lerobot_path = '/root/ros2_ws/src/physical_ai_tools/lerobot'
-if dev_lerobot_path not in sys.path:
-    sys.path.insert(0, dev_lerobot_path)
-
+from lerobot.common.policies.pretrained import PreTrainedPolicy
 import numpy as np
 import torch
-from lerobot.common.policies.pretrained import PreTrainedPolicy
 
 
 class InferenceManager:

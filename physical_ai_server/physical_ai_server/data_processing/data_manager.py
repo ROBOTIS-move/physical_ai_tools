@@ -18,12 +18,11 @@
 
 import os
 import subprocess
-import sys
 import time
 
 import cv2
 from huggingface_hub import HfApi, snapshot_download
-
+from lerobot.common.datasets.utils import DEFAULT_FEATURES
 import numpy as np
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_server.data_processing.data_converter import DataConverter
@@ -32,11 +31,6 @@ from physical_ai_server.device_manager.cpu_checker import CPUChecker
 from physical_ai_server.device_manager.ram_checker import RAMChecker
 from physical_ai_server.device_manager.storage_checker import StorageChecker
 import requests
-
-dev_lerobot_path = '/root/ros2_ws/src/physical_ai_tools/lerobot'
-if dev_lerobot_path not in sys.path:
-    sys.path.insert(0, dev_lerobot_path)
-from lerobot.common.datasets.utils import DEFAULT_FEATURES
 
 
 class DataManager:

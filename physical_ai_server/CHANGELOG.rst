@@ -2,13 +2,12 @@
 Changelog for package physical_ai_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.5.3 (2025-05-30)
+0.5.3 (2025-06-16)
 ------------------
-* Added data saving functionality.
-* Used an image buffer to reduce CPU overhead.
-* Modified to dynamically load parameters based on robot name received from the service.
-* Refactored the ROS Parameter structure to eliminate redundant data, improve variable naming, and create a more flexible structure.
-* Added Save, Load, Upload, and Download functionality for data management.
+* Refactored Physical AI Server for improved data collection capabilities
+* Implemented data acquisition functionality using ROS2 topics
+* Modified configuration system to allow flexible robot type selection
+* Updated data collection method to utilize image buffers for efficiency
 * Contributors: Dongyun Kim
 
 0.5.2 (2025-05-29)

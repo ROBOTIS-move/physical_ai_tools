@@ -68,7 +68,6 @@ const phaseGuideMessages = {
   3: '🔴 Recording in progress',
   4: '💾 Saving...',
   5: '◼️ Task Stopped',
-  6: '⚡ Inference in progress',
 };
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];
@@ -100,7 +99,7 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
   };
 
   const isRunningState = (phase) => {
-    return phase === 1 || phase === 2 || phase === 3 || phase === 4 || phase === 6;
+    return phase === 1 || phase === 2 || phase === 3 || phase === 4;
   };
 
   const updateSpinnerFrame = () => {

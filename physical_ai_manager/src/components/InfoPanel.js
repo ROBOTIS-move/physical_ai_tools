@@ -546,8 +546,10 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
           className={classTextInput}
           type="number"
           step="5"
+          min={0}
+          max={65535}
           value={info.warmupTime || ''}
-          onChange={(e) => handleChange('warmupTime', e.target.value)}
+          onChange={(e) => handleChange('warmupTime', Number(e.target.value) || 0)}
           disabled={!isEditable}
         />
       </div>
@@ -558,8 +560,10 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
           className={classTextInput}
           type="number"
           step="5"
+          min={0}
+          max={65535}
           value={info.episodeTime || ''}
-          onChange={(e) => handleChange('episodeTime', e.target.value)}
+          onChange={(e) => handleChange('episodeTime', Number(e.target.value) || 0)}
           disabled={!isEditable}
         />
       </div>
@@ -570,8 +574,10 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
           className={classTextInput}
           type="number"
           step="5"
+          min={0}
+          max={65535}
           value={info.resetTime || ''}
-          onChange={(e) => handleChange('resetTime', e.target.value)}
+          onChange={(e) => handleChange('resetTime', Number(e.target.value) || 0)}
           disabled={!isEditable}
         />
       </div>
@@ -582,8 +588,10 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
           className={classTextInput}
           type="number"
           step="1"
+          min={0}
+          max={65535}
           value={info.numEpisodes || ''}
-          onChange={(e) => handleChange('numEpisodes', Number(e.target.value))}
+          onChange={(e) => handleChange('numEpisodes', Number(e.target.value) || 0)}
           disabled={!isEditable}
         />
       </div>

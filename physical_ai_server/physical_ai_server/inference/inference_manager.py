@@ -22,6 +22,7 @@ import torch
 
 
 class InferenceManager:
+
     def __init__(
             self,
             policy_type: str,

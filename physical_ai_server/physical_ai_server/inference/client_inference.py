@@ -24,6 +24,7 @@ import zmq
 
 
 class TorchSerializer:
+
     @staticmethod
     def to_bytes(data: dict) -> bytes:
         buffer = BytesIO()
@@ -38,6 +39,7 @@ class TorchSerializer:
 
 
 class InferenceClient:
+
     def __init__(
             self,
             policy_type: str,

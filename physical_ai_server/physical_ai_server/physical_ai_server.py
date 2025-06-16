@@ -154,12 +154,14 @@ class PhysicalAIServer(Node):
             operation_mode=self.operation_mode,
             params=self.params
         )
-        self.get_logger().info(f'ROS parameters initialized successfully for robot type: {robot_type}')
+        self.get_logger().info(
+            f'ROS parameters initialized successfully for robot type: {robot_type}')
 
     def init_robot_control_parameters_from_user_task(
             self,
             task_info):
-        self.get_logger().info('Initializing robot control parameters from user task...')
+        self.get_logger().info(
+            'Initializing robot control parameters from user task...')
         self.data_manager = DataManager(
             save_root_path=self.default_save_root_path,
             robot_type=self.robot_type,
@@ -174,7 +176,7 @@ class PhysicalAIServer(Node):
         )
         self.timer_manager.start(timer_name=self.operation_mode)
         self.get_logger().info(
-            f'Robot control parameters initialized successfully')
+            'Robot control parameters initialized successfully')
 
     def clear_robot_control_parameters(self):
         self.communicator = None

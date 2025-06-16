@@ -22,6 +22,7 @@ import psutil
 
 
 class CPUChecker:
+
     def __init__(self, window_size: int = 30):
         self.window_size = window_size
         self.cpu_samples = deque(maxlen=window_size)

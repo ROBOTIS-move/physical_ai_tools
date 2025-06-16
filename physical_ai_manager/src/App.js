@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import clsx from 'clsx';
 import { MdHome, MdVideocam } from 'react-icons/md';
 import { Toaster } from 'react-hot-toast';

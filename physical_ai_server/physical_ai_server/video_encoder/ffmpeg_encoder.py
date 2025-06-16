@@ -145,7 +145,7 @@ class FFmpegEncoder(VideoEncoder):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                bufsize=10**10
+                bufsize=10**9
             )
             for i in range(0, total_frames, self.chunk_size):
                 self.current_chunk = i // self.chunk_size + 1

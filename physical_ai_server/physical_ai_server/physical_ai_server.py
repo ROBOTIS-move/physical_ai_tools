@@ -314,6 +314,14 @@ class PhysicalAIServer(Node):
                 response.success = True
                 response.message = 'Recording started'
 
+            elif request.command == SendCommand.Request.START_INFERENCE:
+                # TODO: This is currently hardcoded to 'collection', 
+                # and support for 'inference' mode will be added in a future PR.
+                self.operation_mode = 'inference'
+                self.on_recording = False
+                response.success = True
+                response.message = 'Inference started'
+
             else:
                 if not self.on_recording:
                     response.success = False

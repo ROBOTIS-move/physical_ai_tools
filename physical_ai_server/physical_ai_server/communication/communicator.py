@@ -132,6 +132,8 @@ class Communicator:
                 f'Joint subscriber: {name} -> {topic} ({msg_type.__name__})')
 
     def init_publishers(self):
+        # TODO: Re-enable the code below in a future PR 
+        # to implement joint control.
         # for name, topic_name in self.joint_topics.items():
         #     if 'leader' in name.lower():
         #         self.joint_publishers[name] = self.node.create_publisher(

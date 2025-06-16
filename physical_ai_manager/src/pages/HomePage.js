@@ -16,36 +16,35 @@
 
 import React from 'react';
 import clsx from 'clsx';
+import RobotTypeSelector from '../components/RobotTypeSelector';
 
-export default function ProgressBar({ percent = 0 }) {
-  // If over 50%, white, otherwise dark color
-  const textColor = percent > 50 ? 'text-white' : 'text-gray-800';
-
-  const classProgressBarText = clsx(
-    'absolute',
-    'left-0',
-    'top-0',
+export default function HomePage({
+  rosHost,
+  currentRobotType,
+  setCurrentRobotType,
+  taskStatus,
+  taskInfo,
+  updateTaskInfo,
+}) {
+  const classContainer = clsx(
     'w-full',
     'h-full',
     'flex',
     'items-center',
     'justify-center',
-    'font-bold',
-    'text-lg',
-    'pointer-events-none',
-    'z-10',
-    'transition-colors',
-    'duration-300',
-    textColor
+    'pt-10'
   );
 
   return (
-    <div className="w-full h-9 bg-gray-400 rounded-full relative overflow-hidden">
-      <div
-        className="h-full bg-gray-700 rounded-full transition-all duration-300"
-        style={{ width: `${percent}%` }}
-      ></div>
-      <span className={classProgressBarText}>{percent}%</span>
+    <div className={classContainer}>
+      <RobotTypeSelector
+        rosHost={rosHost}
+        currentRobotType={currentRobotType}
+        setCurrentRobotType={setCurrentRobotType}
+        taskStatus={taskStatus}
+        taskInfo={taskInfo}
+        updateTaskInfo={updateTaskInfo}
+      />
     </div>
   );
 }

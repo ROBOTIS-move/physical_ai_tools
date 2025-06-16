@@ -25,8 +25,6 @@ import RecordPage from './pages/RecordPage';
 import SettingPage from './pages/SettingPage';
 import { useRosTaskStatus } from './hooks/useRosTaskStatus';
 
-let debug = false;
-
 function App() {
   const defaultRosHost = window.location.hostname + ':8080';
   const [page, setPage] = useState('home');
@@ -51,7 +49,7 @@ function App() {
 
   // Check conditions for Record page navigation
   const handleRecordPageNavigation = () => {
-    if (debug) {
+    if (process.env.REACT_APP_DEBUG === 'true') {
       console.log('handleRecordPageNavigation');
       setPage('record');
       return;

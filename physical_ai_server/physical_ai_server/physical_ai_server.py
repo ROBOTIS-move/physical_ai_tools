@@ -47,6 +47,7 @@ class PhysicalAIServer(Node):
 
     def __init__(self):
         super().__init__('physical_ai_server')
+        self.get_logger().info('Start Physical AI Server')
 
         self.communicator = None
         self.data_manager = None
@@ -66,6 +67,7 @@ class PhysicalAIServer(Node):
         }
 
     def init_ros_service(self):
+        self.get_logger().info('Initializing ROS services...')
         self.recording_cmd_service = self.create_service(
             SendCommand,
             '/task/command',
@@ -95,9 +97,10 @@ class PhysicalAIServer(Node):
             '/get_registered_hf_user',
             self.get_hf_user_callback
         )
+        self.get_logger().info('ROS services initialized successfully')
 
     def init_ros_params(self, robot_type):
-        # Define parameter names to load
+        self.get_logger().info(f'Initializing ROS parameters for robot type: {robot_type}')
         param_names = [
             'camera_topic_list',
             'joint_topic_list',
@@ -151,11 +154,12 @@ class PhysicalAIServer(Node):
             operation_mode=self.operation_mode,
             params=self.params
         )
+        self.get_logger().info(f'ROS parameters initialized successfully for robot type: {robot_type}')
 
     def init_robot_control_parameters_from_user_task(
             self,
             task_info):
-
+        self.get_logger().info('Initializing robot control parameters from user task...')
         self.data_manager = DataManager(
             save_root_path=self.default_save_root_path,
             robot_type=self.robot_type,
@@ -169,6 +173,8 @@ class PhysicalAIServer(Node):
             callback_function=self.timer_callback_dict[self.operation_mode]
         )
         self.timer_manager.start(timer_name=self.operation_mode)
+        self.get_logger().info(
+            f'Robot control parameters initialized successfully')
 
     def clear_robot_control_parameters(self):
         self.communicator = None
@@ -220,6 +226,7 @@ class PhysicalAIServer(Node):
                 robot_type = robot_type[:-7]
             robot_type_list.append(robot_type)
 
+        self.get_logger().info(f'Available robot types: {robot_type_list}')
         return robot_type_list
 
     def data_collection_timer_callback(self):

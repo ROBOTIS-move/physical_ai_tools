@@ -145,7 +145,7 @@ class FFmpegEncoder(VideoEncoder):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                bufsize=10**8
+                bufsize=10**10
             )
             for i in range(0, total_frames, self.chunk_size):
                 self.current_chunk = i // self.chunk_size + 1
@@ -165,7 +165,7 @@ class FFmpegEncoder(VideoEncoder):
                 self.total_chunks_encoded += 1
 
             self.process.stdin.close()
-            self.process.wait(timeout=60)
+            self.process.wait(timeout=600)
 
             stderr = self.process.stderr.read().decode()
             if self.process.returncode != 0:

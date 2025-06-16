@@ -57,7 +57,7 @@ const buttons = [
     icon: MdCheck,
     color: '#388e3c',
     description: 'Finish and save task',
-    shortcut: 'Ctrl+C',
+    shortcut: 'Ctrl+Shift+X',
   },
 ];
 
@@ -159,7 +159,8 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
         }
       } else if (
         (e.ctrlKey || e.metaKey) &&
-        (e.key === 'c' || e.key === 'C') &&
+        e.shiftKey &&
+        (e.key === 'x' || e.key === 'X') &&
         isButtonEnabled('Finish')
       ) {
         return 'Finish';

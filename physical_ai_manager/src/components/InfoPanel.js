@@ -21,7 +21,7 @@ import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 
-const dummyTaskInfoList = [
+const taskInfos = [
   {
     taskName: 'Task 1',
     robotType: 'Type A',
@@ -54,7 +54,7 @@ const dummyTaskInfoList = [
 
 const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
   const [showPopup, setShowPopup] = useState(false);
-  const [taskInfoList] = useState(dummyTaskInfoList);
+  const [taskInfoList] = useState(taskInfos);
   const [isEditable, setIsEditable] = useState(!disabled);
 
   // User ID list for dropdown

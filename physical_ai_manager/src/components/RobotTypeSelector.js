@@ -46,11 +46,6 @@ export default function RobotTypeSelector({
 
       if (result && result.robot_types) {
         setRobotTypes(result.robot_types);
-
-        if (taskStatus && taskStatus.robotType) {
-          setSelectedRobotType(taskStatus.robotType);
-        }
-
         toast.success('Robot types loaded successfully');
       } else {
         toast.error('Failed to get robot types: Invalid response');
@@ -61,7 +56,13 @@ export default function RobotTypeSelector({
     } finally {
       setFetching(false);
     }
-  }, [getRobotTypeList, currentRobotType, taskStatus]);
+  }, [getRobotTypeList, currentRobotType]);
+
+  useEffect(() => {
+    if (!selectedRobotType && taskStatus && taskStatus.robotType) {
+      setSelectedRobotType(taskStatus.robotType);
+    }
+  }, [taskStatus, selectedRobotType]);
 
   // Set robot type
   const handleSetRobotType = async () => {

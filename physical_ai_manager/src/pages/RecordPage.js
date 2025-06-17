@@ -64,14 +64,14 @@ export default function RecordPage({
   }, [taskStatus]);
 
   useEffect(() => {
-    if (taskInfo.robotType !== '') {
+    if (taskStatus.robotType !== '') {
       setInfo(
-        { ...taskInfo, tags: [taskInfo.robotType, 'robotis'] } || {
-          tags: [taskInfo.robotType, 'robotis'],
+        { ...taskInfo, tags: [taskStatus.robotType, 'robotis'] } || {
+          tags: [taskStatus.robotType, 'robotis'],
         }
       );
     }
-  }, [taskInfo]);
+  }, [taskStatus]);
 
   const { sendRecordCommand } = useRosServiceCaller(rosbridgeUrl);
 
@@ -148,7 +148,7 @@ export default function RecordPage({
         result = await sendRecordCommand('finish', info);
       } else {
         console.warn(`Unknown command: ${cmd}`);
-        toast.warning(`Unknown command: ${cmd}`);
+        toast.error(`Unknown command: ${cmd}`);
         return;
       }
 
@@ -166,7 +166,7 @@ export default function RecordPage({
       } else {
         // Handle case where result is undefined or doesn't have success field
         console.warn(`Unexpected result format for command '${cmd}':`, result);
-        toast.warning(`Command [${cmd}] completed with uncertain status`);
+        toast.error(`Command [${cmd}] completed with uncertain status`);
       }
     } catch (error) {
       console.error('Error handling control command:', error);
@@ -295,7 +295,7 @@ export default function RecordPage({
         <div className="w-full h-full flex flex-col relative">
           <div className={classRobotTypeContainer}>
             <div className={classRobotType}>Robot Type</div>
-            <div className={classRobotTypeValue}>{taskInfo?.robotType}</div>
+            <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
           </div>
           <div className={classImageGridContainer}>
             <ImageGrid topics={topics} setTopics={setTopics} rosHost={rosHost} />

@@ -25,8 +25,7 @@ export default function RobotTypeSelector({
   currentRobotType,
   setCurrentRobotType,
   taskStatus,
-  taskInfo,
-  updateTaskInfo,
+  updateTaskStatus,
   className,
 }) {
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
@@ -87,7 +86,7 @@ export default function RobotTypeSelector({
     // Only prevent setting if currentRobotType exists and matches selectedRobotType
     if (currentRobotType && selectedRobotType === currentRobotType) {
       console.log('Robot type already set, skipping');
-      toast.warning('Robot type is already set to this value');
+      toast.error('Robot type is already set to this value');
       return;
     }
 
@@ -107,9 +106,9 @@ export default function RobotTypeSelector({
 
       if (result && result.success) {
         setCurrentRobotType(selectedRobotType);
-        // Update task info with the selected robot type
-        if (updateTaskInfo) {
-          updateTaskInfo({ robotType: selectedRobotType });
+        // Update task status with the selected robot type
+        if (updateTaskStatus) {
+          updateTaskStatus({ robotType: selectedRobotType });
         }
         toast.success(`Robot type set to: ${selectedRobotType}`);
       } else {
@@ -137,10 +136,10 @@ export default function RobotTypeSelector({
 
   // Initialize task info robot type if currentRobotType is set but task info is empty
   useEffect(() => {
-    if (currentRobotType && taskInfo && updateTaskInfo && !taskInfo.robotType) {
-      updateTaskInfo({ robotType: currentRobotType });
+    if (currentRobotType && updateTaskStatus) {
+      updateTaskStatus({ robotType: currentRobotType });
     }
-  }, [currentRobotType, taskInfo, updateTaskInfo]);
+  }, [currentRobotType, updateTaskStatus]);
 
   const classCard = clsx(
     'bg-white',
@@ -219,9 +218,9 @@ export default function RobotTypeSelector({
       {currentRobotType && (
         <div className={classCurrentType}>
           <strong>Current Robot Type:</strong> {currentRobotType}
-          {taskInfo && taskInfo.robotType && (
+          {taskStatus && taskStatus.robotType && (
             <div className="text-xs text-green-600 mt-1">
-              ✓ Saved to Task Info: {taskInfo.robotType}
+              ✓ Saved to Task Info: {taskStatus.robotType}
             </div>
           )}
         </div>

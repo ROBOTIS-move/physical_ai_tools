@@ -23,6 +23,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
   const topicRef = useRef(null);
 
   const [taskStatus, setTaskStatus] = useState({
+    robotType: '',
     taskName: 'idle',
     running: false,
     phase: TaskPhase.READY,
@@ -37,11 +38,11 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
     usedRamSize: 0,
     totalRamSize: 0,
     error: '',
+    topicReceived: false,
   });
 
   const [taskInfo, setTaskInfo] = useState({
     taskName: '',
-    robotType: '',
     taskType: 'record',
     taskInstruction: '',
     userId: '',
@@ -119,6 +120,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
 
         // ROS message to React state
         setTaskStatus({
+          robotType: msg.task_info?.robot_type || '',
           taskName: msg.task_info?.task_name || 'idle',
           running: isRunning,
           phase: msg.phase || 0,
@@ -133,6 +135,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
           usedRamSize: msg.used_ram_size || 0,
           totalRamSize: msg.total_ram_size || 0,
           error: msg.error || '',
+          topicReceived: true,
         });
 
         // Extract TaskInfo from TaskStatus message
@@ -141,7 +144,6 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
             // update task info only when task is not stopped
             setTaskInfo({
               taskName: msg.task_info.task_name || '',
-              robotType: msg.task_info.robot_type || '',
               taskType: msg.task_info.task_type || '',
               taskInstruction: msg.task_info.task_instruction || '',
               userId: msg.task_info.user_id || '',

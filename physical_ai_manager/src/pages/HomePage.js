@@ -23,8 +23,7 @@ export default function HomePage({
   currentRobotType,
   setCurrentRobotType,
   taskStatus,
-  taskInfo,
-  updateTaskInfo,
+  updateTaskStatus,
 }) {
   const classContainer = clsx(
     'w-full',
@@ -42,8 +41,7 @@ export default function HomePage({
         currentRobotType={currentRobotType}
         setCurrentRobotType={setCurrentRobotType}
         taskStatus={taskStatus}
-        taskInfo={taskInfo}
-        updateTaskInfo={updateTaskInfo}
+        updateTaskStatus={updateTaskStatus}
       />
     </div>
   );

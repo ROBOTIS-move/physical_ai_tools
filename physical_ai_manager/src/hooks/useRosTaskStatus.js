@@ -16,6 +16,7 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import ROSLIB from 'roslib';
+import TaskPhase from '../constants/taskPhases';
 
 export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
   const rosRef = useRef(null);
@@ -24,7 +25,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
   const [taskStatus, setTaskStatus] = useState({
     taskName: 'idle',
     running: false,
-    phase: 0, // READY
+    phase: TaskPhase.READY,
     progress: 0,
     totalTime: 0,
     proceedTime: 0,
@@ -102,11 +103,19 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
       topicRef.current.subscribe((msg) => {
         console.log('Received task status:', msg);
 
+        let progress = 0;
+
         // Calculate progress percentage
-        const progress = msg.total_time > 0 ? (msg.proceed_time / msg.total_time) * 100 : 0;
+        if (msg.phase === TaskPhase.SAVING) {
+          // Saving data phase
+          progress = msg.encoding_progress || 0;
+        } else {
+          // all other phases
+          progress = msg.total_time > 0 ? (msg.proceed_time / msg.total_time) * 100 : 0;
+        }
 
         // Determine if task is running (phase 1, 2, or 3)
-        const isRunning = msg.phase >= 1 && msg.phase <= 3;
+        const isRunning = msg.phase >= TaskPhase.WARMING_UP && msg.phase <= TaskPhase.RECORDING;
 
         // ROS message to React state
         setTaskStatus({
@@ -128,7 +137,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
 
         // Extract TaskInfo from TaskStatus message
         if (msg.task_info) {
-          if (msg.phase !== 0) {
+          if (msg.phase !== TaskPhase.READY) {
             // update task info only when task is not stopped
             setTaskInfo({
               taskName: msg.task_info.task_name || '',
@@ -178,11 +187,12 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
   // Helper function to get phase name
   const getPhaseName = useCallback((phase) => {
     const phaseNames = {
-      0: 'NONE',
-      1: 'WARMING_UP',
-      2: 'RESETTING',
-      3: 'RECORDING',
-      4: 'STOPPED',
+      [TaskPhase.READY]: 'NONE',
+      [TaskPhase.WARMING_UP]: 'WARMING_UP',
+      [TaskPhase.RESETTING]: 'RESETTING',
+      [TaskPhase.RECORDING]: 'RECORDING',
+      [TaskPhase.SAVING]: 'SAVING',
+      [TaskPhase.STOPPED]: 'STOPPED',
     };
     return phaseNames[phase] || 'UNKNOWN';
   }, []);

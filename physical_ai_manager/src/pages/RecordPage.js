@@ -22,6 +22,7 @@ import ImageGrid from '../components/ImageGrid';
 import ControlPanel from '../components/ControlPanel';
 import InfoPanel from '../components/InfoPanel';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import TaskPhase from '../constants/taskPhases';
 
 export default function RecordPage({
   topics,
@@ -319,7 +320,7 @@ export default function RecordPage({
             <InfoPanel
               info={info}
               onChange={handleInfoChange}
-              disabled={taskStatus?.phase !== 0}
+              disabled={taskStatus?.phase !== TaskPhase.READY}
               rosHost={rosHost}
             />
           </div>

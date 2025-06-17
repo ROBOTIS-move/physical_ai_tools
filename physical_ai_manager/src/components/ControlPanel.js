@@ -22,6 +22,7 @@ import CompactSystemStatus from './CompactSystemStatus';
 import SystemStatus from './SystemStatus';
 import EpisodeStatus from './EpisodeStatus';
 import Tooltip from './Tooltip';
+import TaskPhase from '../constants/taskPhases';
 
 const buttons = [
   {
@@ -62,12 +63,12 @@ const buttons = [
 ];
 
 const phaseGuideMessages = {
-  0: '📍 Ready to start',
-  1: '🔥 Warmup in progress',
-  2: '🏠 Reset in progress',
-  3: '🔴 Recording in progress',
-  4: '💾 Saving...',
-  5: '◼️ Task Stopped',
+  [TaskPhase.READY]: '📍 Ready to start',
+  [TaskPhase.WARMING_UP]: '🔥 Warmup in progress',
+  [TaskPhase.RESETTING]: '🏠 Reset in progress',
+  [TaskPhase.RECORDING]: '🔴 Recording in progress',
+  [TaskPhase.SAVING]: '💾 Saving...',
+  [TaskPhase.STOPPED]: '◼️ Task Stopped',
 };
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];
@@ -91,15 +92,20 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
   }, [episodeStatus]);
 
   const isReadyState = (phase) => {
-    return phase === 0;
+    return phase === TaskPhase.READY;
   };
 
   const isStoppedState = (phase) => {
-    return phase === 5;
+    return phase === TaskPhase.STOPPED;
   };
 
   const isRunningState = (phase) => {
-    return phase === 1 || phase === 2 || phase === 3 || phase === 4;
+    return (
+      phase === TaskPhase.WARMING_UP ||
+      phase === TaskPhase.RESETTING ||
+      phase === TaskPhase.RECORDING ||
+      phase === TaskPhase.SAVING
+    );
   };
 
   const updateSpinnerFrame = () => {

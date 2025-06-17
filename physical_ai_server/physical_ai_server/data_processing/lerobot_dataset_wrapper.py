@@ -173,10 +173,28 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             return True
 
         if self.encoders:
-            for encoder in self.encoders.values():
+            all_completed = True
+            completed_encoders = []
+            
+            for key, encoder in self.encoders.items():
                 if not encoder.encoding_completed:
-                    return False
-            self.encoders = {}
+                    all_completed = False
+                else:
+                    completed_encoders.append(key)
+            
+            # 완료된 encoder들을 명시적으로 정리
+            for key in completed_encoders:
+                encoder = self.encoders[key]
+                encoder.clear_buffer()  # 버퍼 정리
+                del self.encoders[key]  # 딕셔너리에서 제거
+                del encoder  # 객체 삭제
+            
+            if all_completed:
+                self.encoders = {}
+                return True
+            else:
+                return False
+                
         return True
 
     def compute_episode_stats_buffer(self, episode_buffer, features):

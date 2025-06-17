@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 # Author: Dongyun Kim
+
 from typing import Tuple
 
 import psutil
@@ -31,3 +32,12 @@ class RAMChecker:
             return total_gb, used_gb
         except Exception:
             return 0.0, 0.0
+
+    @staticmethod
+    def get_free_ram_gb() -> float:
+        try:
+            memory = psutil.virtual_memory()
+            free_gb = memory.available / (1024 ** 3)
+            return free_gb
+        except Exception:
+            return 0.0

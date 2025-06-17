@@ -187,7 +187,11 @@ class FFmpegEncoder(VideoEncoder):
             self.encoding_completed = False
             if self.process:
                 self.process.kill()
+                self.process.wait()
+                self.process = None
             raise
         finally:
             if self.clear_after_encode:
                 self.clear_buffer()
+            if self.process:
+                self.process = None

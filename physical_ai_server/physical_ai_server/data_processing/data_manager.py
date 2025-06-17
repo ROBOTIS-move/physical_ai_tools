@@ -16,6 +16,7 @@
 #
 # Author: Dongyun Kim
 
+import gc
 import os
 import subprocess
 import time
@@ -36,6 +37,7 @@ import requests
 class DataManager:
     RECORDING = False
     RECORD_COMPLETED = True
+    RAM_LIMIT_GB = 2  # GB
 
     def __init__(
             self,
@@ -54,6 +56,7 @@ class DataManager:
         self._status = 'warmup'
         self._cpu_checker = CPUChecker()
         self.data_converter = DataConverter()
+        self.force_save_for_safety = False
 
     def record(
             self,
@@ -70,6 +73,9 @@ class DataManager:
 
         elif self._status == 'run':
             if not self._check_time(self._task_info.episode_time_s, 'save'):
+                if RAMChecker.get_free_ram_gb() < self.RAM_LIMIT_GB:
+                    self.record_early_save()
+                    return self.RECORDING
                 frame = self.create_frame(images, state, action)
                 if self._task_info.use_optimized_save_mode:
                     self._lerobot_dataset.add_frame_without_write_image(frame)
@@ -165,15 +171,17 @@ class DataManager:
             current_status.total_time = int(self._task_info.reset_time_s)
         elif self._status == 'save':
             current_status.phase = TaskStatus.SAVING
-            current_status.total_time = int(100)
+            current_status.total_time = int(0)
             self._proceed_time = int(0)
-            if self._lerobot_dataset.encoders is not None and self._lerobot_dataset.encoders:
-                min_encoding_percentage = 100
-                for key, values in self._lerobot_dataset.encoders.items():
-                    min_encoding_percentage = min(
-                        min_encoding_percentage,
-                        values.get_encoding_status()['progress_percentage'])
-                self._proceed_time = int(min_encoding_percentage)
+            if self._lerobot_dataset is not None:
+                if self._lerobot_dataset.encoders is not None:
+                    if self._lerobot_dataset.encoders:
+                        min_encoding_percentage = 100
+                        for key, values in self._lerobot_dataset.encoders.items():
+                            min_encoding_percentage = min(
+                                min_encoding_percentage,
+                                values.get_encoding_status()['progress_percentage'])
+                        current_status.encoding_progress = min_encoding_percentage
 
         current_status.proceed_time = int(getattr(self, '_proceed_time', 0))
         current_status.current_episode_number = int(self._record_episode_count)
@@ -221,8 +229,16 @@ class DataManager:
         return camera_data, follower_data, leader_data
 
     def _episode_reset(self):
-        self._lerobot_dataset.episode_buffer = None
+        if self._lerobot_dataset and hasattr(self._lerobot_dataset, 'episode_buffer'):
+            if self._lerobot_dataset.episode_buffer is not None:
+                for key, value in self._lerobot_dataset.episode_buffer.items():
+                    if isinstance(value, list):
+                        value.clear()
+                    del value
+                self._lerobot_dataset.episode_buffer.clear()
+            self._lerobot_dataset.episode_buffer = None
         self._start_time_s = 0
+        gc.collect()
 
     def _check_time(self, limit_time, next_status):
         self._proceed_time = time.perf_counter() - self._start_time_s

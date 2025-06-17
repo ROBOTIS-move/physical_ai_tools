@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { MdHome, MdVideocam } from 'react-icons/md';
 import { Toaster } from 'react-hot-toast';
@@ -31,10 +31,21 @@ function App() {
   const [topics, setTopics] = useState([null, null, null, null]);
   const [rosHost, setRosHost] = useState(defaultRosHost);
   const [currentRobotType, setCurrentRobotType] = useState('');
+  const isFirstLoad = useRef(true);
 
   // Subscribe to task status from ROS topic (always active)
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
-  const { taskStatus, taskInfo, updateTaskInfo } = useRosTaskStatus(rosbridgeUrl, '/task/status');
+  const { taskStatus, taskInfo, updateTaskInfo, updateTaskStatus } = useRosTaskStatus(
+    rosbridgeUrl,
+    '/task/status'
+  );
+
+  useEffect(() => {
+    if (isFirstLoad.current && page === 'home' && taskStatus.topicReceived) {
+      setPage('record');
+      isFirstLoad.current = false;
+    }
+  }, [page, taskStatus]);
 
   // Load YAML content from local storage
   const [yamlContent, setYamlContent] = useState(() => {
@@ -47,10 +58,16 @@ function App() {
     }
   });
 
+  const handleHomePageNavigation = () => {
+    isFirstLoad.current = false;
+    setPage('home');
+  };
+
   // Check conditions for Record page navigation
   const handleRecordPageNavigation = () => {
     if (process.env.REACT_APP_DEBUG === 'true') {
       console.log('handleRecordPageNavigation');
+      isFirstLoad.current = false;
       setPage('record');
       return;
     }
@@ -62,6 +79,7 @@ function App() {
         taskStatus.phase,
         '), allowing navigation to Record page'
       );
+      isFirstLoad.current = false;
       setPage('record');
       return;
     }
@@ -106,7 +124,7 @@ function App() {
               'bg-gray-300': page === 'home',
             }
           )}
-          onClick={() => setPage('home')}
+          onClick={handleHomePageNavigation}
         >
           <MdHome size={32} className="mb-1.5" />
           <span className="mt-1 text-sm">Home</span>
@@ -149,8 +167,7 @@ function App() {
             currentRobotType={currentRobotType}
             setCurrentRobotType={setCurrentRobotType}
             taskStatus={taskStatus}
-            taskInfo={taskInfo}
-            updateTaskInfo={updateTaskInfo}
+            updateTaskStatus={updateTaskStatus}
           />
         ) : page === 'record' ? (
           <RecordPage

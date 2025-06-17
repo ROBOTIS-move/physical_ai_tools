@@ -328,7 +328,7 @@ class DataManager:
         for camera_name, image in images.items():
             features[f'observation.images.{camera_name}'] = {
                 'dtype': 'video',
-                'names': ['channels', 'height', 'width'],
+                'names': ['height', 'width', 'channels'],
                 'shape': image.shape
             }
 

@@ -44,6 +44,8 @@ export default function RecordPage({
   const [info, setInfo] = useState({ ...taskInfo, taskType: 'record' } || { taskType: 'record' });
   const [episodeStatus, setEpisodeStatus] = useState(taskStatus);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
+  const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
+  const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
 
   useEffect(() => {
     toasts
@@ -188,6 +190,25 @@ export default function RecordPage({
     }
   };
 
+  // track task status update
+  useEffect(() => {
+    if (taskStatus) {
+      setLastTaskStatusUpdate(Date.now());
+      setIsTaskStatusPaused(false);
+    }
+  }, [taskStatus]);
+
+  // Check if task status updates are paused (considered paused if no updates for 1 second)
+  useEffect(() => {
+    const UPDATE_PAUSE_THRESHOLD = 1000;
+    const timer = setInterval(() => {
+      const timeSinceLastUpdate = Date.now() - lastTaskStatusUpdate;
+      setIsTaskStatusPaused(timeSinceLastUpdate >= UPDATE_PAUSE_THRESHOLD);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lastTaskStatusUpdate]);
+
   const classMainContainer = 'h-full flex flex-col overflow-hidden';
   const classContentsArea = 'flex-1 flex min-h-0 pt-0 px-0 justify-center items-start';
   const classImageGridContainer = clsx(
@@ -318,7 +339,7 @@ export default function RecordPage({
             <InfoPanel
               info={info}
               onChange={handleInfoChange}
-              disabled={taskStatus?.phase !== TaskPhase.READY}
+              disabled={taskStatus?.phase !== TaskPhase.READY || !isTaskStatusPaused}
               rosHost={rosHost}
             />
           </div>

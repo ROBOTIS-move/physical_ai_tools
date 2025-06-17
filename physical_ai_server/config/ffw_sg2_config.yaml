@@ -14,12 +14,12 @@ physical_ai_server:
 
       joint_topic_list:
         - follower_upper_body:/joint_states
-        - follower_lower_body:/odom
+        - follower_mobile:/odom
         - leader_left:/leader/joint_trajectory_command_broadcaster_left/joint_trajectory
         - leader_right:/leader/joint_trajectory_command_broadcaster_right/joint_trajectory
         - leader_head:/leader/joystick_controller_left/joint_trajectory
         - leader_lift:/leader/joystick_controller_right/joint_trajectory
-        - leader_lower_body:/cmd_vel
+        - leader_mobile:/cmd_vel
 
       joint_list:
         - leader_left

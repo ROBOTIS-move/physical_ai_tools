@@ -22,6 +22,8 @@ import cv2
 from cv_bridge import CvBridge
 import numpy as np
 from sensor_msgs.msg import CompressedImage, JointState
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
 import torch
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
@@ -125,3 +127,55 @@ class DataConverter:
                 joint_trajectory_msgs[key] = joint_msg
 
         return joint_trajectory_msgs
+
+    def twist2tensor_array(
+            self,
+            msg: Twist,
+            target_format: str = 'numpy') -> Any:
+
+        try:
+            linear = np.array([
+                msg.linear.x,
+                msg.linear.y
+            ], dtype=np.float32)
+            angular = np.array([
+                msg.angular.z
+            ], dtype=np.float32)
+
+            if target_format == 'numpy':
+                return np.concatenate((linear, angular))
+            elif target_format == 'torch':
+                return torch.tensor(
+                    np.concatenate((linear, angular)), dtype=torch.float32)
+            else:
+                raise ValueError(
+                    f'Unsupported target format: {target_format}')
+        except Exception as e:
+            raise RuntimeError(
+                f'Failed to convert twist message: {str(e)}')
+
+    def odometry2tensor_array(
+            self,
+            msg: Odometry,
+            target_format: str = 'numpy') -> Any:
+
+        try:
+            position = np.array([
+                msg.pose.pose.position.x,
+                msg.pose.pose.position.y
+            ], dtype=np.float32)
+            orientation = np.array([
+                msg.pose.pose.orientation.z
+            ], dtype=np.float32)
+
+            if target_format == 'numpy':
+                return np.concatenate((position, orientation))
+            elif target_format == 'torch':
+                return torch.tensor(
+                    np.concatenate((position, orientation)), dtype=torch.float32)
+            else:
+                raise ValueError(
+                    f'Unsupported target format: {target_format}')
+        except Exception as e:
+            raise RuntimeError(
+                f'Failed to convert odometry message: {str(e)}')

@@ -19,6 +19,8 @@
 from functools import partial
 from typing import Any, Dict, Optional, Set, Tuple
 
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_interfaces.srv import (
     GetImageTopicList
@@ -106,12 +108,18 @@ class Communicator:
         for name, topic in self.joint_topics.items():
             # Determine category and message type based on name patterns
             if 'follower' in name.lower():
+                if 'mobile' in name.lower():
+                    msg_type = Odometry
+                else:
+                    msg_type = JointState
                 category = self.SOURCE_FOLLOWER
-                msg_type = JointState
                 callback = partial(self._follower_callback, name)
             elif 'leader' in name.lower():
+                if 'mobile' in name.lower():
+                    msg_type = Twist
+                else:
+                    msg_type = JointTrajectory
                 category = self.SOURCE_LEADER
-                msg_type = JointTrajectory
                 callback = partial(self._leader_callback, name)
             else:
                 # Log an error message if the topic name does not include 'follower' or 'leader'

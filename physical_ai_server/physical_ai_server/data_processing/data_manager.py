@@ -22,9 +22,13 @@ import subprocess
 import time
 
 import cv2
+from geometry_msgs.msg import Twist
 from huggingface_hub import HfApi, snapshot_download
 from lerobot.common.datasets.utils import DEFAULT_FEATURES
+from nav_msgs.msg import Odometry
 import numpy as np
+from sensor_msgs.msg import CompressedImage, JointState
+from trajectory_msgs.msg import JointTrajectory
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_server.data_processing.data_converter import DataConverter
 from physical_ai_server.data_processing.lerobot_dataset_wrapper import LeRobotDatasetWrapper
@@ -242,15 +246,30 @@ class DataManager:
         if follower_msgs is not None:
             for key, value in follower_msgs.items():
                 if value is not None:
-                    follower_data.extend(self.data_converter.joint_state2tensor_array(
+                    follower_data.extend(self.joint_msgs2tensor_array(
                         value, total_joint_order))
 
         if leader_msgs is not None:
             for key, value in leader_msgs.items():
-                leader_data.extend(self.data_converter.joint_trajectory2tensor_array(
-                    value, leader_joint_order[f'joint_order.{key}']))
+                if value is not None:
+                    leader_data.extend(self.joint_msgs2tensor_array(
+                        value, leader_joint_order[f'joint_order.{key}']))
 
         return camera_data, follower_data, leader_data
+
+    def joint_msgs2tensor_array(self, msg_data, joint_order = None):
+        if isinstance(msg_data, JointTrajectory):
+            return self.data_converter.joint_trajectory2tensor_array(
+                msg_data, joint_order)
+        elif isinstance(msg_data, JointState):
+            return self.data_converter.joint_state2tensor_array(
+                msg_data, joint_order)
+        elif isinstance(msg_data, Odometry):
+            return self.data_converter.odometry2tensor_array(msg_data)
+        elif isinstance(msg_data, Twist):
+            return self.data_converter.twist2tensor_array(msg_data)
+        else:
+            raise ValueError(f'Unsupported message type: {type(msg_data)}')
 
     def _episode_reset(self):
         if self._lerobot_dataset and hasattr(self._lerobot_dataset, 'episode_buffer'):

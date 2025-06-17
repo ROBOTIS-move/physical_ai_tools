@@ -120,7 +120,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
 
         // ROS message to React state
         setTaskStatus({
-          robotType: msg.task_info?.robot_type || '',
+          robotType: msg.robot_type || '',
           taskName: msg.task_info?.task_name || 'idle',
           running: isRunning,
           phase: msg.phase || 0,

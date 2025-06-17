@@ -47,19 +47,10 @@ export default function RobotTypeSelector({
       if (result && result.robot_types) {
         setRobotTypes(result.robot_types);
 
-        // Only set current robot type if server returns it
-        if (result.current_robot_type) {
-          console.log('Server returned current_robot_type:', result.current_robot_type);
-          setCurrentRobotType(result.current_robot_type);
-          setSelectedRobotType(result.current_robot_type);
-        } else {
-          console.log('No current_robot_type from server, only setting selectedRobotType');
-          // Don't set currentRobotType, let user select and set it explicitly
-          // Only set selectedRobotType to first item for UI convenience
-          if (result.robot_types.length > 0) {
-            setSelectedRobotType(result.robot_types[0]);
-          }
+        if (taskStatus && taskStatus.robotType) {
+          setSelectedRobotType(taskStatus.robotType);
         }
+
         toast.success('Robot types loaded successfully');
       } else {
         toast.error('Failed to get robot types: Invalid response');
@@ -70,7 +61,7 @@ export default function RobotTypeSelector({
     } finally {
       setFetching(false);
     }
-  }, [getRobotTypeList, currentRobotType, setCurrentRobotType]);
+  }, [getRobotTypeList, currentRobotType, taskStatus]);
 
   // Set robot type
   const handleSetRobotType = async () => {
@@ -129,7 +120,7 @@ export default function RobotTypeSelector({
 
   // Sync selectedRobotType when currentRobotType changes
   useEffect(() => {
-    if (currentRobotType && currentRobotType !== selectedRobotType) {
+    if (!selectedRobotType && currentRobotType) {
       setSelectedRobotType(currentRobotType);
     }
   }, [currentRobotType, selectedRobotType]);

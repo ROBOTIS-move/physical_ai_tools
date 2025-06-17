@@ -200,14 +200,14 @@ class Communicator:
         return response
 
     def cleanup(self):
-        """Properly cleanup all publishers, subscribers and services"""
-        self.node.get_logger().info('Cleaning up Communicator resources...')
+        self.node.get_logger().info(
+            'Cleaning up Communicator resources...')
 
         if hasattr(self, 'status_publisher'):
             self.node.destroy_publisher(self.status_publisher)
             self.status_publisher = None
 
-        for name, publisher in self.joint_publishers.items():
+        for _, publisher in self.joint_publishers.items():
             self.node.destroy_publisher(publisher)
         self.joint_publishers.clear()
 

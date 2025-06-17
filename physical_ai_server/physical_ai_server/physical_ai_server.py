@@ -185,10 +185,10 @@ class PhysicalAIServer(Node):
         if self.communicator is not None:
             self.communicator.cleanup()
             self.communicator = None
-            
+
         if self.timer_manager is not None:
             self.timer_manager = None
-            
+
         self.params = None
         self.total_joint_order = None
         self.joint_order = None

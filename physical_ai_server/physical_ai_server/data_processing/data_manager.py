@@ -44,7 +44,7 @@ class DataManager:
             save_root_path,
             robot_type,
             task_info):
-
+        self._robot_type = robot_type
         self._save_repo_name = f'{task_info.user_id}/{robot_type}_{task_info.task_name}'
         self._save_path = save_root_path / self._save_repo_name
         self._on_saving = False
@@ -158,6 +158,7 @@ class DataManager:
 
     def get_current_record_status(self):
         current_status = TaskStatus()
+        current_status.robot_type = self._robot_type
         current_status.task_info = self._task_info
 
         if self._status == 'warmup':
@@ -174,14 +175,16 @@ class DataManager:
             current_status.total_time = int(0)
             self._proceed_time = int(0)
             if self._lerobot_dataset is not None:
-                if self._lerobot_dataset.encoders is not None:
+                if hasattr(self._lerobot_dataset, 'encoders') and \
+                        self._lerobot_dataset.encoders is not None:
                     if self._lerobot_dataset.encoders:
                         min_encoding_percentage = 100
                         for key, values in self._lerobot_dataset.encoders.items():
                             min_encoding_percentage = min(
                                 min_encoding_percentage,
                                 values.get_encoding_status()['progress_percentage'])
-                        current_status.encoding_progress = min_encoding_percentage
+                        current_status.encoding_progress = float(
+                            min_encoding_percentage)
 
         current_status.proceed_time = int(getattr(self, '_proceed_time', 0))
         current_status.current_episode_number = int(self._record_episode_count)

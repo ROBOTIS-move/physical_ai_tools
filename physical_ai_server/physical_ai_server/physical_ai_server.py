@@ -181,7 +181,7 @@ class PhysicalAIServer(Node):
         self.get_logger().info(
             'Robot control parameters initialized successfully')
 
-    def clear_robot_control_parameters(self):
+    def clear_parameters(self):
         if self.communicator is not None:
             self.communicator.cleanup()
             self.communicator = None
@@ -327,7 +327,6 @@ class PhysicalAIServer(Node):
                 self.get_logger().info('Start recording')
                 self.operation_mode = 'collection'
                 task_info = request.task_info
-                self.clear_robot_control_parameters()
                 self.init_robot_control_parameters_from_user_task(
                     task_info
                 )
@@ -399,6 +398,7 @@ class PhysicalAIServer(Node):
             self.get_logger().info(f'Setting robot type to: {request.robot_type}')
             self.operation_mode = 'collection'
             self.robot_type = request.robot_type
+            self.clear_parameters()
             self.init_ros_params(self.robot_type)
             response.success = True
             response.message = f'Robot type set to {self.robot_type}'

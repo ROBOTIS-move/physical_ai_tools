@@ -153,7 +153,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             self.encoders = {}
 
         self.encoders[save_path] = FFmpegEncoder(
-                fps=30,
+                fps=self.fps,
                 chunk_size=50,
                 preset='ultrafast',
                 crf=28,

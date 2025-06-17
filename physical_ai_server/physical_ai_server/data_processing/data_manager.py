@@ -57,6 +57,7 @@ class DataManager:
         self._cpu_checker = CPUChecker()
         self.data_converter = DataConverter()
         self.force_save_for_safety = False
+        self._stop_save_completed = False
 
     def record(
             self,
@@ -93,17 +94,42 @@ class DataManager:
             else:
                 self.save()
                 self._on_saving = True
-            return self.RECORDING
 
         elif self._status == 'reset':
             if not self._check_time(self._task_info.reset_time_s, 'run'):
                 return self.RECORDING
 
         elif self._status == 'stop':
+            if not self._stop_save_completed:
+                if self._on_saving:
+                    if self._lerobot_dataset.check_video_encoding_completed():
+                        self._on_saving = False
+                        self._episode_reset()
+                        self._record_episode_count += 1
+                        self._stop_save_completed = True
+                else:
+                    self.save()
+                    self._proceed_time = 0
+                    self._on_saving = True
             return self.RECORDING
 
-        if ((self._record_episode_count >= self._task_info.num_episodes) or
-                (self._status == 'finish')):
+        elif self._status == 'finish':
+            if self._on_saving:
+                if self._lerobot_dataset.check_video_encoding_completed():
+                    self._on_saving = False
+                    self._episode_reset()
+                    if (self._task_info.push_to_hub and
+                            self._record_episode_count > 0):
+                        self._upload_dataset(
+                            self._task_info.tags,
+                            self._task_info.private_mode)
+                    return self.RECORD_COMPLETED
+            else:
+                self.save()
+                self._proceed_time = 0
+                self._on_saving = True
+
+        if self._record_episode_count >= self._task_info.num_episodes:
             if self._lerobot_dataset.check_video_encoding_completed():
                 if (self._task_info.push_to_hub and
                         self._record_episode_count > 0):
@@ -141,18 +167,13 @@ class DataManager:
             self._status = 'save'
 
     def record_stop(self):
-        self.save()
-        self._episode_reset()
-        self._record_episode_count += 1
         self._status = 'stop'
 
     def record_finish(self):
-        self.save()
-        self._episode_reset()
-        self._record_episode_count += 1
         self._status = 'finish'
 
     def re_record(self):
+        self._stop_save_completed = False
         self._episode_reset()
         self._status = 'reset'
 

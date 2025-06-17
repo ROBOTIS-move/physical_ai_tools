@@ -202,29 +202,25 @@ class Communicator:
     def cleanup(self):
         """Properly cleanup all publishers, subscribers and services"""
         self.node.get_logger().info('Cleaning up Communicator resources...')
-        
-        # Cleanup publishers
+
         if hasattr(self, 'status_publisher'):
             self.node.destroy_publisher(self.status_publisher)
             self.status_publisher = None
-            
+
         for name, publisher in self.joint_publishers.items():
             self.node.destroy_publisher(publisher)
         self.joint_publishers.clear()
-        
-        # Cleanup subscribers through MultiSubscriber
+
         if hasattr(self, 'multi_subscriber'):
             self.multi_subscriber.cleanup()
             self.multi_subscriber = None
-            
-        # Cleanup services
+
         if hasattr(self, 'image_topic_list_service'):
             self.node.destroy_service(self.image_topic_list_service)
             self.image_topic_list_service = None
-            
-        # Clear message buffers
+
         self.camera_topic_msgs.clear()
         self.follower_topic_msgs.clear()
         self.leader_topic_msgs.clear()
-        
+
         self.node.get_logger().info('Communicator cleanup completed')

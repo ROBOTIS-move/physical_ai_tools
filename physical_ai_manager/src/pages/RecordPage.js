@@ -131,9 +131,7 @@ export default function RecordPage({
         // Validate info before starting
         const validation = validateTaskInfo(info);
         if (!validation.isValid) {
-          toast.error(`Missing required fields: ${validation.missingFields.join(', ')}`, {
-            duration: 4000,
-          });
+          toast.error(`Missing required fields: ${validation.missingFields.join(', ')}`);
           console.error('Validation failed. Missing fields:', validation.missingFields);
           return;
         }

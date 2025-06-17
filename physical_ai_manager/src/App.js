@@ -204,7 +204,7 @@ function App() {
             },
           },
           error: {
-            duration: 8000,
+            duration: 6000,
             style: {
               background: '#ef4444',
             },

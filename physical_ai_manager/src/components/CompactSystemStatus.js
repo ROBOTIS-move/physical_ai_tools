@@ -122,7 +122,9 @@ const CompactSystemStatus = ({
         </svg>
         {/* Percentage text */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xs font-medium text-gray-700">{Math.round(usagePercentage)}%</span>
+          <span className="text-xs font-medium text-gray-700" style={{ minWidth: '3ch' }}>
+            {Math.round(usagePercentage)}%
+          </span>
         </div>
       </div>
 

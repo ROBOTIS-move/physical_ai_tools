@@ -140,24 +140,22 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
 
         // Extract TaskInfo from TaskStatus message
         if (msg.task_info) {
-          if (msg.phase !== TaskPhase.READY) {
-            // update task info only when task is not stopped
-            setTaskInfo({
-              taskName: msg.task_info.task_name || '',
-              taskType: msg.task_info.task_type || '',
-              taskInstruction: msg.task_info.task_instruction || '',
-              userId: msg.task_info.user_id || '',
-              fps: msg.task_info.fps || 0,
-              tags: msg.task_info.tags || [],
-              warmupTime: msg.task_info.warmup_time_s || 0,
-              episodeTime: msg.task_info.episode_time_s || 0,
-              resetTime: msg.task_info.reset_time_s || 0,
-              numEpisodes: msg.task_info.num_episodes || 0,
-              pushToHub: msg.task_info.push_to_hub || false,
-              privateMode: msg.task_info.private_mode || false,
-              useOptimizedSave: msg.task_info.use_optimized_save_mode || false,
-            });
-          }
+          // update task info only when task is not stopped
+          setTaskInfo({
+            taskName: msg.task_info.task_name || '',
+            taskType: msg.task_info.task_type || '',
+            taskInstruction: msg.task_info.task_instruction || '',
+            userId: msg.task_info.user_id || '',
+            fps: msg.task_info.fps || 0,
+            tags: msg.task_info.tags || [],
+            warmupTime: msg.task_info.warmup_time_s || 0,
+            episodeTime: msg.task_info.episode_time_s || 0,
+            resetTime: msg.task_info.reset_time_s || 0,
+            numEpisodes: msg.task_info.num_episodes || 0,
+            pushToHub: msg.task_info.push_to_hub || false,
+            privateMode: msg.task_info.private_mode || false,
+            useOptimizedSave: msg.task_info.use_optimized_save_mode || false,
+          });
         }
       });
     } catch (error) {

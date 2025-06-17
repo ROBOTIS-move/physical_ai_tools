@@ -211,7 +211,7 @@ export default function RobotTypeSelector({
           <strong>Current Robot Type:</strong> {currentRobotType}
           {taskStatus && taskStatus.robotType && (
             <div className="text-xs text-green-600 mt-1">
-              ✓ Saved to Task Info: {taskStatus.robotType}
+              ✓ Saved to Task Status: {taskStatus.robotType}
             </div>
           )}
         </div>

@@ -198,13 +198,13 @@ function App() {
             color: '#fff',
           },
           success: {
-            duration: 2000,
+            duration: 3000,
             style: {
               background: '#10b981',
             },
           },
           error: {
-            duration: 4000,
+            duration: 8000,
             style: {
               background: '#ef4444',
             },

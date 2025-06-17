@@ -134,7 +134,12 @@ const SystemStatus = ({
         <h3 className="text-sm font-medium text-gray-700">{label} Usage</h3>
         <div className="flex items-center space-x-1">
           <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-          <span className="text-xs text-gray-500">{usagePercentage.toFixed(1)}%</span>
+          <span
+            className="text-xs text-gray-500"
+            style={{ minWidth: '5ch', display: 'inline-block', textAlign: 'right' }}
+          >
+            {usagePercentage.toFixed(1)}%
+          </span>
         </div>
       </div>
 
@@ -157,12 +162,22 @@ const SystemStatus = ({
 
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">Free:</span>
-          <span className="text-sm font-medium text-gray-700">{formatBytes(freeCapacity)}</span>
+          <span
+            className="text-sm font-medium text-gray-700"
+            style={{ minWidth: '6ch', display: 'inline-block', textAlign: 'right' }}
+          >
+            {formatBytes(freeCapacity)}
+          </span>
         </div>
 
         <div className="flex justify-between items-center border-t pt-2">
           <span className="text-sm text-gray-600">Total:</span>
-          <span className="text-sm font-medium text-gray-900">{formatBytes(totalCapacity)}</span>
+          <span
+            className="text-sm font-medium text-gray-900"
+            style={{ minWidth: '6ch', display: 'inline-block', textAlign: 'right' }}
+          >
+            {formatBytes(totalCapacity)}
+          </span>
         </div>
       </div>
 

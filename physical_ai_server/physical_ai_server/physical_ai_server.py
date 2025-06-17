@@ -182,8 +182,13 @@ class PhysicalAIServer(Node):
             'Robot control parameters initialized successfully')
 
     def clear_robot_control_parameters(self):
-        self.communicator = None
-        self.timer_manager = None
+        if self.communicator is not None:
+            self.communicator.cleanup()
+            self.communicator = None
+            
+        if self.timer_manager is not None:
+            self.timer_manager = None
+            
         self.params = None
         self.total_joint_order = None
         self.joint_order = None

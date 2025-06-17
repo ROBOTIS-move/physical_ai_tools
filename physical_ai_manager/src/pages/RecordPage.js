@@ -71,7 +71,7 @@ export default function RecordPage({
         }
       );
     }
-  }, [taskStatus]);
+  }, [taskStatus, taskInfo]);
 
   const { sendRecordCommand } = useRosServiceCaller(rosbridgeUrl);
 

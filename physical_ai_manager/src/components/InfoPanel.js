@@ -391,7 +391,7 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
               disabled={!isEditable}
             />
             <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
-              {info.pushToHub ? 'Enabled' : 'Disabled'}
+              {info.privateMode ? 'Enabled' : 'Disabled'}
             </span>
           </div>
         </div>
@@ -607,7 +607,7 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
             disabled={!isEditable}
           />
           <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
-            {info.pushToHub ? 'Enabled' : 'Disabled'}
+            {info.useOptimizedSave ? 'Enabled' : 'Disabled'}
           </span>
         </div>
       </div>

@@ -146,7 +146,12 @@ const CompactSystemStatus = ({
             {type === 'cpu' ? (
               <div className="flex justify-between text-xs">
                 <span className="text-gray-500">Usage:</span>
-                <span className="font-medium">{Math.round(usagePercentage)}%</span>
+                <span
+                  className="font-medium"
+                  style={type === 'cpu' ? { minWidth: '3ch' } : undefined}
+                >
+                  {Math.round(usagePercentage)}%
+                </span>
               </div>
             ) : (
               <>
@@ -169,7 +174,12 @@ const CompactSystemStatus = ({
                 style={{ width: `${Math.min(usagePercentage, 100)}%` }}
               ></div>
             </div>
-            <span className="text-xs text-gray-500 whitespace-nowrap">{getUsageText()}</span>
+            <span
+              className="text-xs text-gray-500 whitespace-nowrap"
+              style={type === 'cpu' ? { minWidth: '3ch' } : undefined}
+            >
+              {getUsageText()}
+            </span>
           </div>
         )}
       </div>

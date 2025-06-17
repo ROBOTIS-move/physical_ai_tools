@@ -183,26 +183,63 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         ep_stats = {}
         for key, data in episode_buffer.items():
             if features[key]['dtype'] == 'string':
-                continue  # HACK: we should receive np.arrays of strings
+                continue
             elif features[key]['dtype'] in ['image', 'video']:
-                ep_ft_array = np.array(data)
-                ep_ft_array = np.transpose(ep_ft_array, (0, 3, 1, 2))
-                axes_to_reduce = (0, 2, 3)  # keep channel dim
+                ep_ft_array = self._sample_images(data)
+                axes_to_reduce = (0, 2, 3)
                 keepdims = True
             else:
-                ep_ft_array = data  # data is already a np.ndarray
-                axes_to_reduce = 0  # compute stats over the first axis
-                keepdims = data.ndim == 1  # keep as np.array
-
+                ep_ft_array = data
+                axes_to_reduce = 0
+                keepdims = ep_ft_array.ndim == 1
             ep_stats[key] = get_feature_stats(
                 ep_ft_array,
                 axis=axes_to_reduce,
                 keepdims=keepdims)
-
-            # finally, we normalize and remove batch dim for images
             if features[key]['dtype'] in ['image', 'video']:
                 ep_stats[key] = {
                     k: v if k == 'count' else np.squeeze(
                         v / 255.0, axis=0) for k, v in ep_stats[key].items()
                 }
         return ep_stats
+
+    def _estimate_num_samples(
+        self,
+        dataset_len: int,
+        min_num_samples: int = 100,
+        max_num_samples: int = 10_000,
+        power: float = 0.75
+    ) -> int:
+        if dataset_len < min_num_samples:
+            min_num_samples = dataset_len
+        return max(min_num_samples, min(int(dataset_len**power), max_num_samples))
+
+    def _sample_indices(self, data_len: int) -> list[int]:
+        num_samples = self._estimate_num_samples(data_len)
+        return np.round(np.linspace(0, data_len - 1, num_samples)).astype(int).tolist()
+
+    def _auto_downsample_height_width(
+            self,
+            img: np.ndarray,
+            target_size: int = 150,
+            max_size_threshold: int = 300):
+        _, h, w = img.shape
+
+        if max(w, h) < max_size_threshold:
+            return img
+
+        downsample_factor = int(w / target_size) if w > h else int(h / target_size)
+        return img[:, ::downsample_factor, ::downsample_factor]
+
+    def _sample_images(self, image_array) -> np.ndarray:
+        sampled_indices = self._sample_indices(len(image_array))
+        images = None
+        for i, idx in enumerate(sampled_indices):
+            img = image_array[idx]
+            img = np.transpose(img, (2, 0, 1))
+            img = self._auto_downsample_height_width(img)
+            if images is None:
+                images = np.empty((len(sampled_indices), *img.shape), dtype=np.uint8)
+            images[i] = img
+
+        return images

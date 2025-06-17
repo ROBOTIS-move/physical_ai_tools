@@ -19,6 +19,7 @@
 import glob
 import os
 from pathlib import Path
+import time
 
 from ament_index_python.packages import get_package_share_directory
 from physical_ai_interfaces.msg import TaskStatus
@@ -65,6 +66,8 @@ class PhysicalAIServer(Node):
             'collection': self.data_collection_timer_callback,
             'inference': self.inference_timer_callback
         }
+        self.topic_timeout = 5  # seconds
+        self.start_recording_time = 0
 
     def init_ros_service(self):
         self.get_logger().info('Initializing ROS services...')
@@ -244,22 +247,34 @@ class PhysicalAIServer(Node):
 
         if (not camera_data or
                 len(camera_data) != len(self.params['camera_topic_list'])):
-            error_msg = 'No camera data received or data length mismatch'
-            self.get_logger().error(error_msg)
+            if time.perf_counter() - self.start_recording_time > self.topic_timeout:
+                error_msg = 'Camera data not received within timeout period'
+                self.get_logger().error(error_msg)
+            else:
+                self.get_logger().info('Waiting for camera data...')
+                return
 
-        if not follower_data or len(follower_data) != len(self.total_joint_order):
-            error_msg = 'No follower data received or data length mismatch'
-            self.get_logger().error(error_msg)
+        elif not follower_data or len(follower_data) != len(self.total_joint_order):
+            if time.perf_counter() - self.start_recording_time > self.topic_timeout:
+                error_msg = 'Follower data not received within timeout period'
+                self.get_logger().error(error_msg)
+            else:
+                self.get_logger().info('Waiting for follower data...')
+                return
 
-        if not leader_data or len(leader_data) != len(self.total_joint_order):
-            error_msg = 'No leader data received or data length mismatch'
-            self.get_logger().error(error_msg)
+        elif not leader_data or len(leader_data) != len(self.total_joint_order):
+            if time.perf_counter() - self.start_recording_time > self.topic_timeout:
+                error_msg = 'Leader data not received within timeout period'
+                self.get_logger().error(error_msg)
+            else:
+                self.get_logger().info('Waiting for leader data...')
+                return
 
-        if not self.data_manager.check_lerobot_dataset(
+        elif not self.data_manager.check_lerobot_dataset(
                 camera_data,
                 self.total_joint_order):
-            error_msg = 'Invalid Repository Folder, Please check the repository folder'
-            self.get_logger().error(error_msg)
+            error_msg = 'Invalid repository name, Please change the repository name'
+            self.get_logger().info(error_msg)
 
         if error_msg:
             self.on_recording = False
@@ -310,6 +325,7 @@ class PhysicalAIServer(Node):
                 self.init_robot_control_parameters_from_user_task(
                     task_info
                 )
+                self.start_recording_time = time.perf_counter()
                 self.on_recording = True
                 response.success = True
                 response.message = 'Recording started'

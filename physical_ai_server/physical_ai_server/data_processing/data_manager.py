@@ -165,7 +165,15 @@ class DataManager:
             current_status.total_time = int(self._task_info.reset_time_s)
         elif self._status == 'save':
             current_status.phase = TaskStatus.SAVING
-            current_status.total_time = int(0)
+            current_status.total_time = int(100)
+            self._proceed_time = int(0)
+            if self._lerobot_dataset.encoders is not None and self._lerobot_dataset.encoders:
+                min_encoding_percentage = 100
+                for key, values in self._lerobot_dataset.encoders.items():
+                    min_encoding_percentage = min(
+                        min_encoding_percentage,
+                        values.get_encoding_status()['progress_percentage'])
+                self._proceed_time = int(min_encoding_percentage)
 
         current_status.proceed_time = int(getattr(self, '_proceed_time', 0))
         current_status.current_episode_number = int(self._record_episode_count)

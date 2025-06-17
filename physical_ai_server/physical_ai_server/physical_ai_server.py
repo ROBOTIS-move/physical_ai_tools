@@ -327,6 +327,7 @@ class PhysicalAIServer(Node):
                 self.get_logger().info('Start recording')
                 self.operation_mode = 'collection'
                 task_info = request.task_info
+                self.clear_robot_control_parameters()
                 self.init_robot_control_parameters_from_user_task(
                     task_info
                 )

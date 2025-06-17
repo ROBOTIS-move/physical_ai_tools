@@ -73,12 +73,8 @@ function App() {
     }
 
     // Allow navigation if task is in progress
-    if (taskStatus && taskStatus.phase > 0) {
-      console.log(
-        'Task in progress (phase:',
-        taskStatus.phase,
-        '), allowing navigation to Record page'
-      );
+    if (taskStatus && taskStatus.robotType !== '') {
+      console.log('robot type:', taskStatus.robotType, '=> allowing navigation to Record page');
       isFirstLoad.current = false;
       setPage('record');
       return;

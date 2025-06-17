@@ -1,6 +1,6 @@
 physical_ai_server:
   ros__parameters:
-    ai_worker_realsense_head_config:
+    ffw_bg2:
       observation_list:
         - cam_head
         - cam_wrist_left
@@ -8,7 +8,7 @@ physical_ai_server:
         - state
 
       camera_topic_list: 
-        - cam_head:/camera_head/camera_head/color/image_rect_raw/compressed
+        - cam_head:/zed/zed_node/left/image_rect_color/compressed
         - cam_wrist_left:/camera_left/camera_left/color/image_rect_raw/compressed
         - cam_wrist_right:/camera_right/camera_right/color/image_rect_raw/compressed
 

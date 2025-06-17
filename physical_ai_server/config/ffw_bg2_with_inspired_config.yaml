@@ -1,6 +1,6 @@
 physical_ai_server:
   ros__parameters:
-    ai_worker_with_inspired:
+    ffw_bg2_with_inspired:
       observation_list:
         - state
         - cam_head

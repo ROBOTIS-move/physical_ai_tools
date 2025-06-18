@@ -32,6 +32,7 @@ from physical_ai_interfaces.srv import (
     )
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager
+from physical_ai_server.inference.inference_manager import InferenceManager
 from physical_ai_server.timer.timer_manager import TimerManager
 from physical_ai_server.utils.parameter_utils import (
     declare_parameters,
@@ -246,8 +247,8 @@ class PhysicalAIServer(Node):
         camera_data, follower_data, leader_data = self.data_manager.convert_msgs_to_raw_datas(
             camera_msgs,
             follower_msgs,
-            leader_msgs,
             self.total_joint_order,
+            leader_msgs,
             self.joint_order)
 
         if (not camera_data or
@@ -308,37 +309,73 @@ class PhysicalAIServer(Node):
             return
 
     def inference_timer_callback(self):
-        # TODO: Implement inference timer callback logic
-        camera_data = {}
-        follower_data = []
-        leader_data = []
-        print(camera_data, follower_data, leader_data)
+        camera_msgs, follower_msgs, _ = self.communicator.get_latest_data()
+        camera_data, follower_data, _ = self.data_manager.convert_msgs_to_raw_datas(
+            camera_msgs,
+            follower_msgs,
+            self.total_joint_order)
+        
+        if (not camera_data or
+                len(camera_data) != len(self.params['camera_topic_list'])):
+            self.get_logger().info('Waiting for camera data...')
+            return
+        elif not follower_data or len(follower_data) != len(self.total_joint_order):
+            self.get_logger().info('Waiting for follower data...')
+            return
+
+        action = self.inference_manager.predict(
+            images=camera_data,
+            state=follower_data,
+            task_instruction='Pick and Place TEST'
+        )
+        print(action)
+        print(type(action))
+
+        action_pub_msgs = self.data_manager.data_converter.tensor_array2joint_msgs(
+            action,
+            self.joint_topic_types,
+            self.joint_order
+        )
+
+        # print(action_pub_msgs)
+        self.communicator.publish_action(
+            joint_msg_datas=action_pub_msgs
+        )
 
     def user_interaction_callback(self, request, response):
         try:
-            if request.command == SendCommand.Request.START_RECORD:
-                if self.on_recording:
-                    self.get_logger().info('Restarting the recording.')
-                    self.data_manager.re_record()
-                    response.success = True
-                    response.message = 'Restarting the recording.'
-                    return response
+            # if request.command == SendCommand.Request.START_RECORD:
+            #     if self.on_recording:
+            #         self.get_logger().info('Restarting the recording.')
+            #         self.data_manager.re_record()
+            #         response.success = True
+            #         response.message = 'Restarting the recording.'
+            #         return response
 
-                self.get_logger().info('Start recording')
-                self.operation_mode = 'collection'
+            #     self.get_logger().info('Start recording')
+            #     self.operation_mode = 'collection'
+            #     task_info = request.task_info
+            #     self.init_robot_control_parameters_from_user_task(
+            #         task_info
+            #     )
+
+            #     self.start_recording_time = time.perf_counter()
+            #     self.on_recording = True
+            #     response.success = True
+            #     response.message = 'Recording started'
+
+            if request.command == SendCommand.Request.START_RECORD:
+                self.inference_manager = InferenceManager(
+                    policy_type='act',
+                    policy_path='/root/ros2_ws/src/physical_ai_tools/lerobot/outputs/train/act_ffw_test/checkpoints/011000/pretrained_model',
+                    device='cuda'
+                )
+                self.joint_topic_types = self.communicator.get_publisher_msg_types()
+                self.operation_mode = 'inference'
                 task_info = request.task_info
                 self.init_robot_control_parameters_from_user_task(
                     task_info
                 )
-                self.start_recording_time = time.perf_counter()
-                self.on_recording = True
-                response.success = True
-                response.message = 'Recording started'
-
-            elif request.command == SendCommand.Request.START_INFERENCE:
-                # TODO: This is currently hardcoded to 'collection',
-                # and support for 'inference' mode will be added in a future PR.
-                self.operation_mode = 'inference'
                 self.on_recording = False
                 response.success = True
                 response.message = 'Inference started'

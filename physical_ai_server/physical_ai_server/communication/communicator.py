@@ -135,20 +135,26 @@ class Communicator:
                 msg_type=msg_type,
                 callback=callback
             )
-            self.joint_topics[name] = msg_type()
             self.node.get_logger().info(
                 f'Joint subscriber: {name} -> {topic} ({msg_type.__name__})')
 
     def init_publishers(self):
-        # TODO: Re-enable the code below in a future PR
-        # to implement joint control.
-        # for name, topic_name in self.joint_topics.items():
-        #     if 'leader' in name.lower():
-        #         self.joint_publishers[name] = self.node.create_publisher(
-        #             JointTrajectory,
-        #             topic_name,
-        #             100
-        #         )
+        self.node.get_logger().info('Initializing joint publishers...')
+        for name, topic_name in self.joint_topics.items():
+            if 'leader' in name.lower():
+                if 'mobile' in name.lower():
+                    self.joint_publishers[name] = self.node.create_publisher(
+                        Twist,
+                        topic_name,
+                        100
+                    )
+                else:
+                    self.joint_publishers[name] = self.node.create_publisher(
+                        JointTrajectory,
+                        topic_name,
+                        100
+                    )
+        self.node.get_logger().info('Initializing joint publishers... done')
 
         self.status_publisher = self.node.create_publisher(
             TaskStatus,
@@ -180,8 +186,8 @@ class Communicator:
         elif self.operation_mode == self.MODE_INFERENCE:
             return self.camera_topic_msgs, self.follower_topic_msgs, None
 
-    def send_action(self, joint_msgs: Dict[str, JointTrajectory]):
-        for name, joint_msg in joint_msgs.items():
+    def publish_action(self, joint_msg_datas: Dict[str, Any]):
+        for name, joint_msg in joint_msg_datas.items():
             self.joint_publishers[name].publish(joint_msg)
 
     def publish_status(self, status: TaskStatus):
@@ -206,6 +212,12 @@ class Communicator:
         response.success = True
         response.message = 'Image topic list retrieved successfully'
         return response
+
+    def get_publisher_msg_types(self):
+        msg_types = {}
+        for publisher_name, publisher in self.joint_publishers.items():
+            msg_types[publisher_name] = publisher.msg_type
+        return msg_types
 
     def cleanup(self):
         self.node.get_logger().info(

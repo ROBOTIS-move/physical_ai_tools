@@ -86,8 +86,9 @@ class InferenceManager:
 
     def _convert_np2tensors(
             self,
-            data: dict[str, np.ndarray]) -> dict[str, torch.Tensor]:
-
+            data):
+        if isinstance(data, list):
+            data = np.array(data)
         tensor_data = torch.from_numpy(data)
         tensor_data = tensor_data.to(torch.float32)
         tensor_data = tensor_data.to(self.device, non_blocking=True)

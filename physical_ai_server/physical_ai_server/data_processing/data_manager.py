@@ -230,9 +230,9 @@ class DataManager:
             self,
             image_msgs,
             follower_msgs,
-            leader_msgs,
             total_joint_order,
-            leader_joint_order) -> tuple:
+            leader_msgs = None,
+            leader_joint_order = None) -> tuple:
 
         camera_data = {}
         follower_data = []

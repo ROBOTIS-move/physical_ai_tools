@@ -95,6 +95,7 @@ class DataConverter:
             ordered_positions = [
                 joint_pos_map[name]
                 for name in joint_order
+                if name in joint_pos_map
             ]
             if target_format == 'numpy':
                 return np.array(ordered_positions, dtype=np.float32)
@@ -161,11 +162,11 @@ class DataConverter:
 
         try:
             position = np.array([
-                msg.pose.pose.position.x,
-                msg.pose.pose.position.y
+                msg.twist.twist.linear.x,
+                msg.twist.twist.linear.y
             ], dtype=np.float32)
             orientation = np.array([
-                msg.pose.pose.orientation.z
+                msg.twist.twist.angular.z
             ], dtype=np.float32)
 
             if target_format == 'numpy':

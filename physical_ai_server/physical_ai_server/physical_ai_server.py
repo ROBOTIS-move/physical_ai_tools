@@ -344,27 +344,27 @@ class PhysicalAIServer(Node):
 
     def user_interaction_callback(self, request, response):
         try:
-            # if request.command == SendCommand.Request.START_RECORD:
-            #     if self.on_recording:
-            #         self.get_logger().info('Restarting the recording.')
-            #         self.data_manager.re_record()
-            #         response.success = True
-            #         response.message = 'Restarting the recording.'
-            #         return response
-
-            #     self.get_logger().info('Start recording')
-            #     self.operation_mode = 'collection'
-            #     task_info = request.task_info
-            #     self.init_robot_control_parameters_from_user_task(
-            #         task_info
-            #     )
-
-            #     self.start_recording_time = time.perf_counter()
-            #     self.on_recording = True
-            #     response.success = True
-            #     response.message = 'Recording started'
-
             if request.command == SendCommand.Request.START_RECORD:
+                if self.on_recording:
+                    self.get_logger().info('Restarting the recording.')
+                    self.data_manager.re_record()
+                    response.success = True
+                    response.message = 'Restarting the recording.'
+                    return response
+
+                self.get_logger().info('Start recording')
+                self.operation_mode = 'collection'
+                task_info = request.task_info
+                self.init_robot_control_parameters_from_user_task(
+                    task_info
+                )
+
+                self.start_recording_time = time.perf_counter()
+                self.on_recording = True
+                response.success = True
+                response.message = 'Recording started'
+
+            if request.command == SendCommand.Request.START_INFERENCE:
                 self.inference_manager = InferenceManager(
                     policy_type='act',
                     policy_path='/root/ros2_ws/src/physical_ai_tools/lerobot/outputs/train/act_ffw_test/checkpoints/011000/pretrained_model',

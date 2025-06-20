@@ -159,7 +159,9 @@ class DataManager:
             frame[f'observation.images.{camera_name}'] = image
         frame['observation.state'] = np.array(state)
         frame['action'] = np.array(action)
-        current_instruction = self._task_info.task_instruction[self._record_episode_count]
+        current_instruction = self._task_info.task_instruction[
+            self._record_episode_count % len(self._task_info.task_instruction)
+        ]
         frame['task'] = current_instruction
         return frame
 

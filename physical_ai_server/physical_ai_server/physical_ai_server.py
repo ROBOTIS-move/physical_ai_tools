@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author: Dongyun Kim
+# Author: Dongyun Kim, Seongwoo Kim
 
 import glob
 import os
@@ -108,7 +108,8 @@ class PhysicalAIServer(Node):
             'camera_topic_list',
             'joint_topic_list',
             'observation_list',
-            'joint_list'
+            'joint_list',
+            'joystick_topic_list',
         ]
 
         # Declare parameters
@@ -274,6 +275,14 @@ class PhysicalAIServer(Node):
             else:
                 self.get_logger().info('Waiting for leader data...')
                 return
+        
+        elif(
+            self.communicator is not None and
+            self.communicator.get_joystick_position() > 0.0
+        ):
+            if self.data_manager._lerobot_dataset is not None:
+                self.data_manager.record_early_save()
+            return
 
         elif not self.data_manager.check_lerobot_dataset(
                 camera_data,

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author: Dongyun Kim
+# Author: Dongyun Kim, Seongwoo Kim
 
 from functools import partial
 from typing import Any, Dict, Optional, Set, Tuple
@@ -36,6 +36,7 @@ class Communicator:
     SOURCE_CAMERA = 'camera'
     SOURCE_FOLLOWER = 'follower'
     SOURCE_LEADER = 'leader'
+    SOURCE_JOYSTICK = 'joystick'
 
     # Define operation modes
     MODE_COLLECTION = 'collection'  # Full data collection mode (images, follower, leader)
@@ -54,6 +55,7 @@ class Communicator:
         # Parse topic lists for more convenient access
         self.camera_topics = parse_topic_list_with_names(self.params['camera_topic_list'])
         self.joint_topics = parse_topic_list_with_names(self.params['joint_topic_list'])
+        self.joint_joystick = parse_topic_list_with_names(self.params['joystick_topic_list'])
 
         # Determine which sources to enable based on operation mode
         self.enabled_sources = self._get_enabled_sources_for_mode(self.operation_mode)
@@ -71,6 +73,7 @@ class Communicator:
         self.camera_topic_msgs = {}
         self.follower_topic_msgs = {}
         self.leader_topic_msgs = {}
+        self.joystick_msgs = {}
 
         self.init_subscribers()
         self.init_publishers()
@@ -82,6 +85,7 @@ class Communicator:
         # Camera and follower are always needed
         enabled_sources.add(self.SOURCE_CAMERA)
         enabled_sources.add(self.SOURCE_FOLLOWER)
+        enabled_sources.add(self.SOURCE_JOYSTICK)
 
         # Leader is only needed in collection mode
         if mode == self.MODE_COLLECTION:
@@ -130,6 +134,16 @@ class Communicator:
             self.joint_topics[name] = msg_type()
             self.node.get_logger().info(
                 f'Joint subscriber: {name} -> {topic} ({msg_type.__name__})')
+            
+        for name, topic in self.joint_joystick.items():  # 누락된 구문
+            self.multi_subscriber.add_subscriber(
+                category=self.SOURCE_JOYSTICK,
+                name=name,
+                topic=topic,
+                msg_type=JointTrajectory,
+                callback=partial(self._joystick_callback, name)
+            )
+
 
     def init_publishers(self):
         # TODO: Re-enable the code below in a future PR
@@ -163,6 +177,9 @@ class Communicator:
 
     def _leader_callback(self, name: str, msg: JointTrajectory) -> None:
         self.leader_topic_msgs[name] = msg
+
+    def _joystick_callback(self, name: str, msg: JointTrajectory) -> None:
+        self.joystick_msgs[name] = msg
 
     def get_latest_data(self) -> Optional[Tuple[Dict, Dict, Dict]]:
         if not (self.camera_topic_msgs or self.follower_topic_msgs or self.leader_topic_msgs):
@@ -224,3 +241,9 @@ class Communicator:
         self.leader_topic_msgs.clear()
 
         self.node.get_logger().info('Communicator cleanup completed')
+        
+    def get_joystick_position(self) -> Optional[float]:
+        msg = self.joystick_msgs.get('right_joystick')
+        if msg and msg.points and msg.points[0].positions:
+            return msg.points[0].positions[0]
+        return None

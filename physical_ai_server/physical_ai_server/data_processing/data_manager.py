@@ -159,7 +159,8 @@ class DataManager:
             frame[f'observation.images.{camera_name}'] = image
         frame['observation.state'] = np.array(state)
         frame['action'] = np.array(action)
-        frame['task'] = self._task_info.task_instruction
+        current_instruction = self._task_info.task_instruction[self._record_episode_count]
+        frame['task'] = current_instruction
         return frame
 
     def record_early_save(self):

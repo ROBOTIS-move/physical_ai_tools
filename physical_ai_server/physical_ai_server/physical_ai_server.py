@@ -364,17 +364,17 @@ class PhysicalAIServer(Node):
                 response.success = True
                 response.message = 'Recording started'
 
-            if request.command == SendCommand.Request.START_INFERENCE:
-                self.inference_manager = InferenceManager(
-                    policy_type='act',
-                    policy_path='/root/ros2_ws/src/physical_ai_tools/lerobot/outputs/train/act_ffw_test/checkpoints/011000/pretrained_model',
-                    device='cuda'
-                )
+            elif request.command == SendCommand.Request.START_INFERENCE:
                 self.joint_topic_types = self.communicator.get_publisher_msg_types()
                 self.operation_mode = 'inference'
                 task_info = request.task_info
                 self.init_robot_control_parameters_from_user_task(
                     task_info
+                )
+                self.inference_manager = InferenceManager(
+                    policy_type='act',
+                    policy_path='/root/ros2_ws/src/physical_ai_tools/lerobot/outputs/train/act_ffw_test/checkpoints/011000/pretrained_model',
+                    device='cuda'
                 )
                 self.on_recording = False
                 response.success = True

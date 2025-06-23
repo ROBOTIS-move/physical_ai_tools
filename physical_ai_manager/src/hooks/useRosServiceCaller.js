@@ -145,12 +145,19 @@ export function useRosServiceCaller() {
           taskType = 'inference';
         }
 
+        let task_instruction = [];
+        for (let i = 0; i < taskInfo.taskInstruction.length; i++) {
+          if (taskInfo.taskInstruction[i].trim() !== '') {
+            task_instruction.push(taskInfo.taskInstruction[i]);
+          }
+        }
+
         const request = {
           task_info: {
             task_name: String(taskInfo.taskName || ''),
             task_type: String(taskType),
             user_id: String(taskInfo.userId || ''),
-            task_instruction: String(taskInfo.taskInstruction || ''),
+            task_instruction: String(taskInfo.taskInstruction || []),
             policy_path: String(taskInfo.policyPath || ''),
             record_inference_mode: Boolean(taskInfo.recordInferenceMode),
             fps: Number(taskInfo.fps) || 0,

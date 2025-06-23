@@ -119,7 +119,7 @@ export function useRosTaskStatus() {
             setTaskInfo({
               taskName: msg.task_info.task_name || '',
               taskType: msg.task_info.task_type || '',
-              taskInstruction: msg.task_info.task_instruction || '',
+              taskInstruction: msg.task_info.task_instruction || [],
               policyPath: msg.task_info.policy_path || '',
               recordInferenceMode: msg.task_info.record_inference_mode || false,
               userId: msg.task_info.user_id || '',

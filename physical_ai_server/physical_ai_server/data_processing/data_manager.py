@@ -27,7 +27,7 @@ from huggingface_hub import HfApi, snapshot_download
 from lerobot.common.datasets.utils import DEFAULT_FEATURES
 from nav_msgs.msg import Odometry
 import numpy as np
-from sensor_msgs.msg import CompressedImage, JointState
+from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_server.data_processing.data_converter import DataConverter
@@ -231,8 +231,8 @@ class DataManager:
             image_msgs,
             follower_msgs,
             total_joint_order,
-            leader_msgs = None,
-            leader_joint_order = None) -> tuple:
+            leader_msgs=None,
+            leader_joint_order=None) -> tuple:
 
         camera_data = {}
         follower_data = []
@@ -257,7 +257,7 @@ class DataManager:
 
         return camera_data, follower_data, leader_data
 
-    def joint_msgs2tensor_array(self, msg_data, joint_order = None):
+    def joint_msgs2tensor_array(self, msg_data, joint_order=None):
         if isinstance(msg_data, JointTrajectory):
             return self.data_converter.joint_trajectory2tensor_array(
                 msg_data, joint_order)

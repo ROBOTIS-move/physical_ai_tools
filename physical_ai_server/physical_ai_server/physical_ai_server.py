@@ -314,7 +314,7 @@ class PhysicalAIServer(Node):
             camera_msgs,
             follower_msgs,
             self.total_joint_order)
-        
+
         if (not camera_data or
                 len(camera_data) != len(self.params['camera_topic_list'])):
             self.get_logger().info('Waiting for camera data...')
@@ -328,8 +328,6 @@ class PhysicalAIServer(Node):
             state=follower_data,
             task_instruction='Pick and Place TEST'
         )
-        print(action)
-        print(type(action))
 
         action_pub_msgs = self.data_manager.data_converter.tensor_array2joint_msgs(
             action,

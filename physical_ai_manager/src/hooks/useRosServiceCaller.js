@@ -119,6 +119,9 @@ export function useRosServiceCaller(rosbridgeUrl) {
           case 'next':
             command_enum = 4;
             break;
+          case 'skip':
+            command_enum = 7;
+            break;
           case 'rerecord':
             command_enum = 5;
             break;

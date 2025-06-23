@@ -54,6 +54,13 @@ const buttons = [
     shortcut: '→',
   },
   {
+    label: 'Skip',
+    icon: MdSkipNext,
+    color: '#fbc02d',
+    description: 'Skip current episode',
+    shortcut: '→',
+  },
+  {
     label: 'Finish',
     icon: MdCheck,
     color: '#388e3c',
@@ -129,6 +136,9 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
           return !isReadyState(phase);
         case 'Next':
           // Next button enabled only when task is stopped
+          return !isReadyState(phase);
+        case 'Skip':
+          // Skip button enabled only when task is stopped
           return !isReadyState(phase);
         case 'Finish':
           // Finish button enabled only when task is stopped

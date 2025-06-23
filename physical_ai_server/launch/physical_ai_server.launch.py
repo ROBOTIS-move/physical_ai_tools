@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author: Dongyun Kim, Seongwoo Kim
+# Author: Dongyun Kim
 
 import glob
 import os
@@ -29,11 +29,8 @@ def generate_launch_description():
     pkg_dir = get_package_share_directory('physical_ai_server')
 
     config_dir = os.path.join(pkg_dir, 'config')
-    control_config_dir = os.path.join(pkg_dir, 'config', 'control_config')
     config_files = glob.glob(os.path.join(config_dir, '*.yaml'))
-    control_config_files = glob.glob(os.path.join(control_config_dir, '*.yaml'))
-    config_files = sorted(config_files + control_config_files)
-    print(f"Loading config files: {config_files}")
+    config_files.sort()
 
     physical_ai_server = Node(
         package='physical_ai_server',

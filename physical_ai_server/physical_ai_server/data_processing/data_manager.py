@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author: Dongyun Kim
+# Author: Dongyun Kim, Seongwoo Kim
 
 import gc
 import os
@@ -58,6 +58,7 @@ class DataManager:
         self.data_converter = DataConverter()
         self.force_save_for_safety = False
         self._stop_save_completed = False
+        self._current_task = 0
 
     def record(
             self,
@@ -88,6 +89,7 @@ class DataManager:
                 if self._lerobot_dataset.check_video_encoding_completed():
                     self._episode_reset()
                     self._record_episode_count += 1
+                    self._current_task += 1
                     self._status = 'reset'
                     self._start_time_s = 0
                     self._on_saving = False
@@ -106,6 +108,7 @@ class DataManager:
                         self._on_saving = False
                         self._episode_reset()
                         self._record_episode_count += 1
+                        self._current_task += 1
                         self._stop_save_completed = True
                 else:
                     self.save()
@@ -160,7 +163,7 @@ class DataManager:
         frame['observation.state'] = np.array(state)
         frame['action'] = np.array(action)
         current_instruction = self._task_info.task_instruction[
-            self._record_episode_count % len(self._task_info.task_instruction)
+            self._current_task % len(self._task_info.task_instruction)
         ]
         frame['task'] = current_instruction
         return frame
@@ -179,6 +182,16 @@ class DataManager:
         self._stop_save_completed = False
         self._episode_reset()
         self._status = 'reset'
+    
+    def record_skip(self):
+        self._episode_reset()
+        self._current_task += 1
+        if self._record_episode_count >= self._task_info.num_episodes:
+            self._status = 'finish'
+        else:
+            self._status = 'reset'
+            self._start_time_s = 0
+            self._proceed_time = 0
 
     def get_current_record_status(self):
         current_status = TaskStatus()

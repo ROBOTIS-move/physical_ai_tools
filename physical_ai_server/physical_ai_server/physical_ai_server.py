@@ -109,7 +109,6 @@ class PhysicalAIServer(Node):
             'joint_topic_list',
             'observation_list',
             'joint_list',
-            'joystick_topic_list',
         ]
 
         # Declare parameters
@@ -275,14 +274,6 @@ class PhysicalAIServer(Node):
             else:
                 self.get_logger().info('Waiting for leader data...')
                 return
-        
-        elif(
-            self.communicator is not None and
-            self.communicator.get_joystick_position() > 0.0
-        ):
-            if self.data_manager._lerobot_dataset is not None:
-                self.data_manager.record_early_save()
-            return
 
         elif not self.data_manager.check_lerobot_dataset(
                 camera_data,
@@ -380,6 +371,12 @@ class PhysicalAIServer(Node):
                         self.data_manager.record_finish()
                         response.success = True
                         response.message = 'All operations terminated'
+                        
+                    elif request.command == SendCommand.Request.SKIP:
+                        self.get_logger().info('Skipping current episode')
+                        self.data_manager.record_skip()
+                        response.success = True
+                        response.message = 'Current episode skipped'
 
         except Exception as e:
             self.get_logger().error(f'Error in user interaction: {str(e)}')

@@ -408,9 +408,6 @@ const InfoPanel = () => {
             onChange={(newInstructions) => handleChange('taskInstruction', newInstructions)}
             disabled={!isEditable}
           />
-          <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-            Press Enter or use comma to add task instructions
-          </div>
         </div>
       </div>
 

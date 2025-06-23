@@ -17,6 +17,7 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import TagInput from './TagInput';
+import TaskInstructionInput from './TaskInstructionInput';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
@@ -354,13 +355,16 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
         >
           Task Instruction
         </span>
-        <textarea
-          className={classTaskInstructionTextarea}
-          value={info.taskInstruction || ''}
-          onChange={(e) => handleChange('taskInstruction', e.target.value)}
-          disabled={!isEditable}
-          placeholder="Enter Task Instruction"
-        />
+        <div className="flex-1 min-w-0">
+          <TaskInstructionInput
+            instructions={info.taskInstruction || []}
+            onChange={(newInstructions) => handleChange('taskInstruction', newInstructions)}
+            disabled={!isEditable}
+          />
+          <div className="text-xs text-gray-500 mt-1 leading-relaxed">
+            Press Enter or use comma to add task instructions
+          </div>
+        </div>
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2')}>

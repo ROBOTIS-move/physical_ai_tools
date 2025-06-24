@@ -444,8 +444,8 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
 
           <select
             className={classSelect}
-            value={info.userId || ''}
-            onChange={(e) => handleChange('userId', e.target.value)}
+            value={info.policyType || ''}
+            onChange={(e) => handleChange('policyType', e.target.value)}
             disabled={!isEditable}
           >
             <option value="">Select Policy Type</option>

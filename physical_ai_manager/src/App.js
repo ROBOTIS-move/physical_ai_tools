@@ -96,7 +96,32 @@ function App() {
   };
 
   const handleInferencePageNavigation = () => {
-    isFirstLoad.current = false;
+    if (process.env.REACT_APP_DEBUG === 'true') {
+      console.log('handleInferencePageNavigation');
+      isFirstLoad.current = false;
+      setPage('inference');
+      return;
+    }
+
+    // Allow navigation if task is in progress
+    if (taskStatus && taskStatus.robotType !== '') {
+      console.log('robot type:', taskStatus.robotType, '=> allowing navigation to Inference page');
+      isFirstLoad.current = false;
+      setPage('inference');
+      return;
+    }
+
+    // Block navigation if robot type is not set
+    if (!currentRobotType || currentRobotType.trim() === '') {
+      toast.error('Please select a robot type first in the Home page', {
+        duration: 4000,
+      });
+      console.log('Robot type not set, blocking navigation to Inference page');
+      return;
+    }
+
+    // Allow navigation if conditions are met
+    console.log('Robot type set, allowing navigation to Inference page');
     setPage('inference');
   };
 

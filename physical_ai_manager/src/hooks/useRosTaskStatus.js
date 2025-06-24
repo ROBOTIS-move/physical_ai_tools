@@ -58,6 +58,11 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
     useOptimizedSave: true,
   });
 
+  const [policyInfo, setPolicyInfo] = useState({
+    policyType: '',
+    policyPath: '',
+  });
+
   const [connected, setConnected] = useState(false);
 
   const getRosConnection = useCallback(() => {

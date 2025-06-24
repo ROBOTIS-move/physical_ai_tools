@@ -261,6 +261,24 @@ export function useRosServiceCaller(rosbridgeUrl) {
     }
   }, [callService]);
 
+  const getPolicyTypeList = useCallback(async () => {
+    try {
+      console.log('Calling service /get_policy_list with request:', {});
+
+      const result = await callService(
+        '/get_policy_list',
+        'physical_ai_interfaces/srv/GetPolicyList',
+        {}
+      );
+
+      console.log('getPolicyTypeList service response:', result);
+      return result;
+    } catch (error) {
+      console.error('Failed to get policy type list:', error);
+      throw new Error(`${error.message || error}`);
+    }
+  }, [callService]);
+
   return {
     callService,
     sendRecordCommand,
@@ -269,5 +287,6 @@ export function useRosServiceCaller(rosbridgeUrl) {
     setRobotType,
     registerHFUser,
     getRegisteredHFUser,
+    getPolicyTypeList,
   };
 }

@@ -20,7 +20,7 @@ import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight } from 'react-ico
 import toast, { useToasterStore } from 'react-hot-toast';
 import ImageGrid from '../components/ImageGrid';
 import ControlPanel from '../components/ControlPanel';
-import InfoPanel from '../components/InfoPanel';
+import InferencePanel from '../components/InferencePanel';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import TaskPhase from '../constants/taskPhases';
 
@@ -338,7 +338,7 @@ export default function InferencePage({
           </button>
           <div className={classRightPanel}>
             <div className="w-full min-h-10"></div>
-            <InfoPanel
+            <InferencePanel
               info={info}
               onChange={handleInfoChange}
               disabled={taskStatus?.phase !== TaskPhase.READY || !isTaskStatusPaused}

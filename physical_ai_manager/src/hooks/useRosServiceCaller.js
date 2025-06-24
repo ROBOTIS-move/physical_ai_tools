@@ -151,7 +151,8 @@ export function useRosServiceCaller(rosbridgeUrl) {
             use_optimized_save_mode: Boolean(task_info.useOptimizedSave),
           },
           command: Number(command_enum),
-          model_path: String(model_path),
+          policy_type: String(''),
+          policy_path: String(model_path),
         };
 
         console.log(`Sending command '${command}' (${command_enum}) to service`);

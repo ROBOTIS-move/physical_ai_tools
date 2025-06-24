@@ -18,6 +18,7 @@
 
 import gc
 import os
+import shutil
 import subprocess
 import time
 
@@ -148,9 +149,11 @@ class DataManager:
         if self._lerobot_dataset.episode_buffer is None:
             return
         if self._task_info.use_optimized_save_mode:
-            self._lerobot_dataset.save_episode_without_write_image()
+            if self._lerobot_dataset.episode_buffer["size"] > 0:
+                self._lerobot_dataset.save_episode_without_write_image()
         else:
-            self._lerobot_dataset.save_episode()
+            if self._lerobot_dataset.episode_buffer["size"] > 0:
+                self._lerobot_dataset.save_episode()
 
     def create_frame(
             self,
@@ -296,7 +299,17 @@ class DataManager:
     def _check_dataset_exists(self, repo_id, root):
         # Local dataset check
         if os.path.exists(root):
-            return True
+            dataset_necessary_folders = ['meta', 'videos', 'data']
+            invalid_foler = False
+            for folder in dataset_necessary_folders:
+                if not os.path.exists(os.path.join(root, folder)):
+                    print(f'Dataset {repo_id} is incomplete, missing {folder} folder.')
+                    invalid_foler = True
+            if not invalid_foler:
+                return True
+            else:
+                print(f'Dataset {repo_id} is incomplete, re-creating dataset.')
+                shutil.rmtree(root)
 
         if self._task_info.push_to_hub:
             # Huggingface dataset check

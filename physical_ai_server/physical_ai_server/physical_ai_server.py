@@ -69,7 +69,7 @@ class PhysicalAIServer(Node):
 
         self._init_ros_service()
 
-        self._setup_timer_callbacks(self)
+        self._setup_timer_callbacks()
 
     def _init_core_components(self):
         self.communicator: Optional[Communicator] = None

@@ -16,6 +16,7 @@
 
 import { useRef, useCallback } from 'react';
 import ROSLIB from 'roslib';
+import TaskCommand from '../constants/taskCommand';
 
 export function useRosServiceCaller(rosbridgeUrl) {
   const rosRef = useRef(null);
@@ -105,25 +106,25 @@ export function useRosServiceCaller(rosbridgeUrl) {
         let command_enum;
         switch (command) {
           case 'none':
-            command_enum = 0;
+            command_enum = TaskCommand.NONE;
             break;
           case 'start_record':
-            command_enum = 1;
+            command_enum = TaskCommand.START_RECORD;
             break;
           case 'start_inference':
-            command_enum = 2;
+            command_enum = TaskCommand.START_INFERENCE;
             break;
           case 'stop':
-            command_enum = 3;
+            command_enum = TaskCommand.STOP;
             break;
           case 'next':
-            command_enum = 4;
+            command_enum = TaskCommand.NEXT;
             break;
           case 'rerecord':
-            command_enum = 5;
+            command_enum = TaskCommand.RERECORD;
             break;
           case 'finish':
-            command_enum = 6;
+            command_enum = TaskCommand.FINISH;
             break;
           default:
             throw new Error(`Unknown command: ${command}`);

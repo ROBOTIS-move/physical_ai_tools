@@ -139,7 +139,7 @@ export default function InferencePage({
           console.error('Validation failed. Missing fields:', validation.missingFields);
           return;
         }
-        result = await sendRecordCommand('start_record', info);
+        result = await sendRecordCommand('start_inference', info);
       } else if (cmd === 'Stop') {
         result = await sendRecordCommand('stop', info);
       } else if (cmd === 'Retry') {

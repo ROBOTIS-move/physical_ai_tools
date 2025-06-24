@@ -16,12 +16,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
-import { MdHome, MdVideocam } from 'react-icons/md';
+import { MdHome, MdVideocam, MdPlayArrow } from 'react-icons/md';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 import './App.css';
 import HomePage from './pages/HomePage';
 import RecordPage from './pages/RecordPage';
+import InferencePage from './pages/InferencePage';
 import SettingPage from './pages/SettingPage';
 import { useRosTaskStatus } from './hooks/useRosTaskStatus';
 
@@ -94,6 +95,11 @@ function App() {
     setPage('record');
   };
 
+  const handleInferencePageNavigation = () => {
+    isFirstLoad.current = false;
+    setPage('inference');
+  };
+
   return (
     <div className="flex h-screen w-screen">
       <aside className="w-30 bg-gray-200 h-full flex flex-col items-center pt-10 gap-6">
@@ -153,6 +159,34 @@ function App() {
           <MdVideocam size={32} className="mb-1.5" />
           <span className="mt-1 text-sm">Record</span>
         </button>
+        <button
+          className={clsx(
+            'flex',
+            'flex-col',
+            'items-center',
+            'bg-gray-100',
+            'rounded-2xl',
+            'border-none',
+            'py-5',
+            'px-4',
+            'mb-3',
+            'text-base',
+            'text-gray-800',
+            'cursor-pointer',
+            'transition-colors',
+            'duration-150',
+            'outline-none',
+            'w-20',
+            {
+              'hover:bg-gray-300 active:bg-gray-400': page !== 'inference',
+              'bg-gray-300': page === 'inference',
+            }
+          )}
+          onClick={handleInferencePageNavigation}
+        >
+          <MdPlayArrow size={32} className="mb-1.5" />
+          <span className="mt-1 text-sm">Inference</span>
+        </button>
       </aside>
       <main className="flex-1 flex flex-col h-screen min-h-0">
         {page === 'home' ? (
@@ -174,6 +208,14 @@ function App() {
             taskStatus={taskStatus}
             taskInfo={taskInfo}
             updateTaskInfo={updateTaskInfo}
+          />
+        ) : page === 'inference' ? (
+          <InferencePage
+            topics={topics}
+            setTopics={setTopics}
+            rosHost={rosHost}
+            taskStatus={taskStatus}
+            taskInfo={taskInfo}
           />
         ) : (
           <SettingPage

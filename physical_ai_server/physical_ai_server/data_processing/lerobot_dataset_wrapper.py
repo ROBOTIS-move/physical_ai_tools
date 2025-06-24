@@ -45,6 +45,16 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         if self.episode_buffer is None:
             self.episode_buffer = self.create_episode_buffer()
 
+        # if 'task' in self.episode_buffer and self.episode_buffer['task']:
+        #     last_task = self.episode_buffer['task'][-1]
+        #     if frame.get('task') != last_task:
+        #         print(f"[DEBUG][MISMATCH] Task changed from {last_task} to {frame.get('task')} — possible skip/reset not cleared properly")
+        if 'task' in self.episode_buffer and self.episode_buffer['task']:
+            last_task = self.episode_buffer['task'][-1]
+            if frame.get('task') != last_task:
+                print(f"[DEBUG][MISMATCH] Task changed from {last_task} to {frame.get('task')} — forcing buffer reset")
+                self.episode_buffer = self.create_episode_buffer()
+
         # Automatically add frame_index and timestamp to episode buffer
         frame_index = self.episode_buffer['size']
         timestamp = frame.pop('timestamp') if 'timestamp' in frame else frame_index / self.fps

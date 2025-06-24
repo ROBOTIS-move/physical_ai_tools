@@ -38,6 +38,7 @@ class DataManager:
     RECORDING = False
     RECORD_COMPLETED = True
     RAM_LIMIT_GB = 2  # GB
+    SKIP_TIME = 0.1  # Seconds
 
     def __init__(
             self,
@@ -100,6 +101,10 @@ class DataManager:
         elif self._status == 'reset':
             if not self._check_time(self._task_info.reset_time_s, 'run'):
                 return self.RECORDING
+
+        elif self._status == 'skip':
+            if not self._check_time(self.SKIP_TIME, 'run'):
+                return self.RECORDING    
 
         elif self._status == 'stop':
             if not self._stop_save_completed:
@@ -184,14 +189,10 @@ class DataManager:
         self._status = 'reset'
     
     def record_skip(self):
+        self._stop_save_completed = False
         self._episode_reset()
+        self._status = 'skip'
         self._current_task += 1
-        if self._record_episode_count >= self._task_info.num_episodes:
-            self._status = 'finish'
-        else:
-            self._status = 'reset'
-            self._start_time_s = 0
-            self._proceed_time = 0
 
     def get_current_record_status(self):
         current_status = TaskStatus()
@@ -269,7 +270,7 @@ class DataManager:
         return camera_data, follower_data, leader_data
 
     def _episode_reset(self):
-        if self._lerobot_dataset and hasattr(self._lerobot_dataset, 'episode_buffer'):
+        if self._lerobot_dataset and hasattr(self._lerobot_dataset, 'episode_buffer') or self._current_task == 0:
             if self._lerobot_dataset.episode_buffer is not None:
                 for key, value in self._lerobot_dataset.episode_buffer.items():
                     if isinstance(value, list):

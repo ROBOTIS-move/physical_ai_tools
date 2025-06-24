@@ -193,7 +193,7 @@ export default function ControlPanel() {
           if (isInferenceTaskType) {
             return !isReadyState(taskStatus.phase) && taskInfo.recordInferenceMode;
           }
-          return !isReadyState(taskStatus.phase);
+          return !isReadyState(taskStatus.phase) && taskInfo?.taskInstruction.length > 1;
         case 'Finish':
           // Finish button enabled only when task is stopped
           return true; // Always enabled

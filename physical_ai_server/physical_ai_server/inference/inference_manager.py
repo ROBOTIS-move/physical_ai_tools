@@ -126,3 +126,61 @@ class InferenceManager:
         #     return GrootN1Policy
         else:
             raise NotImplementedError(f'Policy with name {name} is not implemented.')
+        
+    @staticmethod
+    def get_available_policies() -> list[str]:
+        return [
+            'tdmpc',
+            'diffusion',
+            'act',
+            'vqbet',
+            'pi0',
+            'pi0fast',
+        ]
+    
+    @staticmethod
+    def get_saved_policies():
+        import os
+        import json
+
+        # home directory
+        home_dir = os.path.expanduser('~')
+        hub_dir = os.path.join(home_dir, '.cache/huggingface/hub')
+        # List 중에서 models--이 들어간 폴더만 찾기
+        models_folder_list = [d for d in os.listdir(hub_dir) if d.startswith('models--')]
+
+        # Check if snapshots folder exists in each models folder and return the list of folders inside snapshots
+        saved_policy_path = []
+        saved_policy_type = []
+        
+        for model_folder in models_folder_list:
+            model_path = os.path.join(hub_dir, model_folder)
+            snapshots_path = os.path.join(model_path, 'snapshots')
+            
+            # Check if snapshots directory exists
+            if os.path.exists(snapshots_path) and os.path.isdir(snapshots_path):
+                # Get list of folders inside snapshots directory
+                snapshot_folders = [d for d in os.listdir(snapshots_path) 
+                            if os.path.isdir(os.path.join(snapshots_path, d))]
+            
+            # Check if pretrained_model folder exists in each snapshot folder
+            for snapshot_folder in snapshot_folders:
+                snapshot_path = os.path.join(snapshots_path, snapshot_folder)
+                pretrained_model_path = os.path.join(snapshot_path, 'pretrained_model')
+                
+                # If pretrained_model folder exists, add to saved_policies
+                if os.path.exists(pretrained_model_path) and os.path.isdir(pretrained_model_path):
+                    # Check if config.json exists in pretrained_model folder and extract policy type
+                    config_path = os.path.join(pretrained_model_path, 'config.json')
+                    if os.path.exists(config_path):
+                        try:
+                            with open(config_path, 'r') as f:
+                                config = json.load(f)
+                                if 'type' in config:
+                                    saved_policy_path.append(pretrained_model_path)
+                                    saved_policy_type.append(config['type'])
+                        except (json.JSONDecodeError, IOError):
+                            # If config.json cannot be read, store path only
+                            print("File IO Errors : ", IOError)
+
+        return saved_policy_path, saved_policy_type

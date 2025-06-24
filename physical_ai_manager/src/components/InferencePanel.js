@@ -430,9 +430,12 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           {/* Common Load button for both modes */}
           <div className="flex gap-2 mb-2">
             <button
-              className={clsx(classButtonBase, getButtonVariant('blue', isEditable, isLoading))}
+              className={clsx(
+                classButtonBase,
+                getButtonVariant('blue', isEditable, isLoadingPolicy)
+              )}
               onClick={() => {
-                if (isEditable && !isLoading) {
+                if (isEditable && !isLoadingPolicy) {
                   handleLoadPolicyType();
                 }
               }}

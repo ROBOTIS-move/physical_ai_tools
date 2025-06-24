@@ -139,7 +139,7 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
           return !isReadyState(phase);
         case 'Skip':
           // Skip button enabled only when task is stopped
-          return !isReadyState(phase);
+          return !isReadyState(phase) && taskInfo?.taskInstruction.length > 1;
         case 'Finish':
           // Finish button enabled only when task is stopped
           return true; // Always enabled

@@ -12,8 +12,6 @@ uint8 FINISH = 6
 
 uint8 command
 TaskInfo task_info
-string policy_type
-string policy_path
 ---
 bool success
 string message

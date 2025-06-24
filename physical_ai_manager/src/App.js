@@ -233,6 +233,7 @@ function App() {
             taskStatus={taskStatus}
             taskInfo={taskInfo}
             updateTaskInfo={updateTaskInfo}
+            isActive={page === 'record'}
           />
         ) : page === 'inference' ? (
           <InferencePage
@@ -241,6 +242,7 @@ function App() {
             rosHost={rosHost}
             taskStatus={taskStatus}
             taskInfo={taskInfo}
+            isActive={page === 'inference'}
           />
         ) : (
           <SettingPage

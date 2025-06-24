@@ -30,6 +30,7 @@ export default function InferencePage({
   rosHost,
   taskStatus: propsTaskStatus,
   taskInfo: propsTaskInfo,
+  isActive = true,
 }) {
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
 
@@ -319,7 +320,12 @@ export default function InferencePage({
             <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
           </div>
           <div className={classImageGridContainer}>
-            <ImageGrid topics={topics} setTopics={setTopics} rosHost={rosHost} />
+            <ImageGrid
+              topics={topics}
+              setTopics={setTopics}
+              rosHost={rosHost}
+              isActive={isActive}
+            />
           </div>
         </div>
         <div className={classRightPanelArea}>

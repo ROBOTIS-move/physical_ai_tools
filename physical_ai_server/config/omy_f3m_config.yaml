@@ -9,7 +9,7 @@ physical_ai_server:
         - cam_wrist:/camera/cam_wrist/color/image_rect_raw/compressed
 
       joint_topic_list:
-        - follower:/leader/joint_states
+        - follower:/joint_states
         - leader:/leader/joint_trajectory
 
       joint_list:

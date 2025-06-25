@@ -119,27 +119,51 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
     (label) => {
       const phase = episodeStatus?.phase;
 
-      switch (label) {
-        case 'Start':
-          // Start button disabled when task is running or when running flag is true
-          return (isReadyState(phase) || isStoppedState(phase)) && !episodeStatus?.running;
-        case 'Stop':
-          // Stop button enabled only when task is running
-          return !isReadyState(phase) && !isStoppedState(phase);
-        case 'Retry':
-          // Retry button enabled only when task is stopped
-          return !isReadyState(phase);
-        case 'Next':
-          // Next button enabled only when task is stopped
-          return !isReadyState(phase);
-        case 'Finish':
-          // Finish button enabled only when task is stopped
-          return true; // Always enabled
-        default:
-          return false;
+      if (taskInfo?.taskType === 'record') {
+        switch (label) {
+          case 'Start':
+            // Start button disabled when task is running or when running flag is true
+            return (isReadyState(phase) || isStoppedState(phase)) && !episodeStatus?.running;
+          case 'Stop':
+            // Stop button enabled only when task is running
+            return !isReadyState(phase) && !isStoppedState(phase);
+          case 'Retry':
+            // Retry button enabled only when task is stopped
+            return !isReadyState(phase);
+          case 'Next':
+            // Next button enabled only when task is stopped
+            return !isReadyState(phase);
+          case 'Finish':
+            // Finish button enabled only when task is stopped
+            return true; // Always enabled
+          default:
+            return false;
+        }
+      } else if (taskInfo?.taskType === 'inference') {
+        switch (label) {
+          case 'Start':
+            // Start button disabled when task is running or when running flag is true
+            return (isReadyState(phase) || isStoppedState(phase)) && !episodeStatus?.running;
+          case 'Stop':
+            // Stop button enabled only when task is running
+            return !isReadyState(phase) && !isStoppedState(phase) && taskInfo.recordInferenceMode;
+          case 'Retry':
+            // Retry button enabled only when task is stopped
+            return !isReadyState(phase) && taskInfo.recordInferenceMode;
+          case 'Next':
+            // Next button enabled only when task is stopped
+            return !isReadyState(phase) && taskInfo.recordInferenceMode;
+          case 'Finish':
+            // Finish button enabled only when task is stopped
+            return true; // Always enabled
+          default:
+            return false;
+        }
+      } else {
+        return false;
       }
     },
-    [episodeStatus]
+    [episodeStatus, taskInfo]
   );
 
   const handleCommand = useCallback(

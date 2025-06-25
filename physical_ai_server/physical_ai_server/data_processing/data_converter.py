@@ -94,8 +94,7 @@ class DataConverter:
             ))
             ordered_positions = [
                 joint_pos_map[name]
-                for name in joint_order
-                if name in joint_pos_map
+                for name in joint_order if name in joint_pos_map
             ]
             if target_format == 'numpy':
                 return np.array(ordered_positions, dtype=np.float32)

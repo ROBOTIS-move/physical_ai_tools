@@ -336,11 +336,14 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
             type="checkbox"
             checked={info.recordInferenceMode}
             onChange={(e) => handleChange('recordInferenceMode', e.target.checked)}
-            disabled={!isEditable}
+            disabled={true}
           />
           <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
             {info.recordInferenceMode ? 'Enabled' : 'Disabled'}
           </span>
+        </div>
+        <div className="text-xs text-gray-400 mt-1 ml-2">
+          (This option will be supported in a future update)
         </div>
       </div>
 
@@ -389,6 +392,10 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
       </div>
 
       <div className="w-full h-1 my-2 border-t border-gray-300"></div>
+
+      <div className="text-xs text-gray-400 mt-1 ml-2">
+        (Recording during inference will be supported in a future update)
+      </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
         <span className={classLabel}>Task Name</span>

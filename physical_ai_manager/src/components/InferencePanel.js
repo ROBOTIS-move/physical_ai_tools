@@ -383,6 +383,8 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
         />
       </div>
 
+      <div className="w-full h-1 my-2 border-t border-gray-300"></div>
+
       <div className={clsx('flex', 'items-center', 'mb-2')}>
         <span className={classLabel}>Push to Hub</span>
         <div className={clsx('flex', 'items-center')}>

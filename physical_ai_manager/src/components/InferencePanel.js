@@ -21,40 +21,7 @@ import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 
-const taskInfos = [
-  {
-    taskName: 'Task 1',
-    robotType: 'Type A',
-    taskType: 'Type X',
-    taskInstruction: 'Do X',
-    userId: 'repo1',
-    fps: 30,
-    tags: ['tag1'],
-    warmupTime: '10',
-    episodeTime: '60',
-    resetTime: '5',
-    numEpisodes: 3,
-    pushToHub: false,
-  },
-  {
-    taskName: 'Task 2',
-    robotType: 'Type B',
-    taskType: 'Type Y',
-    taskInstruction: 'Do Y',
-    userId: 'repo2',
-    fps: 20,
-    tags: ['tag2'],
-    warmupTime: '5',
-    episodeTime: '30',
-    resetTime: '2',
-    numEpisodes: 5,
-    pushToHub: true,
-  },
-];
-
 const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
-  const [showPopup, setShowPopup] = useState(false);
-  const [taskInfoList] = useState(taskInfos);
   const [isEditable, setIsEditable] = useState(!disabled);
 
   // User ID list for dropdown
@@ -81,11 +48,6 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
     },
     [isEditable, onChange, info]
   );
-
-  const handleSelect = (selected) => {
-    onChange(selected);
-    setShowPopup(false);
-  };
 
   const handleTokenSubmit = async () => {
     if (!tokenInput.trim()) {
@@ -669,56 +631,6 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           </span>
         </div>
       </div>
-
-      <div className="mt-4 space-y-2">
-        <button
-          className={clsx(
-            'px-4',
-            'py-2',
-            'rounded',
-            'w-full',
-            'text-sm',
-            'font-medium',
-            'transition-colors',
-            {
-              'bg-blue-500 text-white hover:bg-blue-600': isEditable,
-              'bg-gray-400 text-gray-600 cursor-not-allowed': !isEditable,
-            },
-            'hidden'
-          )}
-          onClick={() => setShowPopup(true)}
-          disabled={!isEditable}
-        >
-          Load Previous Task Info
-        </button>
-      </div>
-
-      {showPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-2xl w-full">
-            <div className="mb-4 font-bold text-lg">Select Task Info</div>
-            <div className="grid grid-cols-2 gap-4">
-              {taskInfoList.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 border rounded cursor-pointer hover:bg-blue-100"
-                  onClick={() => handleSelect(item)}
-                >
-                  <div className="font-semibold">{item.taskName}</div>
-                  <div className="text-sm text-gray-600">{item.taskType}</div>
-                  <div className="text-xs text-gray-400">{item.repoId}</div>
-                </div>
-              ))}
-            </div>
-            <button
-              className="mt-6 px-4 py-2 bg-gray-400 text-white rounded"
-              onClick={() => setShowPopup(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Input Hugging Face Token Popup */}
       {showTokenPopup && (

@@ -16,7 +16,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
-import { MdHome, MdVideocam, MdPlayArrow } from 'react-icons/md';
+import { MdHome, MdVideocam, MdMemory } from 'react-icons/md';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 import './App.css';
@@ -209,7 +209,7 @@ function App() {
           )}
           onClick={handleInferencePageNavigation}
         >
-          <MdPlayArrow size={32} className="mb-1.5" />
+          <MdMemory size={32} className="mb-1.5" />
           <span className="mt-1 text-sm">Inference</span>
         </button>
       </aside>

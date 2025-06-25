@@ -101,7 +101,7 @@ export function useRosServiceCaller(rosbridgeUrl) {
   );
 
   const sendRecordCommand = useCallback(
-    async (command, task_info, model_path = '') => {
+    async (command, task_info) => {
       try {
         let command_enum;
         switch (command) {
@@ -152,7 +152,7 @@ export function useRosServiceCaller(rosbridgeUrl) {
             use_optimized_save_mode: Boolean(task_info.useOptimizedSave),
           },
           command: Number(command_enum),
-          policy_path: String(model_path),
+          policy_path: String(task_info.policyPath || ''),
         };
 
         console.log(`Sending command '${command}' (${command_enum}) to service`);

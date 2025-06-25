@@ -43,6 +43,8 @@ class Communicator:
     MODE_COLLECTION = 'collection'  # Full data collection mode (images, follower, leader)
     MODE_INFERENCE = 'inference'    # Inference mode (images, follower only)
 
+    PUB_QOS_SIZE = 100
+
     def __init__(
         self,
         node: Node,
@@ -146,20 +148,20 @@ class Communicator:
                     self.joint_publishers[name] = self.node.create_publisher(
                         Twist,
                         topic_name,
-                        100
+                        self.PUB_QOS_SIZE
                     )
                 else:
                     self.joint_publishers[name] = self.node.create_publisher(
                         JointTrajectory,
                         topic_name,
-                        100
+                        self.PUB_QOS_SIZE
                     )
         self.node.get_logger().info('Initializing joint publishers... done')
 
         self.status_publisher = self.node.create_publisher(
             TaskStatus,
             '/task/status',
-            100
+            self.PUB_QOS_SIZE
         )
 
     def init_services(self):

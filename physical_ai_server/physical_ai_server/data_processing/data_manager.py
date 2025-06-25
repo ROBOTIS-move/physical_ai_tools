@@ -60,6 +60,7 @@ class DataManager:
         self.force_save_for_safety = False
         self._stop_save_completed = False
         self._current_task = 0
+        self._single_task = len(task_info.task_instruction) == 1
 
     def record(
             self,
@@ -75,7 +76,11 @@ class DataManager:
                 return self.RECORDING
 
         elif self._status == 'run':
-            if not self._check_time(self._task_info.episode_time_s, 'save'):
+            if not self._single_task and not self._check_time(self._task_info.episode_time_s, 'save'):
+                frame = self.create_frame(images, state, action)
+                self._lerobot_dataset.add_frame_with_marking(frame)
+                
+            elif not self._check_time(self._task_info.episode_time_s, 'save'):
                 if RAMChecker.get_free_ram_gb() < self.RAM_LIMIT_GB:
                     self.record_early_save()
                     return self.RECORDING
@@ -149,12 +154,16 @@ class DataManager:
         return self.RECORDING
 
     def save(self):
-        if self._lerobot_dataset.episode_buffer is None:
-            return
-        if self._task_info.use_optimized_save_mode:
-            self._lerobot_dataset.save_episode_without_write_image()
+        if not self._single_task:
+            self._lerobot_dataset.save_all_marked_episodes()
+        
         else:
-            self._lerobot_dataset.save_episode()
+            if self._lerobot_dataset.episode_buffer is None:
+                return
+            if self._task_info.use_optimized_save_mode:
+                self._lerobot_dataset.save_episode_without_write_image()
+            else:
+                self._lerobot_dataset.save_episode()
 
     def create_frame(
             self,
@@ -192,6 +201,10 @@ class DataManager:
         self._stop_save_completed = False
         self._episode_reset()
         self._status = 'skip'
+        self._current_task += 1
+        
+    def record_next_episode(self):
+        self._lerobot_dataset.mark_episode_split()
         self._current_task += 1
 
     def get_current_record_status(self):

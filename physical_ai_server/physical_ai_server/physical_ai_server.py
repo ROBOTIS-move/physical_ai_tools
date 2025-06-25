@@ -356,7 +356,10 @@ class PhysicalAIServer(Node):
 
                     elif request.command == SendCommand.Request.MOVE_TO_NEXT:
                         self.get_logger().info('Moving to next episode')
-                        self.data_manager.record_early_save()
+                        if len(request.task_info.task_instruction) > 1:
+                            self.data_manager.record_next_episode()
+                        else:
+                            self.data_manager.record_early_save()
                         response.success = True
                         response.message = 'Moved to next episode'
 

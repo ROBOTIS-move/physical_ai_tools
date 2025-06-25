@@ -16,7 +16,10 @@
 #
 # Author: Dongyun Kim
 
+import os
+
 from lerobot.common.policies.pretrained import PreTrainedPolicy
+from physical_ai_server.utils.read_file import read_json_file
 import numpy as np
 import torch
 
@@ -25,17 +28,60 @@ class InferenceManager:
 
     def __init__(
             self,
-            policy_type: str,
-            policy_path: str,
             device: str = 'cuda'):
 
-        self.policy = self._load_policy(policy_type, policy_path)
         self.device = device
+        self.policy_type = None
+        self.policy_path = None
+        self.policy = None
 
-    def _load_policy(self, policy_type: str, policy_path: str):
-        policy_cls = self._get_policy_class(policy_type)
-        policy = policy_cls.from_pretrained(policy_path)
-        return policy
+    def validate_policy(self, policy_path: str) -> bool:
+        # Policy path 폴더가 존재하는지 확인
+        result_message = ''
+        if not os.path.exists(policy_path) or not os.path.isdir(policy_path):
+            result_message = f'Policy path {policy_path} does not exist or is not a directory.'
+            return False, result_message
+
+        # config.json 파일이 존재하는지 확인
+        config_path = os.path.join(policy_path, 'config.json')
+        if not os.path.exists(config_path):
+            result_message = f'config.json file does not exist in {policy_path}.'
+            return False, result_message
+
+        # config.json 파일을 읽어서 policy type이 올바른지 확인
+        config = read_json_file(config_path)
+        print(config)
+        if (config is None or
+            ('type' not in config and 'model_type' not in config)):
+            result_message = f'config.json malformed or missing fields in {policy_path}.'
+            return False, result_message
+
+        # policy type이 지원되는 정책인지 확인
+        available_policies = self.__class__.get_available_policies()
+        policy_type = config.get('type') or config.get('model_type')
+        if policy_type not in available_policies:
+            result_message = f'Policy type {policy_type} is not supported.'
+            return False, result_message
+
+        self.policy_path = policy_path
+        self.policy_type = policy_type
+        return True, f'Policy {policy_type} is valid.'
+
+    def load_policy(self):
+        try:
+            policy_cls = self._get_policy_class(self.policy_type)
+            self.policy = policy_cls.from_pretrained(self.policy_path)
+            return True
+        except Exception as e:
+            print(f'Failed to load policy from {policy_path}: {e}')
+            return False
+
+    def clear_policy(self):
+        if hasattr(self, 'policy'):
+            del self.policy
+            self.policy = None
+        else:
+            print("No policy to clear.")
 
     def get_policy_config(self):
         return self.policy.config
@@ -179,6 +225,9 @@ class InferenceManager:
                                 if 'type' in config:
                                     saved_policy_path.append(pretrained_model_path)
                                     saved_policy_type.append(config['type'])
+                                elif 'model_type' in config:
+                                    saved_policy_path.append(pretrained_model_path)
+                                    saved_policy_type.append(config['model_type'])
                         except (json.JSONDecodeError, IOError):
                             # If config.json cannot be read, store path only
                             print("File IO Errors : ", IOError)

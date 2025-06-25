@@ -198,21 +198,23 @@ class DataManager:
         elif self._status == 'reset':
             current_status.phase = TaskStatus.RESETTING
             current_status.total_time = int(self._task_info.reset_time_s)
-        elif self._status == 'save':
-            current_status.phase = TaskStatus.SAVING
+        elif self._status == 'save' or self._status == 'finish':
+            is_saving, encoding_progress = self._get_encoding_progress()
+            if is_saving:
+                current_status.phase = TaskStatus.SAVING
+                current_status.total_time = int(0)
+                self._proceed_time = int(0)
+                current_status.encoding_progress = encoding_progress
+            
+        elif self._status == 'stop':
+            is_saving, encoding_progress = self._get_encoding_progress()
             current_status.total_time = int(0)
             self._proceed_time = int(0)
-            if self._lerobot_dataset is not None:
-                if hasattr(self._lerobot_dataset, 'encoders') and \
-                        self._lerobot_dataset.encoders is not None:
-                    if self._lerobot_dataset.encoders:
-                        min_encoding_percentage = 100
-                        for key, values in self._lerobot_dataset.encoders.items():
-                            min_encoding_percentage = min(
-                                min_encoding_percentage,
-                                values.get_encoding_status()['progress_percentage'])
-                        current_status.encoding_progress = float(
-                            min_encoding_percentage)
+            if is_saving:
+                current_status.phase = TaskStatus.SAVING
+                current_status.encoding_progress = encoding_progress
+            else:
+                current_status.phase = TaskStatus.STOPPEDZ
 
         current_status.proceed_time = int(getattr(self, '_proceed_time', 0))
         current_status.current_episode_number = int(self._record_episode_count)
@@ -228,6 +230,21 @@ class DataManager:
         current_status.total_ram_size = float(ram_total)
 
         return current_status
+
+    def _get_encoding_progress(self):
+        min_encoding_percentage = 100
+        is_saving = False
+        if self._lerobot_dataset is not None:
+            if hasattr(self._lerobot_dataset, 'encoders') and \
+                    self._lerobot_dataset.encoders is not None:
+                if self._lerobot_dataset.encoders:
+                    is_saving = True
+                    for key, values in self._lerobot_dataset.encoders.items():
+                        min_encoding_percentage = min(
+                            min_encoding_percentage,
+                            values.get_encoding_status()['progress_percentage'])
+
+        return is_saving, float(min_encoding_percentage)
 
     def convert_msgs_to_raw_datas(
             self,

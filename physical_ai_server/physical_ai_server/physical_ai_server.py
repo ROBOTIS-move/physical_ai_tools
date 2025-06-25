@@ -22,7 +22,6 @@ from pathlib import Path
 import time
 from typing import Optional
 
-
 from ament_index_python.packages import get_package_share_directory
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_interfaces.srv import (
@@ -34,6 +33,7 @@ from physical_ai_interfaces.srv import (
     SetHFUser,
     SetRobotType,
     )
+
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.inference.inference_manager import InferenceManager
@@ -43,6 +43,7 @@ from physical_ai_server.utils.parameter_utils import (
     load_parameters,
     log_parameters,
 )
+from physical_ai_server.utils.read_file import read_json_file
 
 import rclpy
 from rclpy.node import Node
@@ -61,6 +62,7 @@ class PhysicalAIServer(Node):
         self.params = None
         self.total_joint_order = None
         self.on_recording = False
+        self.on_inference = False
 
         self.robot_type_list = self.get_robot_type_list()
         self.start_recording_time: float = 0.0
@@ -155,6 +157,8 @@ class PhysicalAIServer(Node):
             operation_mode=self.operation_mode,
             params=self.params
         )
+
+        self.inference_manager = InferenceManager()
         self.get_logger().info(
             f'ROS parameters initialized successfully for robot type: {robot_type}')
 
@@ -306,6 +310,8 @@ class PhysicalAIServer(Node):
             return
 
     def _inference_timer_callback(self):
+        error_msg = ''
+        current_status = TaskStatus()
         camera_msgs, follower_msgs, _ = self.communicator.get_latest_data()
         camera_data, follower_data, _ = self.data_manager.convert_msgs_to_raw_datas(
             camera_msgs,
@@ -320,22 +326,52 @@ class PhysicalAIServer(Node):
             self.get_logger().info('Waiting for follower data...')
             return
 
-        action = self.inference_manager.predict(
-            images=camera_data,
-            state=follower_data,
-            task_instruction='Pick and Place TEST'
-        )
+        if self.inference_manager.policy is None:
+            if not self.inference_manager.load_policy():
+                self.get_logger().error('Failed to load policy')
+                return
 
-        action_pub_msgs = self.data_manager.data_converter.tensor_array2joint_msgs(
-            action,
-            self.joint_topic_types,
-            self.joint_order
-        )
+        try:
+            if not self.on_inference:
+                self.get_logger().info('Inference mode is not active')
+                current_status.phase = TaskStatus.READY
+                self.communicator.publish_status(status=current_status)
+                self.inference_manager.clear_policy()
+                self.timer_manager.stop(timer_name=self.operation_mode)
+                return
 
-        # print(action_pub_msgs)
-        self.communicator.publish_action(
-            joint_msg_datas=action_pub_msgs
-        )
+            action = self.inference_manager.predict(
+                images=camera_data,
+                state=follower_data,
+                task_instruction=self.task_instruction
+            )
+
+            self.get_logger().info(
+                f'Action data: {action}')
+            action_pub_msgs = self.data_manager.data_converter.tensor_array2joint_msgs(
+                action,
+                self.joint_topic_types,
+                self.joint_order
+            )
+
+            self.communicator.publish_action(
+                joint_msg_datas=action_pub_msgs
+            )
+            current_status = self.data_manager.get_current_record_status()
+            current_status.phase = TaskStatus.INFERENCING
+            self.communicator.publish_status(status=current_status)
+
+        except Exception as e:
+            self.get_logger().error(f'Inference failed, please check : {str(e)}')
+            error_msg = f'Inference failed, please check : {str(e)}'
+            self.on_recording = False
+            self.on_inference = False
+            current_status.phase = TaskStatus.READY
+            current_status.error = error_msg
+            self.communicator.publish_status(status=current_status)
+            self.inference_manager.clear_policy()
+            self.timer_manager.stop(timer_name=self.operation_mode)
+            return
 
     def user_interaction_callback(self, request, response):
         try:
@@ -363,20 +399,29 @@ class PhysicalAIServer(Node):
                 self.joint_topic_types = self.communicator.get_publisher_msg_types()
                 self.operation_mode = 'inference'
                 task_info = request.task_info
+                self.task_instruction = task_info.task_instruction
+
+                valid_result, result_message = self.inference_manager.validate_policy(
+                    policy_path=task_info.policy_path)
+
+                if not valid_result:
+                    response.success = False
+                    response.message = result_message
+                    self.get_logger().error(response.message)
+                    return response
+
                 self.init_robot_control_parameters_from_user_task(
                     task_info
                 )
-                self.inference_manager = InferenceManager(
-                    policy_type='act',
-                    policy_path='/root/ros2_ws/src/physical_ai_tools/lerobot/outputs/train/act_ffw_test/checkpoints/011000/pretrained_model',
-                    device='cuda'
-                )
-                self.on_recording = False
+                if task_info.record_inference_mode:
+                    self.on_recording = True
+                self.on_inference = True
+                self.start_recording_time = time.perf_counter()
                 response.success = True
                 response.message = 'Inference started'
 
             else:
-                if not self.on_recording:
+                if not self.on_recording and not self.on_inference:
                     response.success = False
                     response.message = 'Not currently recording'
                 else:
@@ -401,6 +446,7 @@ class PhysicalAIServer(Node):
                     elif request.command == SendCommand.Request.FINISH:
                         self.get_logger().info('Terminating all operations')
                         self.data_manager.record_finish()
+                        self.on_inference = False
                         response.success = True
                         response.message = 'All operations terminated'
 

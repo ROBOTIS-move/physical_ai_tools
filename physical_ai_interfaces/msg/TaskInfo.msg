@@ -12,3 +12,4 @@ uint16 num_episodes
 bool push_to_hub
 bool private_mode
 bool use_optimized_save_mode
+bool record_inference_mode

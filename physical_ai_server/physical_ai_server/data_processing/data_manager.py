@@ -28,8 +28,6 @@ from huggingface_hub import HfApi, snapshot_download
 from lerobot.common.datasets.utils import DEFAULT_FEATURES
 from nav_msgs.msg import Odometry
 import numpy as np
-from sensor_msgs.msg import JointState
-from trajectory_msgs.msg import JointTrajectory
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_server.data_processing.data_converter import DataConverter
 from physical_ai_server.data_processing.lerobot_dataset_wrapper import LeRobotDatasetWrapper
@@ -37,6 +35,8 @@ from physical_ai_server.device_manager.cpu_checker import CPUChecker
 from physical_ai_server.device_manager.ram_checker import RAMChecker
 from physical_ai_server.device_manager.storage_checker import StorageChecker
 import requests
+from sensor_msgs.msg import JointState
+from trajectory_msgs.msg import JointTrajectory
 
 
 class DataManager:

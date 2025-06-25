@@ -26,13 +26,13 @@ from ament_index_python.packages import get_package_share_directory
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_interfaces.srv import (
     GetHFUser,
-    GetRobotTypeList,
     GetPolicyList,
+    GetRobotTypeList,
     GetSavedPolicyList,
     SendCommand,
     SetHFUser,
     SetRobotType,
-    )
+)
 
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager

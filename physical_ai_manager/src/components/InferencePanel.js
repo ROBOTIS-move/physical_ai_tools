@@ -328,25 +328,6 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
         )}
       </div>
 
-      <div className={clsx('flex', 'items-center', 'mb-2')}>
-        <span className={classLabel}>Record</span>
-        <div className={clsx('flex', 'items-center')}>
-          <input
-            className={classCheckbox}
-            type="checkbox"
-            checked={info.recordInferenceMode}
-            onChange={(e) => handleChange('recordInferenceMode', e.target.checked)}
-            disabled={true}
-          />
-          <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
-            {info.recordInferenceMode ? 'Enabled' : 'Disabled'}
-          </span>
-        </div>
-        <div className="text-xs text-gray-400 mt-1 ml-2">
-          (This option will be supported in a future update)
-        </div>
-      </div>
-
       <div className={clsx('flex', 'items-start', 'mb-2.5')}>
         <span
           className={clsx(
@@ -394,7 +375,25 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
       <div className="w-full h-1 my-2 border-t border-gray-300"></div>
 
       <div className="text-xs text-gray-400 mt-1 ml-2">
-        (Recording during inference will be supported in a future update)
+        Recording during inference will be supported in a future update
+      </div>
+
+      <div className="h-3 w-full"></div>
+
+      <div className={clsx('flex', 'items-center', 'mb-2')}>
+        <span className={classLabel}>Record</span>
+        <div className={clsx('flex', 'items-center')}>
+          <input
+            className={classCheckbox}
+            type="checkbox"
+            checked={info.recordInferenceMode}
+            onChange={(e) => handleChange('recordInferenceMode', e.target.checked)}
+            disabled={true}
+          />
+          <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
+            {info.recordInferenceMode ? 'Enabled' : 'Disabled'}
+          </span>
+        </div>
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>

@@ -87,10 +87,12 @@ export default function InferencePage({
 
   // Validation function for required fields
   const validateTaskInfo = (taskInfo) => {
-    const requiredFields = [
+    const requiredFieldsForRecordInferenceMode = [
       { key: 'taskName', label: 'Task Name' },
       { key: 'taskType', label: 'Task Type' },
       { key: 'taskInstruction', label: 'Task Instruction' },
+      { key: 'recordInferenceMode', label: 'Record Inference Mode' },
+      { key: 'policyPath', label: 'Policy Path' },
       { key: 'userId', label: 'User ID' },
       { key: 'fps', label: 'FPS' },
       { key: 'warmupTime', label: 'Warmup Time' },
@@ -98,6 +100,17 @@ export default function InferencePage({
       { key: 'resetTime', label: 'Reset Time' },
       { key: 'numEpisodes', label: 'Num Episodes' },
     ];
+
+    const requiredFieldsForInferenceOnly = [
+      { key: 'taskType', label: 'Task Type' },
+      { key: 'taskInstruction', label: 'Task Instruction' },
+      { key: 'policyPath', label: 'Policy Path' },
+      { key: 'recordInferenceMode', label: 'Record Inference Mode' },
+    ];
+
+    const requiredFields = taskInfo.recordInferenceMode
+      ? requiredFieldsForRecordInferenceMode
+      : requiredFieldsForInferenceOnly;
 
     const missingFields = [];
 

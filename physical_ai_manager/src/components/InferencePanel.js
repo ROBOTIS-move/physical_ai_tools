@@ -328,15 +328,20 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
         )}
       </div>
 
-      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={classLabel}>Task Name</span>
-        <textarea
-          className={classTaskNameTextarea}
-          value={info.taskName || ''}
-          onChange={(e) => handleChange('taskName', e.target.value)}
-          disabled={!isEditable}
-          placeholder="Enter Task Name"
-        />
+      <div className={clsx('flex', 'items-center', 'mb-2')}>
+        <span className={classLabel}>Record</span>
+        <div className={clsx('flex', 'items-center')}>
+          <input
+            className={classCheckbox}
+            type="checkbox"
+            checked={info.recordInferenceMode}
+            onChange={(e) => handleChange('recordInferenceMode', e.target.checked)}
+            disabled={!isEditable}
+          />
+          <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
+            {info.recordInferenceMode ? 'Enabled' : 'Disabled'}
+          </span>
+        </div>
       </div>
 
       <div className={clsx('flex', 'items-start', 'mb-2.5')}>
@@ -385,6 +390,17 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
 
       <div className="w-full h-1 my-2 border-t border-gray-300"></div>
 
+      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
+        <span className={classLabel}>Task Name</span>
+        <textarea
+          className={classTaskNameTextarea}
+          value={info.taskName || ''}
+          onChange={(e) => handleChange('taskName', e.target.value)}
+          disabled={!isEditable || !info.recordInferenceMode}
+          placeholder="Enter Task Name"
+        />
+      </div>
+
       <div className={clsx('flex', 'items-center', 'mb-2')}>
         <span className={classLabel}>Push to Hub</span>
         <div className={clsx('flex', 'items-center')}>
@@ -393,7 +409,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
             type="checkbox"
             checked={!!info.pushToHub}
             onChange={(e) => handleChange('pushToHub', e.target.checked)}
-            disabled={!isEditable}
+            disabled={!isEditable || !info.recordInferenceMode}
           />
           <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
             {info.pushToHub ? 'Enabled' : 'Disabled'}
@@ -410,7 +426,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
               type="checkbox"
               checked={!!info.privateMode}
               onChange={(e) => handleChange('privateMode', e.target.checked)}
-              disabled={!isEditable}
+              disabled={!isEditable || !info.recordInferenceMode}
             />
             <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
               {info.privateMode ? 'Enabled' : 'Disabled'}
@@ -437,34 +453,43 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           {/* Common Load button for both modes */}
           <div className="flex gap-2 mb-2">
             <button
-              className={clsx(classButtonBase, getButtonVariant('blue', isEditable, isLoading))}
+              className={clsx(
+                classButtonBase,
+                getButtonVariant('blue', isEditable && info.recordInferenceMode, isLoading)
+              )}
               onClick={() => {
-                if (isEditable && !isLoading) {
+                if (isEditable && !isLoading && info.recordInferenceMode) {
                   handleLoadUserId();
                 }
               }}
-              disabled={!isEditable || isLoading}
+              disabled={!isEditable || isLoading || !info.recordInferenceMode}
             >
               {isLoading ? 'Loading...' : 'Load'}
             </button>
             {!info.pushToHub && showUserIdDropdown && (
               <button
-                className={clsx(classButtonBase, getButtonVariant('red', isEditable))}
+                className={clsx(
+                  classButtonBase,
+                  getButtonVariant('red', isEditable && info.recordInferenceMode)
+                )}
                 onClick={() => setShowUserIdDropdown(false)}
-                disabled={!isEditable}
+                disabled={!isEditable || !info.recordInferenceMode}
               >
                 Manual Input
               </button>
             )}
             {info.pushToHub && (
               <button
-                className={clsx(classButtonBase, getButtonVariant('green', isEditable, isLoading))}
+                className={clsx(
+                  classButtonBase,
+                  getButtonVariant('green', isEditable && info.recordInferenceMode, isLoading)
+                )}
                 onClick={() => {
-                  if (isEditable && !isLoading) {
+                  if (isEditable && !isLoading && info.recordInferenceMode) {
                     setShowTokenPopup(true);
                   }
                 }}
-                disabled={!isEditable || isLoading}
+                disabled={!isEditable || isLoading || !info.recordInferenceMode}
               >
                 Change
               </button>
@@ -478,7 +503,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
                 className={classSelect}
                 value={info.userId || ''}
                 onChange={(e) => handleChange('userId', e.target.value)}
-                disabled={!isEditable}
+                disabled={!isEditable || !info.recordInferenceMode}
               >
                 <option value="">Select User ID</option>
                 {userIdList.map((userId) => (
@@ -500,7 +525,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
                     className={classRepoIdTextarea}
                     value={info.userId || ''}
                     onChange={(e) => handleChange('userId', e.target.value)}
-                    disabled={!isEditable}
+                    disabled={!isEditable || !info.recordInferenceMode}
                     placeholder="Enter User ID or load from registered ID"
                   />
                   <div className="text-xs text-gray-500 mt-1 leading-relaxed">
@@ -517,7 +542,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
                         handleUserIdSelect(e.target.value);
                       }
                     }}
-                    disabled={!isEditable}
+                    disabled={!isEditable || !info.recordInferenceMode}
                   >
                     <option value="">Select from registered User IDs</option>
                     {userIdList.map((userId) => (
@@ -544,7 +569,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           step="5"
           value={info.fps || ''}
           onChange={(e) => handleChange('fps', Number(e.target.value))}
-          disabled={!isEditable}
+          disabled={!isEditable || !info.recordInferenceMode}
         />
       </div>
 
@@ -554,7 +579,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           <TagInput
             tags={info.tags || []}
             onChange={(newTags) => handleChange('tags', newTags)}
-            disabled={!isEditable}
+            disabled={!isEditable || !info.recordInferenceMode}
           />
           <div className="text-xs text-gray-500 mt-1 leading-relaxed">
             Press Enter or use comma to add tags
@@ -572,7 +597,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           max={65535}
           value={info.warmupTime || ''}
           onChange={(e) => handleChange('warmupTime', Number(e.target.value) || 0)}
-          disabled={!isEditable}
+          disabled={!isEditable || !info.recordInferenceMode}
         />
       </div>
 
@@ -586,7 +611,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           max={65535}
           value={info.episodeTime || ''}
           onChange={(e) => handleChange('episodeTime', Number(e.target.value) || 0)}
-          disabled={!isEditable}
+          disabled={!isEditable || !info.recordInferenceMode}
         />
       </div>
 
@@ -600,7 +625,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           max={65535}
           value={info.resetTime || ''}
           onChange={(e) => handleChange('resetTime', Number(e.target.value) || 0)}
-          disabled={!isEditable}
+          disabled={!isEditable || !info.recordInferenceMode}
         />
       </div>
 
@@ -614,7 +639,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           max={65535}
           value={info.numEpisodes || ''}
           onChange={(e) => handleChange('numEpisodes', Number(e.target.value) || 0)}
-          disabled={!isEditable}
+          disabled={!isEditable || !info.recordInferenceMode}
         />
       </div>
 
@@ -626,7 +651,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
             type="checkbox"
             checked={!!info.useOptimizedSave}
             onChange={(e) => handleChange('useOptimizedSave', e.target.checked)}
-            disabled={!isEditable}
+            disabled={!isEditable || !info.recordInferenceMode}
           />
           <span className={clsx('ml-2', 'text-sm', 'text-gray-500')}>
             {info.useOptimizedSave ? 'Enabled' : 'Disabled'}

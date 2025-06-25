@@ -141,6 +141,8 @@ export function useRosServiceCaller(rosbridgeUrl) {
             task_type: String(task_info.taskType || ''),
             user_id: String(task_info.userId || ''),
             task_instruction: String(task_info.taskInstruction || ''),
+            policy_path: String(task_info.policyPath || ''),
+            record_inference_mode: Boolean(task_info.recordInferenceMode),
             fps: Number(task_info.fps) || 0,
             tags: task_info.tags || [],
             warmup_time_s: Number(task_info.warmupTime) || 0,
@@ -152,7 +154,6 @@ export function useRosServiceCaller(rosbridgeUrl) {
             use_optimized_save_mode: Boolean(task_info.useOptimizedSave),
           },
           command: Number(command_enum),
-          policy_path: String(task_info.policyPath || ''),
         };
 
         console.log(`Sending command '${command}' (${command_enum}) to service`);

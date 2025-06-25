@@ -43,7 +43,6 @@ from physical_ai_server.utils.parameter_utils import (
     load_parameters,
     log_parameters,
 )
-from physical_ai_server.utils.read_file import read_json_file
 
 import rclpy
 from rclpy.node import Node

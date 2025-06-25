@@ -50,9 +50,8 @@ class InferenceManager:
 
         # config.json 파일을 읽어서 policy type이 올바른지 확인
         config = read_json_file(config_path)
-        print(config)
         if (config is None or
-            ('type' not in config and 'model_type' not in config)):
+                ('type' not in config and 'model_type' not in config)):
             result_message = f'config.json malformed or missing fields in {policy_path}.'
             return False, result_message
 
@@ -73,7 +72,7 @@ class InferenceManager:
             self.policy = policy_cls.from_pretrained(self.policy_path)
             return True
         except Exception as e:
-            print(f'Failed to load policy from {policy_path}: {e}')
+            print(f'Failed to load policy from {self.policy_path}: {e}')
             return False
 
     def clear_policy(self):
@@ -171,8 +170,9 @@ class InferenceManager:
         #     from Isaac.groot_n1.policies.groot_n1 import GrootN1Policy
         #     return GrootN1Policy
         else:
-            raise NotImplementedError(f'Policy with name {name} is not implemented.')
-        
+            raise NotImplementedError(
+                f'Policy with name {name} is not implemented.')
+
     @staticmethod
     def get_available_policies() -> list[str]:
         return [
@@ -183,40 +183,38 @@ class InferenceManager:
             'pi0',
             'pi0fast',
         ]
-    
+
     @staticmethod
     def get_saved_policies():
         import os
         import json
 
-        # home directory
         home_dir = os.path.expanduser('~')
         hub_dir = os.path.join(home_dir, '.cache/huggingface/hub')
-        # List 중에서 models--이 들어간 폴더만 찾기
         models_folder_list = [d for d in os.listdir(hub_dir) if d.startswith('models--')]
 
-        # Check if snapshots folder exists in each models folder and return the list of folders inside snapshots
         saved_policy_path = []
         saved_policy_type = []
-        
+
         for model_folder in models_folder_list:
             model_path = os.path.join(hub_dir, model_folder)
             snapshots_path = os.path.join(model_path, 'snapshots')
-            
+
             # Check if snapshots directory exists
             if os.path.exists(snapshots_path) and os.path.isdir(snapshots_path):
                 # Get list of folders inside snapshots directory
-                snapshot_folders = [d for d in os.listdir(snapshots_path) 
-                            if os.path.isdir(os.path.join(snapshots_path, d))]
-            
+                snapshot_folders = [
+                    d for d in os.listdir(snapshots_path)
+                    if os.path.isdir(os.path.join(snapshots_path, d))
+                ]
+
             # Check if pretrained_model folder exists in each snapshot folder
             for snapshot_folder in snapshot_folders:
                 snapshot_path = os.path.join(snapshots_path, snapshot_folder)
                 pretrained_model_path = os.path.join(snapshot_path, 'pretrained_model')
-                
+
                 # If pretrained_model folder exists, add to saved_policies
                 if os.path.exists(pretrained_model_path) and os.path.isdir(pretrained_model_path):
-                    # Check if config.json exists in pretrained_model folder and extract policy type
                     config_path = os.path.join(pretrained_model_path, 'config.json')
                     if os.path.exists(config_path):
                         try:

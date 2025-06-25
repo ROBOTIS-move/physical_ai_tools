@@ -1,6 +1,7 @@
 import json
 import os
 
+
 def read_json_file(file_path: str) -> dict:
     try:
         if os.path.exists(file_path) and not os.path.isfile(file_path):

@@ -205,7 +205,6 @@ class DataManager:
                 current_status.total_time = int(0)
                 self._proceed_time = int(0)
                 current_status.encoding_progress = encoding_progress
-            
         elif self._status == 'stop':
             is_saving, encoding_progress = self._get_encoding_progress()
             current_status.total_time = int(0)
@@ -214,7 +213,7 @@ class DataManager:
                 current_status.phase = TaskStatus.SAVING
                 current_status.encoding_progress = encoding_progress
             else:
-                current_status.phase = TaskStatus.STOPPEDZ
+                current_status.phase = TaskStatus.STOPPED
 
         current_status.proceed_time = int(getattr(self, '_proceed_time', 0))
         current_status.current_episode_number = int(self._record_episode_count)

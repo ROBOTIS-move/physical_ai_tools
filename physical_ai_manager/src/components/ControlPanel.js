@@ -69,11 +69,12 @@ const phaseGuideMessages = {
   [TaskPhase.RECORDING]: '🔴 Recording in progress',
   [TaskPhase.SAVING]: '💾 Saving...',
   [TaskPhase.STOPPED]: '◼️ Task Stopped',
+  [TaskPhase.INFERENCING]: '⏳ Inference in progress',
 };
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];
 
-export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
+export default function ControlPanel({ onCommand, episodeStatus, taskInfo, page }) {
   const [hovered, setHovered] = useState(null);
   const [pressed, setPressed] = useState(null);
   const [started, setStarted] = useState(false);
@@ -104,7 +105,8 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
       phase === TaskPhase.WARMING_UP ||
       phase === TaskPhase.RESETTING ||
       phase === TaskPhase.RECORDING ||
-      phase === TaskPhase.SAVING
+      phase === TaskPhase.SAVING ||
+      phase === TaskPhase.INFERENCING
     );
   };
 
@@ -117,27 +119,77 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
     (label) => {
       const phase = episodeStatus?.phase;
 
-      switch (label) {
-        case 'Start':
-          // Start button disabled when task is running or when running flag is true
-          return (isReadyState(phase) || isStoppedState(phase)) && !episodeStatus?.running;
-        case 'Stop':
-          // Stop button enabled only when task is running
-          return !isReadyState(phase) && !isStoppedState(phase);
-        case 'Retry':
-          // Retry button enabled only when task is stopped
-          return !isReadyState(phase);
-        case 'Next':
-          // Next button enabled only when task is stopped
-          return !isReadyState(phase);
-        case 'Finish':
-          // Finish button enabled only when task is stopped
-          return true; // Always enabled
-        default:
-          return false;
+      if (page === 'record' && taskInfo?.taskType !== 'record' && taskInfo?.taskType !== '') {
+        return false;
+      }
+
+      if (page === 'inference' && taskInfo?.taskType !== 'inference' && taskInfo?.taskType !== '') {
+        return false;
+      }
+
+      if (taskInfo?.taskType === 'record') {
+        switch (label) {
+          case 'Start':
+            // Start button disabled when task is running or when running flag is true
+            return (isReadyState(phase) || isStoppedState(phase)) && !episodeStatus?.running;
+          case 'Stop':
+            // Stop button enabled only when task is running
+            return !isReadyState(phase) && !isStoppedState(phase);
+          case 'Retry':
+            // Retry button enabled only when task is stopped
+            return !isReadyState(phase);
+          case 'Next':
+            // Next button enabled only when task is stopped
+            return !isReadyState(phase);
+          case 'Finish':
+            // Finish button enabled only when task is stopped
+            return true; // Always enabled
+          default:
+            return false;
+        }
+      } else if (taskInfo?.taskType === 'inference') {
+        switch (label) {
+          case 'Start':
+            // Start button disabled when task is running or when running flag is true
+            return (isReadyState(phase) || isStoppedState(phase)) && !episodeStatus?.running;
+          case 'Stop':
+            // Stop button enabled only when task is running
+            return !isReadyState(phase) && !isStoppedState(phase) && taskInfo.recordInferenceMode;
+          case 'Retry':
+            // Retry button enabled only when task is stopped
+            return !isReadyState(phase) && taskInfo.recordInferenceMode;
+          case 'Next':
+            // Next button enabled only when task is stopped
+            return !isReadyState(phase) && taskInfo.recordInferenceMode;
+          case 'Finish':
+            // Finish button enabled only when task is stopped
+            return true; // Always enabled
+          default:
+            return false;
+        }
+      } else {
+        switch (label) {
+          case 'Start':
+            // Start button disabled when task is running or when running flag is true
+            return (isReadyState(phase) || isStoppedState(phase)) && !episodeStatus?.running;
+          case 'Stop':
+            // Stop button enabled only when task is running
+            return !isReadyState(phase) && !isStoppedState(phase);
+          case 'Retry':
+            // Retry button enabled only when task is stopped
+            return !isReadyState(phase);
+          case 'Next':
+            // Next button enabled only when task is stopped
+            return !isReadyState(phase);
+          case 'Finish':
+            // Finish button enabled only when task is stopped
+            return true; // Always enabled
+          default:
+            return false;
+        }
       }
     },
-    [episodeStatus]
+    [episodeStatus, taskInfo, page]
   );
 
   const handleCommand = useCallback(

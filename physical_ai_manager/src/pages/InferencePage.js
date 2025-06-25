@@ -370,6 +370,7 @@ export default function InferencePage({
         onCommand={handleControlCommand}
         episodeStatus={episodeStatus}
         taskInfo={taskInfo}
+        page="inference"
       />
     </div>
   );

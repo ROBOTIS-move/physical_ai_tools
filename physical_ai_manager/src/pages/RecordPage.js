@@ -355,6 +355,7 @@ export default function RecordPage({
         onCommand={handleControlCommand}
         episodeStatus={episodeStatus}
         taskInfo={taskInfo}
+        page="record"
       />
     </div>
   );

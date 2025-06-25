@@ -43,7 +43,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
 
   const [taskInfo, setTaskInfo] = useState({
     taskName: '',
-    taskType: 'record',
+    taskType: '',
     taskInstruction: '',
     policyPath: '',
     recordInferenceMode: false,

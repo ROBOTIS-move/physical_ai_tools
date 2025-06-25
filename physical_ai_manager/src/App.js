@@ -43,14 +43,14 @@ function App() {
 
   useEffect(() => {
     if (isFirstLoad.current && page === 'home' && taskStatus.topicReceived) {
-      if (taskInfo.taskType === 'record') {
+      if (taskInfo?.taskType === 'record') {
         setPage('record');
-      } else if (taskInfo.taskType === 'inference') {
+      } else if (taskInfo?.taskType === 'inference') {
         setPage('inference');
       }
       isFirstLoad.current = false;
     }
-  }, [page, taskStatus]);
+  }, [page, taskStatus, taskInfo]);
 
   // Load YAML content from local storage
   const [yamlContent, setYamlContent] = useState(() => {

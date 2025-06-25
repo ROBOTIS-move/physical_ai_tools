@@ -74,7 +74,7 @@ const phaseGuideMessages = {
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];
 
-export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
+export default function ControlPanel({ onCommand, episodeStatus, taskInfo, page }) {
   const [hovered, setHovered] = useState(null);
   const [pressed, setPressed] = useState(null);
   const [started, setStarted] = useState(false);
@@ -119,6 +119,14 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
     (label) => {
       const phase = episodeStatus?.phase;
 
+      if (page === 'record' && taskInfo?.taskType !== 'record' && taskInfo?.taskType !== '') {
+        return false;
+      }
+
+      if (page === 'inference' && taskInfo?.taskType !== 'inference' && taskInfo?.taskType !== '') {
+        return false;
+      }
+
       if (taskInfo?.taskType === 'record') {
         switch (label) {
           case 'Start':
@@ -160,10 +168,28 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
             return false;
         }
       } else {
-        return false;
+        switch (label) {
+          case 'Start':
+            // Start button disabled when task is running or when running flag is true
+            return (isReadyState(phase) || isStoppedState(phase)) && !episodeStatus?.running;
+          case 'Stop':
+            // Stop button enabled only when task is running
+            return !isReadyState(phase) && !isStoppedState(phase);
+          case 'Retry':
+            // Retry button enabled only when task is stopped
+            return !isReadyState(phase);
+          case 'Next':
+            // Next button enabled only when task is stopped
+            return !isReadyState(phase);
+          case 'Finish':
+            // Finish button enabled only when task is stopped
+            return true; // Always enabled
+          default:
+            return false;
+        }
       }
     },
-    [episodeStatus, taskInfo]
+    [episodeStatus, taskInfo, page]
   );
 
   const handleCommand = useCallback(

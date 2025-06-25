@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
 import TagInput from './TagInput';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
@@ -64,7 +64,6 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
   const [showTokenPopup, setShowTokenPopup] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingPolicy, setIsLoadingPolicy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   // User ID selection states
@@ -75,10 +74,13 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
   const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller(rosbridgeUrl);
 
-  const handleChange = (field, value) => {
-    if (!isEditable) return; // Block changes when not editable
-    onChange({ ...info, [field]: value });
-  };
+  const handleChange = useCallback(
+    (field, value) => {
+      if (!isEditable) return; // Block changes when not editable
+      onChange({ ...info, [field]: value });
+    },
+    [isEditable, onChange, info]
+  );
 
   const handleSelect = (selected) => {
     onChange(selected);
@@ -112,7 +114,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
     }
   };
 
-  const handleLoadUserId = async () => {
+  const handleLoadUserId = useCallback(async () => {
     setIsLoading(true);
     try {
       const result = await getRegisteredHFUser();
@@ -131,12 +133,15 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getRegisteredHFUser]);
 
-  const handleUserIdSelect = (selectedUserId) => {
-    handleChange('userId', selectedUserId);
-    setShowUserIdDropdown(false);
-  };
+  const handleUserIdSelect = useCallback(
+    (selectedUserId) => {
+      handleChange('userId', selectedUserId);
+      setShowUserIdDropdown(false);
+    },
+    [handleChange]
+  );
 
   // Update isEditable state when the disabled prop changes
   useEffect(() => {
@@ -149,6 +154,16 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
       setShowUserIdDropdown(false);
     }
   }, [info.pushToHub]);
+
+  useEffect(() => {
+    handleLoadUserId();
+  }, [handleLoadUserId]);
+
+  useEffect(() => {
+    if (userIdList.length > 0 && !info.userId) {
+      handleUserIdSelect(userIdList[0]);
+    }
+  }, [userIdList, info.userId, handleUserIdSelect]);
 
   const classLabel = clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium');
 

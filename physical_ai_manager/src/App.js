@@ -43,7 +43,11 @@ function App() {
 
   useEffect(() => {
     if (isFirstLoad.current && page === 'home' && taskStatus.topicReceived) {
-      setPage('record');
+      if (taskInfo.taskType === 'record') {
+        setPage('record');
+      } else if (taskInfo.taskType === 'inference') {
+        setPage('inference');
+      }
       isFirstLoad.current = false;
     }
   }, [page, taskStatus]);

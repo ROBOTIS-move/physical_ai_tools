@@ -149,10 +149,10 @@ class DataManager:
         if self._lerobot_dataset.episode_buffer is None:
             return
         if self._task_info.use_optimized_save_mode:
-            if self._lerobot_dataset.episode_buffer["size"] > 0:
+            if self._lerobot_dataset.episode_buffer['size'] > 0:
                 self._lerobot_dataset.save_episode_without_write_image()
         else:
-            if self._lerobot_dataset.episode_buffer["size"] > 0:
+            if self._lerobot_dataset.episode_buffer['size'] > 0:
                 self._lerobot_dataset.save_episode()
 
     def create_frame(

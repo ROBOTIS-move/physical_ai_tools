@@ -80,7 +80,7 @@ class InferenceManager:
             del self.policy
             self.policy = None
         else:
-            print("No policy to clear.")
+            print('No policy to clear.')
 
     def get_policy_config(self):
         return self.policy.config
@@ -228,6 +228,6 @@ class InferenceManager:
                                     saved_policy_type.append(config['model_type'])
                         except (json.JSONDecodeError, IOError):
                             # If config.json cannot be read, store path only
-                            print("File IO Errors : ", IOError)
+                            print('File IO Errors : ', IOError)
 
         return saved_policy_path, saved_policy_type

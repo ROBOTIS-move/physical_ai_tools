@@ -69,7 +69,7 @@ const phaseGuideMessages = {
   [TaskPhase.RECORDING]: '🔴 Recording in progress',
   [TaskPhase.SAVING]: '💾 Saving...',
   [TaskPhase.STOPPED]: '◼️ Task Stopped',
-  [TaskPhase.INFERENCING]: '⏳ Inference in progress',
+  [TaskPhase.INFERENCING]: '⏳ Inferencing',
 };
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];

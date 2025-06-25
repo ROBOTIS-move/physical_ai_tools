@@ -69,6 +69,7 @@ const phaseGuideMessages = {
   [TaskPhase.RECORDING]: '🔴 Recording in progress',
   [TaskPhase.SAVING]: '💾 Saving...',
   [TaskPhase.STOPPED]: '◼️ Task Stopped',
+  [TaskPhase.INFERENCING]: '⏳ Inference in progress',
 };
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];
@@ -104,7 +105,8 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
       phase === TaskPhase.WARMING_UP ||
       phase === TaskPhase.RESETTING ||
       phase === TaskPhase.RECORDING ||
-      phase === TaskPhase.SAVING
+      phase === TaskPhase.SAVING ||
+      phase === TaskPhase.INFERENCING
     );
   };
 

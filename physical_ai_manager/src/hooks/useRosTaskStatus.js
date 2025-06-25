@@ -194,6 +194,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
       [TaskPhase.RECORDING]: 'RECORDING',
       [TaskPhase.SAVING]: 'SAVING',
       [TaskPhase.STOPPED]: 'STOPPED',
+      [TaskPhase.INFERENCING]: 'INFERENCING',
     };
     return phaseNames[phase] || 'UNKNOWN';
   }, []);

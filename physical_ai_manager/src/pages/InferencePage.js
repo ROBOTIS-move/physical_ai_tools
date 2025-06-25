@@ -70,13 +70,7 @@ export default function InferencePage({
 
   useEffect(() => {
     if (taskStatus.robotType !== '') {
-      setInfo(
-        { ...taskInfo, tags: [taskStatus.robotType, 'robotis'] } || {
-          tags: [taskStatus.robotType, 'robotis'],
-        }
-      );
-
-      setInfo({ ...taskInfo, taskType: 'inference' || { taskType: 'inference' } });
+      setInfo({ ...taskInfo, tags: [taskStatus.robotType, 'robotis'], taskType: 'inference' });
     }
   }, [taskStatus, taskInfo]);
 

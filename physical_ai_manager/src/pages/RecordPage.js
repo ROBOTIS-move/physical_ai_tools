@@ -68,13 +68,7 @@ export default function RecordPage({
 
   useEffect(() => {
     if (taskStatus.robotType !== '') {
-      setInfo(
-        { ...taskInfo, tags: [taskStatus.robotType, 'robotis'] } || {
-          tags: [taskStatus.robotType, 'robotis'],
-        }
-      );
-
-      setInfo({ ...taskInfo, taskType: 'record' || { taskType: 'record' } });
+      setInfo({ ...taskInfo, tags: [taskStatus.robotType, 'robotis'], taskType: 'record' });
     }
   }, [taskStatus, taskInfo]);
 

@@ -73,6 +73,8 @@ export default function RecordPage({
           tags: [taskStatus.robotType, 'robotis'],
         }
       );
+
+      setInfo({ ...taskInfo, taskType: 'record' || { taskType: 'record' } });
     }
   }, [taskStatus, taskInfo]);
 

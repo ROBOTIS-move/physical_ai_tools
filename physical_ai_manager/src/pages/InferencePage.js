@@ -75,6 +75,8 @@ export default function InferencePage({
           tags: [taskStatus.robotType, 'robotis'],
         }
       );
+
+      setInfo({ ...taskInfo, taskType: 'inference' || { taskType: 'inference' } });
     }
   }, [taskStatus, taskInfo]);
 

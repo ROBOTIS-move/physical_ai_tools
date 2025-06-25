@@ -36,26 +36,22 @@ class InferenceManager:
         self.policy = None
 
     def validate_policy(self, policy_path: str) -> bool:
-        # Policy path 폴더가 존재하는지 확인
         result_message = ''
         if not os.path.exists(policy_path) or not os.path.isdir(policy_path):
             result_message = f'Policy path {policy_path} does not exist or is not a directory.'
             return False, result_message
 
-        # config.json 파일이 존재하는지 확인
         config_path = os.path.join(policy_path, 'config.json')
         if not os.path.exists(config_path):
             result_message = f'config.json file does not exist in {policy_path}.'
             return False, result_message
 
-        # config.json 파일을 읽어서 policy type이 올바른지 확인
         config = read_json_file(config_path)
         if (config is None or
                 ('type' not in config and 'model_type' not in config)):
             result_message = f'config.json malformed or missing fields in {policy_path}.'
             return False, result_message
 
-        # policy type이 지원되는 정책인지 확인
         available_policies = self.__class__.get_available_policies()
         policy_type = config.get('type') or config.get('model_type')
         if policy_type not in available_policies:

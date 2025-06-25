@@ -20,10 +20,10 @@ from typing import Any, Dict, List
 
 import cv2
 from cv_bridge import CvBridge
-import numpy as np
 from geometry_msgs.msg import Twist
-from sensor_msgs.msg import CompressedImage, JointState
+import numpy as np
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import CompressedImage, JointState
 import torch
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 

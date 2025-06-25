@@ -60,9 +60,6 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
   // User ID list for dropdown
   const [userIdList, setUserIdList] = useState([]);
 
-  // Policy type list for dropdown
-  const [policyTypeList, setPolicyTypeList] = useState([]);
-
   // Token popup states
   const [showTokenPopup, setShowTokenPopup] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
@@ -73,14 +70,10 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
   // User ID selection states
   const [showUserIdDropdown, setShowUserIdDropdown] = useState(false);
 
-  // Policy type selection states
-  const [showPolicyTypeDropdown, setShowPolicyTypeDropdown] = useState(false);
-
   // ROS service caller
 
   const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
-  const { registerHFUser, getRegisteredHFUser, getPolicyTypeList } =
-    useRosServiceCaller(rosbridgeUrl);
+  const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller(rosbridgeUrl);
 
   const handleChange = (field, value) => {
     if (!isEditable) return; // Block changes when not editable
@@ -137,27 +130,6 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
       toast.error(`Failed to load user ID list: ${error.message}`);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleLoadPolicyType = async () => {
-    setIsLoadingPolicy(true);
-    try {
-      const result = await getPolicyTypeList();
-      console.log('getPolicyTypeList result:', result);
-
-      if (result && result.policy_list) {
-        setPolicyTypeList(result.policy_list);
-        toast.success('Policy type list loaded successfully!');
-        setShowPolicyTypeDropdown(true);
-      } else {
-        toast.error('Failed to get policy type list from response');
-      }
-    } catch (error) {
-      console.error('Error loading policy type list:', error);
-      toast.error(`Failed to load user ID list: ${error.message}`);
-    } finally {
-      setIsLoadingPolicy(false);
     }
   };
 
@@ -410,56 +382,6 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
           disabled={!isEditable}
           placeholder="Enter Task Instruction"
         />
-      </div>
-
-      <div className={clsx('flex', 'items-start', 'mb-2.5')}>
-        <span
-          className={clsx(
-            'text-sm',
-            'text-gray-600',
-            'w-28',
-            'flex-shrink-0',
-            'font-medium',
-            'pt-2'
-          )}
-        >
-          Policy Type
-        </span>
-
-        <div className="flex-1 min-w-0">
-          {/* Common Load button for both modes */}
-          <div className="flex gap-2 mb-2">
-            <button
-              className={clsx(
-                classButtonBase,
-                getButtonVariant('blue', isEditable, isLoadingPolicy)
-              )}
-              onClick={() => {
-                if (isEditable && !isLoadingPolicy) {
-                  handleLoadPolicyType();
-                }
-              }}
-              disabled={!isEditable || isLoadingPolicy}
-            >
-              {isLoadingPolicy ? 'Loading...' : 'Load'}
-            </button>
-          </div>
-
-          <select
-            className={classSelect}
-            value={info.policyType || ''}
-            onChange={(e) => handleChange('policyType', e.target.value)}
-            disabled={!isEditable}
-          >
-            <option value="">Select Policy Type</option>
-            {policyTypeList.map((policyType) => (
-              <option key={policyType} value={policyType}>
-                {policyType}
-              </option>
-            ))}
-          </select>
-          <div className="text-xs text-gray-500 mt-1 leading-relaxed">Select policy type</div>
-        </div>
       </div>
 
       <div className={clsx('flex', 'items-start', 'mb-2.5')}>

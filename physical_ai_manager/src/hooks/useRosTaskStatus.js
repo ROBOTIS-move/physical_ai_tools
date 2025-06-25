@@ -45,6 +45,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
     taskName: '',
     taskType: 'record',
     taskInstruction: '',
+    policyPath: '',
     userId: '',
     fps: 30,
     tags: [],
@@ -56,11 +57,6 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
     pushToHub: true,
     privateMode: false,
     useOptimizedSave: true,
-  });
-
-  const [policyInfo, setPolicyInfo] = useState({
-    policyType: '',
-    policyPath: '',
   });
 
   const [connected, setConnected] = useState(false);

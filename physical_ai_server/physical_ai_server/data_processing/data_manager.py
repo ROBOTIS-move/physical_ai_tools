@@ -156,7 +156,6 @@ class DataManager:
     def save(self):
         if not self._single_task:
             self._lerobot_dataset.save_all_marked_episodes()
-        
         else:
             if self._lerobot_dataset.episode_buffer is None:
                 return
@@ -196,13 +195,13 @@ class DataManager:
         self._stop_save_completed = False
         self._episode_reset()
         self._status = 'reset'
-    
+
     def record_skip(self):
         self._stop_save_completed = False
         self._episode_reset()
         self._status = 'skip'
         self._current_task += 1
-        
+
     def record_next_episode(self):
         self._lerobot_dataset.mark_episode_split()
         self._current_task += 1

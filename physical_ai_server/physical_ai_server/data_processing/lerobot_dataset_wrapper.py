@@ -63,7 +63,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
 
         self.total_frame_buffer['size'] += 1
         
-    def mark_episode_split(self) -> None:
+    def mark_episode_split(self) -> None:        
         if not hasattr(self, 'episode_ranges'):
             self.episode_ranges = []
             self.current_range_start = 0
@@ -71,46 +71,62 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         if end >= self.current_range_start:
             self.episode_ranges.append((self.current_range_start, end))
             self.current_range_start = end + 1
-            
+        from rclpy.logging import get_logger
+        logger = get_logger('mark_episode_split')
+        logger.info(f"[MARK] current_range_start={self.current_range_start}, end={end}")
+
     def save_all_marked_episodes(self) -> None:
         if not hasattr(self, 'episode_ranges') or not self.episode_ranges:
             raise ValueError("No marked episodes to save.")
-        
+
+        from rclpy.logging import get_logger
+        logger = get_logger('save_all_marked_episodes')
+        # episode_index_value = (
+        #     episode_index.item() if hasattr(episode_index, 'item') else episode_index
+        # )
+        # logger.info("==== Episode Save Summary ====")
+        # logger.info(f"video_count: {video_count}")
+        # logger.info(f"episode_index: {episode_index_value}")
+        # logger.info(f"episode_length: {episode_length}")
+        # logger.info(f"episode_tasks: {episode_tasks}")
+        # logger.info(f"ep_stats: {ep_stats}")
+        # logger.info("==== End of Summary ====")
+
         for episode_index, (start, end) in enumerate(self.episode_ranges):
-            episode_buffer = {k: v[start:end + 1] for k, v in self.total_frame_buffer.items()}
-            episode_buffer['size'] = end - start + 1
-            episode_buffer['episode_index'] = np.full((episode_buffer['size'],), episode_index)
-
-            validate_episode_buffer(
-                episode_buffer,
-                self.meta.total_episodes,
-                self.features)
-
-            # Add new tasks to the tasks dictionary
-            tasks = episode_buffer.get('task', [])
+            episode_buffer = self.extract_episode_buffer(start, end, episode_index)
+            episode_length = episode_buffer.pop('size')
+            tasks = episode_buffer.pop('task')
             episode_tasks = list(set(tasks))
-            for task in episode_tasks:
-                task_index = self.meta.get_task_index(task)
-                if task_index is None:
-                    self.meta.add_task(task)
 
-            # Given tasks in natural language, find their corresponding task indices
+            from rclpy.logging import get_logger
+            logger = get_logger('save_all_marked_episodes')
+            logger.info(f"buffer_index: {episode_buffer['index']}")
+            logger.info(f"episode_index: {episode_buffer['episode_index']}")
+            logger.info(f"episode_length: {episode_length}")
+            logger.info(f"tasks: {tasks}")
+            logger.info(f"episode_tasks: {episode_tasks}")
+
+            # for task in episode_tasks:
+            #     task_index = self.meta.get_task_index(task)
+            #     if task_index is None:
+            #         self.meta.add_task(task)
+
             episode_buffer['task_index'] = np.array([self.meta.get_task_index(task) for task in tasks])
+            logger.info(f"episode_buffer['task_index']: {episode_buffer['task_index']}")
 
             for key, ft in self.features.items():
-                if (key in ['index', 'episode_index', 'task_index'] or
-                        ft['dtype'] in ['image', 'video']):
+                if key in ['index', 'episode_index', 'task_index'] or ft['dtype'] in ['image', 'video']:
                     continue
                 episode_buffer[key] = np.stack(episode_buffer[key])
 
-            self._save_episode_table(episode_buffer, episode_index)
+            self._save_episode_table(episode_buffer, episode_index_value)
             ep_stats = self.compute_episode_stats_buffer(episode_buffer, self.features)
 
             video_paths = {}
             video_count = 0
             for key, ep in episode_buffer.items():
                 if 'observation.images' in key:
-                    video_path = self.root / self.meta.get_video_file_path(episode_index, key)
+                    video_path = self.root / self.meta.get_video_file_path(episode_index_value, key)
                     video_paths[key] = str(video_path)
                     self._create_video(ep, video_path)
                     video_count += 1
@@ -122,14 +138,38 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                         'video.pix_fmt': 'yuv420p',
                     }
                     self.meta.info['features'][key]['info'] = video_info
+                    
+            from rclpy.logging import get_logger
+            logger = get_logger('episode_logger')
+
+            # JSON 직렬화를 고려한 안전한 출력
+            episode_index_value = (
+                episode_index.item() if hasattr(episode_index, 'item') else episode_index
+            )
 
             self.save_meta_info(
                 video_count,
-                episode_index,
-                episode_buffer['size'],
+                episode_index_value,
+                episode_length,
                 episode_tasks,
                 ep_stats
             )
+            self.meta.total_frames += episode_length
+
+    def extract_episode_buffer(self, start: int, end: int, episode_index) -> dict:
+        episode_buffer = {}
+        for key, value in self.total_frame_buffer.items():
+            if isinstance(value, (list, np.ndarray)):
+                episode_buffer[key] = value[start:end + 1]
+            else:
+                episode_buffer[key] = value
+
+        episode_length = end - start + 1
+        episode_buffer['size'] = episode_length
+        episode_buffer['index'] = np.arange(start, end + 1)
+        episode_buffer['episode_index'] = np.full((episode_length,), episode_index)
+
+        return episode_buffer
 
     def add_frame_without_write_image(self, frame: dict) -> None:
         validate_frame(frame, self.features)
@@ -159,6 +199,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
 
     def save_episode_without_write_image(self):
         episode_buffer = self.episode_buffer
+        
         validate_episode_buffer(
             episode_buffer,
             self.meta.total_episodes,
@@ -168,20 +209,31 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         tasks = episode_buffer.pop('task')
         episode_tasks = list(set(tasks))
         episode_index = episode_buffer['episode_index']
+        from rclpy.logging import get_logger
+        logger = get_logger('save_episode_without_write_image') #
+        logger.info(f"buffer_index: {episode_index}") #
+        logger.info(f"episode_length: {episode_length}") #
+        logger.info(f"tasks: {tasks}") #
+        logger.info(f"episode_tasks: {episode_tasks}") #
 
         episode_buffer['index'] = np.arange(
             self.meta.total_frames,
             self.meta.total_frames + episode_length)
         episode_buffer['episode_index'] = np.full((episode_length,), episode_index)
-
+        logger.info(f"episode_buffer['index']: {episode_buffer['index']}") #
+        logger.info(f"episode_buffer['episode_index']: {episode_buffer['episode_index']}") #
         # Add new tasks to the tasks dictionary
         for task in episode_tasks:
+            logger.info(f"current task: {task}") #
             task_index = self.meta.get_task_index(task)
+            logger.info(f"current task index: {task_index}") #
             if task_index is None:
                 self.meta.add_task(task)
 
         # Given tasks in natural language, find their corresponding task indices
         episode_buffer['task_index'] = np.array([self.meta.get_task_index(task) for task in tasks])
+        logger.info(f"episode_buffer['task_index']: {episode_buffer['task_index']}") #
+
         for key, ft in self.features.items():
             if (key in ['index', 'episode_index', 'task_index'] or
                     ft['dtype'] in ['image', 'video']):
@@ -207,6 +259,22 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                     'video.pix_fmt': 'yuv420p',
                 }
                 self.meta.info['features'][key]['info'] = video_info
+
+        # from rclpy.logging import get_logger
+        # logger = get_logger('episode_logger')
+
+        # # JSON 직렬화를 고려한 안전한 출력
+        # episode_index_value = (
+        #     episode_index.item() if hasattr(episode_index, 'item') else episode_index
+        # )
+
+        # logger.info("==== Episode Save Summary ====")
+        # logger.info(f"video_count: {video_count}")
+        # logger.info(f"episode_index: {episode_index_value}")
+        # logger.info(f"episode_length: {episode_length}")
+        # logger.info(f"episode_tasks: {episode_tasks}")
+        # logger.info(f"ep_stats: {ep_stats}")
+        # logger.info("==== End of Summary ====")
 
         self.save_meta_info(
             video_count,

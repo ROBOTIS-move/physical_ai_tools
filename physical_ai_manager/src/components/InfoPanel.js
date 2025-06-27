@@ -20,6 +20,7 @@ import TagInput from './TagInput';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
+import { useSelector } from 'react-redux';
 
 const taskInfos = [
   {
@@ -52,7 +53,10 @@ const taskInfos = [
   },
 ];
 
-const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
+const InfoPanel = ({ onChange, disabled = false, rosHost }) => {
+  const info = useSelector((state) => state.tasks.taskInfo);
+  const dispatch = useDispatch();
+
   const [showPopup, setShowPopup] = useState(false);
   const [taskInfoList] = useState(taskInfos);
   const [isEditable, setIsEditable] = useState(!disabled);

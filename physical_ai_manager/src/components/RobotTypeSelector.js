@@ -19,20 +19,24 @@ import clsx from 'clsx';
 import { MdRefresh } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import { useSelector, useDispatch } from 'react-redux';
+import { selectRobotType } from '../features/tasks/taskSlice';
+import { setRobotTypeList } from '../features/ui/uiSlice';
 
 export default function RobotTypeSelector({
-  rosHost,
   currentRobotType,
   setCurrentRobotType,
   taskStatus,
   updateTaskStatus,
   className,
 }) {
-  const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
+  const dispatch = useDispatch();
+  const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
+  const robotTypeList = useSelector((state) => state.ui.robotTypeList);
+  const robotType = useSelector((state) => state.tasks.taskStatus.robotType);
+
   const { getRobotTypeList, setRobotType } = useRosServiceCaller(rosbridgeUrl);
 
-  const [robotTypes, setRobotTypes] = useState([]);
-  const [selectedRobotType, setSelectedRobotType] = useState(currentRobotType || '');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
 
@@ -42,10 +46,9 @@ export default function RobotTypeSelector({
     try {
       const result = await getRobotTypeList();
       console.log('Robot types received:', result);
-      console.log('Current currentRobotType before update:', currentRobotType);
 
       if (result && result.robot_types) {
-        setRobotTypes(result.robot_types);
+        dispatch(setRobotTypeList(result.robot_types));
         toast.success('Robot types loaded successfully');
       } else {
         toast.error('Failed to get robot types: Invalid response');
@@ -56,27 +59,27 @@ export default function RobotTypeSelector({
     } finally {
       setFetching(false);
     }
-  }, [getRobotTypeList, currentRobotType]);
+  }, [getRobotTypeList]);
 
   useEffect(() => {
-    if (!selectedRobotType && taskStatus && taskStatus.robotType) {
-      setSelectedRobotType(taskStatus.robotType);
+    if (!robotType && taskStatus && taskStatus.robotType) {
+      dispatch(selectRobotType(taskStatus.robotType));
     }
-  }, [taskStatus, selectedRobotType]);
+  }, [taskStatus, robotType]);
 
   // Set robot type
   const handleSetRobotType = async () => {
     console.log('handleSetRobotType called');
-    console.log('selectedRobotType:', selectedRobotType);
+    console.log('robotType:', robotType);
     console.log('currentRobotType:', currentRobotType);
 
-    if (!selectedRobotType) {
+    if (!robotType) {
       toast.error('Please select a robot type');
       return;
     }
 
     // Only prevent setting if currentRobotType exists and matches selectedRobotType
-    if (currentRobotType && selectedRobotType === currentRobotType) {
+    if (currentRobotType && robotType === currentRobotType) {
       console.log('Robot type already set, skipping');
       toast.error('Robot type is already set to this value');
       return;
@@ -90,19 +93,19 @@ export default function RobotTypeSelector({
       return;
     }
 
-    console.log('Attempting to set robot type to:', selectedRobotType);
+    console.log('Attempting to set robot type to:', robotType);
     setLoading(true);
     try {
-      const result = await setRobotType(selectedRobotType);
+      const result = await setRobotType(robotType);
       console.log('Set robot type result:', result);
 
       if (result && result.success) {
-        setCurrentRobotType(selectedRobotType);
+        setCurrentRobotType(robotType);
         // Update task status with the selected robot type
         if (updateTaskStatus) {
-          updateTaskStatus({ robotType: selectedRobotType });
+          updateTaskStatus({ robotType: robotType });
         }
-        toast.success(`Robot type set to: ${selectedRobotType}`);
+        toast.success(`Robot type set to: ${robotType}`);
       } else {
         toast.error(`Failed to set robot type: ${result.message || 'Unknown error'}`);
       }
@@ -121,10 +124,10 @@ export default function RobotTypeSelector({
 
   // Sync selectedRobotType when currentRobotType changes
   useEffect(() => {
-    if (!selectedRobotType && currentRobotType) {
-      setSelectedRobotType(currentRobotType);
+    if (!robotType && currentRobotType) {
+      dispatch(selectRobotType(currentRobotType));
     }
-  }, [currentRobotType, selectedRobotType]);
+  }, [currentRobotType, robotType]);
 
   // Initialize task info robot type if currentRobotType is set but task info is empty
   useEffect(() => {
@@ -229,14 +232,14 @@ export default function RobotTypeSelector({
 
       <select
         className={classSelect}
-        value={selectedRobotType}
-        onChange={(e) => setSelectedRobotType(e.target.value)}
+        value={robotType}
+        onChange={(e) => dispatch(selectRobotType(e.target.value))}
         disabled={fetching || loading || (taskStatus && taskStatus.phase > 0)}
       >
         <option value="" disabled>
           Choose a robot type...
         </option>
-        {robotTypes.map((type) => (
+        {robotTypeList.map((type) => (
           <option key={type} value={type}>
             {type}
           </option>
@@ -246,7 +249,7 @@ export default function RobotTypeSelector({
       <button
         className={classButton}
         onClick={handleSetRobotType}
-        disabled={loading || fetching || !selectedRobotType || (taskStatus && taskStatus.phase > 0)}
+        disabled={loading || fetching || !robotType || (taskStatus && taskStatus.phase > 0)}
       >
         {loading ? 'Setting...' : 'Set Robot Type'}
       </button>
@@ -262,7 +265,7 @@ export default function RobotTypeSelector({
         </div>
       </button>
 
-      {robotTypes.length === 0 && !fetching && (
+      {robotTypeList.length === 0 && !fetching && (
         <div className="text-center text-gray-500 text-sm mt-4">
           No robot types available. Please check ROS connection.
         </div>

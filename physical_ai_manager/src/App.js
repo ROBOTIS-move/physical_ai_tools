@@ -25,32 +25,37 @@ import RecordPage from './pages/RecordPage';
 import InferencePage from './pages/InferencePage';
 import SettingPage from './pages/SettingPage';
 import { useRosTaskStatus } from './hooks/useRosTaskStatus';
+import { useDispatch, useSelector } from 'react-redux';
+import { setRosHost } from './features/ros/rosSlice';
+import { setCurrentPage } from './features/ui/uiSlice';
 
 function App() {
-  const defaultRosHost = window.location.hostname + ':8080';
-  const [page, setPage] = useState('home');
-  const [topics, setTopics] = useState([null, null, null, null]);
-  const [rosHost, setRosHost] = useState(defaultRosHost);
+  const dispatch = useDispatch();
+  const taskStatus = useSelector((state) => state.tasks.taskStatus);
+  const taskInfo = useSelector((state) => state.tasks.taskInfo);
+
+  const defaultRosHost = window.location.hostname;
+  dispatch(setRosHost(defaultRosHost));
+
+  const rosHost = useSelector((state) => state.ros.rosHost);
+  const page = useSelector((state) => state.ui.currentPage);
+
   const [currentRobotType, setCurrentRobotType] = useState('');
   const isFirstLoad = useRef(true);
 
   // Subscribe to task status from ROS topic (always active)
-  const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
-  const { taskStatus, taskInfo, updateTaskInfo, updateTaskStatus } = useRosTaskStatus(
-    rosbridgeUrl,
-    '/task/status'
-  );
+  useRosTaskStatus();
 
   useEffect(() => {
     if (isFirstLoad.current && page === 'home' && taskStatus.topicReceived) {
       if (taskInfo?.taskType === 'record') {
-        setPage('record');
+        dispatch(setCurrentPage('record'));
       } else if (taskInfo?.taskType === 'inference') {
-        setPage('inference');
+        dispatch(setCurrentPage('inference'));
       }
       isFirstLoad.current = false;
     }
-  }, [page, taskStatus, taskInfo]);
+  }, [page]);
 
   // Load YAML content from local storage
   const [yamlContent, setYamlContent] = useState(() => {
@@ -65,7 +70,7 @@ function App() {
 
   const handleHomePageNavigation = () => {
     isFirstLoad.current = false;
-    setPage('home');
+    dispatch(setCurrentPage('home'));
   };
 
   // Check conditions for Record page navigation
@@ -73,7 +78,7 @@ function App() {
     if (process.env.REACT_APP_DEBUG === 'true') {
       console.log('handleRecordPageNavigation');
       isFirstLoad.current = false;
-      setPage('record');
+      dispatch(setCurrentPage('record'));
       return;
     }
 
@@ -81,7 +86,7 @@ function App() {
     if (taskStatus && taskStatus.robotType !== '') {
       console.log('robot type:', taskStatus.robotType, '=> allowing navigation to Record page');
       isFirstLoad.current = false;
-      setPage('record');
+      dispatch(setCurrentPage('record'));
       return;
     }
 
@@ -96,14 +101,14 @@ function App() {
 
     // Allow navigation if conditions are met
     console.log('Robot type set, allowing navigation to Record page');
-    setPage('record');
+    dispatch(setCurrentPage('record'));
   };
 
   const handleInferencePageNavigation = () => {
     if (process.env.REACT_APP_DEBUG === 'true') {
       console.log('handleInferencePageNavigation');
       isFirstLoad.current = false;
-      setPage('inference');
+      dispatch(setCurrentPage('inference'));
       return;
     }
 
@@ -111,7 +116,7 @@ function App() {
     if (taskStatus && taskStatus.robotType !== '') {
       console.log('robot type:', taskStatus.robotType, '=> allowing navigation to Inference page');
       isFirstLoad.current = false;
-      setPage('inference');
+      dispatch(setCurrentPage('inference'));
       return;
     }
 
@@ -126,7 +131,7 @@ function App() {
 
     // Allow navigation if conditions are met
     console.log('Robot type set, allowing navigation to Inference page');
-    setPage('inference');
+    dispatch(setCurrentPage('inference'));
   };
 
   return (
@@ -214,34 +219,14 @@ function App() {
       <main className="flex-1 flex flex-col h-screen min-h-0">
         {page === 'home' ? (
           <HomePage
-            topics={topics}
-            setTopics={setTopics}
             rosHost={rosHost}
             currentRobotType={currentRobotType}
             setCurrentRobotType={setCurrentRobotType}
-            taskStatus={taskStatus}
-            updateTaskStatus={updateTaskStatus}
           />
         ) : page === 'record' ? (
-          <RecordPage
-            topics={topics}
-            setTopics={setTopics}
-            rosHost={rosHost}
-            yamlContent={yamlContent}
-            taskStatus={taskStatus}
-            taskInfo={taskInfo}
-            updateTaskInfo={updateTaskInfo}
-            isActive={page === 'record'}
-          />
+          <RecordPage rosHost={rosHost} yamlContent={yamlContent} isActive={page === 'record'} />
         ) : page === 'inference' ? (
-          <InferencePage
-            topics={topics}
-            setTopics={setTopics}
-            rosHost={rosHost}
-            taskStatus={taskStatus}
-            taskInfo={taskInfo}
-            isActive={page === 'inference'}
-          />
+          <InferencePage rosHost={rosHost} isActive={page === 'inference'} />
         ) : (
           <SettingPage
             rosHost={rosHost}

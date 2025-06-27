@@ -25,6 +25,7 @@ const initialState = {
   sidebarOpen: false,
   modalOpen: false,
   notifications: [],
+  robotTypeList: [],
 };
 
 const uiSlice = createSlice({
@@ -66,6 +67,9 @@ const uiSlice = createSlice({
     clearNotifications: (state) => {
       state.notifications = [];
     },
+    setRobotTypeList: (state, action) => {
+      state.robotTypeList = action.payload;
+    },
   },
 });
 
@@ -80,6 +84,7 @@ export const {
   addNotification,
   removeNotification,
   clearNotifications,
+  setRobotTypeList,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

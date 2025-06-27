@@ -23,6 +23,7 @@ import SystemStatus from './SystemStatus';
 import EpisodeStatus from './EpisodeStatus';
 import Tooltip from './Tooltip';
 import TaskPhase from '../constants/taskPhases';
+import { useSelector } from 'react-redux';
 
 const buttons = [
   {
@@ -74,7 +75,9 @@ const phaseGuideMessages = {
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];
 
-export default function ControlPanel({ onCommand, episodeStatus, taskInfo, page }) {
+export default function ControlPanel({ onCommand, episodeStatus, page }) {
+  const taskInfo = useSelector((state) => state.tasks.taskInfo);
+
   const [hovered, setHovered] = useState(null);
   const [pressed, setPressed] = useState(null);
   const [started, setStarted] = useState(false);

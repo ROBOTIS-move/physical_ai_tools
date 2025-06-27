@@ -17,6 +17,7 @@
  */
 
 import { createSlice } from '@reduxjs/toolkit';
+import TaskPhase from '../../constants/taskPhases';
 
 const initialState = {
   taskInfo: {
@@ -74,6 +75,12 @@ const taskSlice = createSlice({
     setTaskStatus: (state, action) => {
       state.taskStatus = { ...state.taskStatus, ...action.payload };
     },
+    setRobotType: (state, action) => {
+      state.taskStatus.robotType = action.payload;
+    },
+    selectRobotType: (state, action) => {
+      state.taskStatus.robotType = action.payload;
+    },
     resetTaskStatus: (state) => {
       state.taskStatus = initialState.taskStatus;
     },
@@ -96,6 +103,8 @@ export const {
   setTaskInfo,
   resetTaskInfo,
   setTaskStatus,
+  setRobotType,
+  selectRobotType,
   resetTaskStatus,
   setTaskType,
   setTaskInstruction,

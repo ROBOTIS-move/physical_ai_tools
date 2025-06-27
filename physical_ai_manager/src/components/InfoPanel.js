@@ -20,7 +20,8 @@ import TagInput from './TagInput';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { setTaskInfo } from '../features/tasks/taskSlice';
 
 const taskInfos = [
   {
@@ -53,7 +54,7 @@ const taskInfos = [
   },
 ];
 
-const InfoPanel = ({ onChange, disabled = false, rosHost }) => {
+const InfoPanel = ({ disabled = false }) => {
   const info = useSelector((state) => state.tasks.taskInfo);
   const dispatch = useDispatch();
 
@@ -73,21 +74,20 @@ const InfoPanel = ({ onChange, disabled = false, rosHost }) => {
   // User ID selection states
   const [showUserIdDropdown, setShowUserIdDropdown] = useState(false);
 
-  // ROS service caller
+  const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
 
-  const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
   const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller(rosbridgeUrl);
 
   const handleChange = useCallback(
     (field, value) => {
       if (!isEditable) return; // Block changes when not editable
-      onChange({ ...info, [field]: value });
+      dispatch(setTaskInfo({ ...info, [field]: value }));
     },
-    [isEditable, onChange, info]
+    [isEditable, info]
   );
 
   const handleSelect = (selected) => {
-    onChange(selected);
+    dispatch(setTaskInfo(selected));
     setShowPopup(false);
   };
 

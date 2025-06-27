@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight } from 'react-icons/md';
 import toast, { useToasterStore } from 'react-hot-toast';
@@ -23,24 +23,18 @@ import ControlPanel from '../components/ControlPanel';
 import InferencePanel from '../components/InferencePanel';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import TaskPhase from '../constants/taskPhases';
+import { useSelector } from 'react-redux';
 
-export default function InferencePage({
-  topics,
-  setTopics,
-  rosHost,
-  taskStatus: propsTaskStatus,
-  taskInfo: propsTaskInfo,
-  isActive = true,
-}) {
-  const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
+export default function InferencePage({ isActive = true }) {
+  const rosHost = useSelector((state) => state.ros.rosHost);
+  const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
 
   // Toast limit implementation using useToasterStore
   const { toasts } = useToasterStore();
   const TOAST_LIMIT = 3;
 
-  // Use taskStatus and taskInfo from props (received from App.js)
-  const taskStatus = propsTaskStatus;
-  const taskInfo = propsTaskInfo;
+  const taskStatus = useSelector((state) => state.tasks.taskStatus);
+  const taskInfo = useSelector((state) => state.tasks.taskInfo);
 
   const [info, setInfo] = useState(
     { ...taskInfo, taskType: 'inference' } || { taskType: 'inference' }
@@ -75,11 +69,6 @@ export default function InferencePage({
   }, [taskStatus, taskInfo]);
 
   const { sendRecordCommand } = useRosServiceCaller(rosbridgeUrl);
-
-  // Memoize the onChange handler to prevent recreation on every render
-  const handleInfoChange = useCallback((newInfo) => {
-    setInfo(newInfo);
-  }, []);
 
   // Validation function for required fields
   const validateTaskInfo = (taskInfo) => {
@@ -149,15 +138,15 @@ export default function InferencePage({
           console.error('Validation failed. Missing fields:', validation.missingFields);
           return;
         }
-        result = await sendRecordCommand('start_inference', info);
+        result = await sendRecordCommand('start_inference', taskInfo);
       } else if (cmd === 'Stop') {
-        result = await sendRecordCommand('stop', info);
+        result = await sendRecordCommand('stop', taskInfo);
       } else if (cmd === 'Retry') {
-        result = await sendRecordCommand('rerecord', info);
+        result = await sendRecordCommand('rerecord', taskInfo);
       } else if (cmd === 'Next') {
-        result = await sendRecordCommand('next', info);
+        result = await sendRecordCommand('next', taskInfo);
       } else if (cmd === 'Finish') {
-        result = await sendRecordCommand('finish', info);
+        result = await sendRecordCommand('finish', taskInfo);
       } else {
         console.warn(`Unknown command: ${cmd}`);
         toast.error(`Unknown command: ${cmd}`);
@@ -329,12 +318,7 @@ export default function InferencePage({
             <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
           </div>
           <div className={classImageGridContainer}>
-            <ImageGrid
-              topics={topics}
-              setTopics={setTopics}
-              rosHost={rosHost}
-              isActive={isActive}
-            />
+            <ImageGrid rosHost={rosHost} isActive={isActive} />
           </div>
         </div>
         <div className={classRightPanelArea}>
@@ -354,10 +338,7 @@ export default function InferencePage({
           <div className={classRightPanel}>
             <div className="w-full min-h-10"></div>
             <InferencePanel
-              info={info}
-              onChange={handleInfoChange}
               disabled={taskStatus?.phase !== TaskPhase.READY || !isTaskStatusPaused}
-              rosHost={rosHost}
             />
           </div>
         </div>
@@ -365,7 +346,6 @@ export default function InferencePage({
       <ControlPanel
         onCommand={handleControlCommand}
         episodeStatus={episodeStatus}
-        taskInfo={info}
         page="inference"
       />
     </div>

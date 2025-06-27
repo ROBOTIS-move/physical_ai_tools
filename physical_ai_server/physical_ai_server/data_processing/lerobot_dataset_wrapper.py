@@ -99,17 +99,17 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             episode_tasks = list(set(tasks))
 
             from rclpy.logging import get_logger
-            logger = get_logger('save_all_marked_episodes')
-            logger.info(f"buffer_index: {episode_buffer['index']}")
-            logger.info(f"episode_index: {episode_buffer['episode_index']}")
-            logger.info(f"episode_length: {episode_length}")
-            logger.info(f"tasks: {tasks}")
-            logger.info(f"episode_tasks: {episode_tasks}")
+            # logger = get_logger('save_all_marked_episodes')
+            # logger.info(f"buffer_index: {episode_buffer['index']}")
+            # logger.info(f"episode_index: {episode_buffer['episode_index']}")
+            # logger.info(f"episode_length: {episode_length}")
+            # logger.info(f"tasks: {tasks}")
+            # logger.info(f"episode_tasks: {episode_tasks}")
 
-            # for task in episode_tasks:
-            #     task_index = self.meta.get_task_index(task)
-            #     if task_index is None:
-            #         self.meta.add_task(task)
+            for task in episode_tasks:
+                task_index = self.meta.get_task_index(task)
+                if task_index is None:
+                    self.meta.add_task(task)
 
             episode_buffer['task_index'] = np.array([self.meta.get_task_index(task) for task in tasks])
             logger.info(f"episode_buffer['task_index']: {episode_buffer['task_index']}")
@@ -196,6 +196,65 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 self.episode_buffer[key].append(frame[key])
 
         self.episode_buffer['size'] += 1
+        
+    def save_episode_without_video_encoding(self):
+        episode_buffer = self.episode_buffer
+        
+        validate_episode_buffer(
+            episode_buffer,
+            self.meta.total_episodes,
+            self.features)
+
+        episode_length = episode_buffer.pop('size')
+        tasks = episode_buffer.pop('task')
+        episode_tasks = list(set(tasks))
+        episode_index = episode_buffer['episode_index']
+
+        episode_buffer['index'] = np.arange(
+            self.meta.total_frames,
+            self.meta.total_frames + episode_length)
+        episode_buffer['episode_index'] = np.full((episode_length,), episode_index)
+        # Add new tasks to the tasks dictionary
+        for task in episode_tasks:
+            task_index = self.meta.get_task_index(task)
+            if task_index is None:
+                self.meta.add_task(task)
+
+        # Given tasks in natural language, find their corresponding task indices
+        episode_buffer['task_index'] = np.array([self.meta.get_task_index(task) for task in tasks])
+
+        for key, ft in self.features.items():
+            if (key in ['index', 'episode_index', 'task_index'] or
+                    ft['dtype'] in ['image', 'video']):
+                continue
+            episode_buffer[key] = np.stack(episode_buffer[key])
+
+        self._save_episode_table(episode_buffer, episode_index)
+        ep_stats = self.compute_episode_stats_buffer(episode_buffer, self.features)
+
+        video_paths = {}
+        video_count = 0
+        for key, ep in self.episode_buffer.items():
+            if 'observation.images' in key:
+                video_path = self.root / self.meta.get_video_file_path(episode_index, key)
+                video_paths[key] = str(video_path)
+                video_count += 1
+                video_info = {
+                    'video.height': self.features[key]['shape'][0],
+                    'video.width': self.features[key]['shape'][1],
+                    'video.channels': self.features[key]['shape'][2],
+                    'video.codec': 'libx264',
+                    'video.pix_fmt': 'yuv420p',
+                }
+                self.meta.info['features'][key]['info'] = video_info
+
+        self.save_meta_info(
+            video_count,
+            episode_index,
+            episode_length,
+            episode_tasks,
+            ep_stats
+        )
 
     def save_episode_without_write_image(self):
         episode_buffer = self.episode_buffer

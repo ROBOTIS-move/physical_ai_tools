@@ -76,11 +76,11 @@ class DataManager:
                 return self.RECORDING
 
         elif self._status == 'run':
-            if not self._single_task and not self._check_time(self._task_info.episode_time_s, 'save'):
-                frame = self.create_frame(images, state, action)
-                self._lerobot_dataset.add_frame_with_marking(frame)
+            # if not self._single_task and not self._check_time(self._task_info.episode_time_s, 'save'):
+            #     frame = self.create_frame(images, state, action)
+            #     self._lerobot_dataset.add_frame_with_marking(frame)
                 
-            elif not self._check_time(self._task_info.episode_time_s, 'save'):
+            if not self._check_time(self._task_info.episode_time_s, 'save'):
                 if RAMChecker.get_free_ram_gb() < self.RAM_LIMIT_GB:
                     self.record_early_save()
                     return self.RECORDING
@@ -99,17 +99,28 @@ class DataManager:
                     self._status = 'reset'
                     self._start_time_s = 0
                     self._on_saving = False
+                elif not self._single_task:
+                    self._episode_reset()
+                    self._record_episode_count += 1
+                    self._current_task += 1
+                    self._status = 'reset'
+                    self._start_time_s = 0
+                    self._on_saving = False
             else:
                 self.save()
                 self._on_saving = True
 
         elif self._status == 'reset':
-            if not self._check_time(self._task_info.reset_time_s, 'run'):
-                return self.RECORDING
+            if not self._single_task:
+                if not self._check_time(self.SKIP_TIME, 'run'):
+                    return self.RECORDING
+            else:
+                if not self._check_time(self._task_info.reset_time_s, 'run'):
+                    return self.RECORDING
 
         elif self._status == 'skip':
             if not self._check_time(self.SKIP_TIME, 'run'):
-                return self.RECORDING    
+                return self.RECORDING
 
         elif self._status == 'stop':
             if not self._stop_save_completed:
@@ -155,7 +166,8 @@ class DataManager:
 
     def save(self):
         if not self._single_task:
-            self._lerobot_dataset.save_all_marked_episodes()
+            # self._lerobot_dataset.save_all_marked_episodes()
+            self._lerobot_dataset.save_episode_without_video_encoding()
         else:
             if self._lerobot_dataset.episode_buffer is None:
                 return
@@ -199,11 +211,12 @@ class DataManager:
     def record_skip(self):
         self._stop_save_completed = False
         self._episode_reset()
-        self._status = 'skip'
+        self._sta6tus = 'skip'
         self._current_task += 1
 
     def record_next_episode(self):
-        self._lerobot_dataset.mark_episode_split()
+        # self._lerobot_dataset.mark_episode_split()
+        self._status = 'save'
         self._current_task += 1
 
     def get_current_record_status(self):

@@ -27,42 +27,45 @@ const layout = [{ aspect: '16/9' }, { aspect: '16/9' }, { aspect: '16/9' }];
 
 export default function ImageGrid({ isActive = true }) {
   const dispatch = useDispatch();
-  const rosHost = useSelector((state) => state.ros.rosHost);
   const imageTopicList = useSelector((state) => state.ros.imageTopicList);
 
   const [modalOpen, setModalOpen] = React.useState(false);
   const [selectedIdx, setSelectedIdx] = React.useState(null);
-  const [topicList, setTopicList] = useState([]);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [topicListError, setTopicListError] = useState(null);
 
-  const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
-  const { getImageTopicList } = useRosServiceCaller(rosbridgeUrl);
+  const { getImageTopicList } = useRosServiceCaller();
 
   // Auto-assign topics to grid cells (center, left, right order)
-  const autoAssignTopics = useCallback((imageTopics, isRefresh = false) => {
-    if (imageTopics.length > 0) {
-      const autoTopics = Array(layout.length).fill(null);
+  const autoAssignTopics = useCallback(
+    (imageTopics, isRefresh = false) => {
+      if (imageTopics.length > 0) {
+        const autoTopics = Array(layout.length).fill(null);
 
-      // Assignment order: center (idx=1), left (idx=0), right (idx=2)
-      const assignmentOrder = [1, 0, 2];
+        // Assignment order: center (idx=1), left (idx=0), right (idx=2)
+        const assignmentOrder = [1, 0, 2];
 
-      for (let i = 0; i < Math.min(imageTopics.length, assignmentOrder.length); i++) {
-        autoTopics[assignmentOrder[i]] = imageTopics[i];
-        console.log(
-          `${isRefresh ? 'Re-a' : 'A'}ssigned topic ${imageTopics[i]} to grid position ${
-            assignmentOrder[i]
-          }`
+        for (let i = 0; i < Math.min(imageTopics.length, assignmentOrder.length); i++) {
+          autoTopics[assignmentOrder[i]] = imageTopics[i];
+          console.log(
+            `${isRefresh ? 'Re-a' : 'A'}ssigned topic ${imageTopics[i]} to grid position ${
+              assignmentOrder[i]
+            }`
+          );
+        }
+
+        console.log(`Final ${isRefresh ? 're-assigned' : 'auto-assigned'} topics:`, autoTopics);
+        dispatch(setImageTopicList(autoTopics));
+        toast.success(
+          `${isRefresh ? 'Re-a' : 'Auto-a'}ssigned ${Math.min(
+            imageTopics.length,
+            3
+          )} topics to grid`
         );
       }
-
-      console.log(`Final ${isRefresh ? 're-assigned' : 'auto-assigned'} topics:`, autoTopics);
-      dispatch(setImageTopicList(autoTopics));
-      toast.success(
-        `${isRefresh ? 'Re-a' : 'Auto-a'}ssigned ${Math.min(imageTopics.length, 3)} topics to grid`
-      );
-    }
-  }, []);
+    },
+    [dispatch]
+  );
 
   // Adjust the length of the topics array
   React.useEffect(() => {
@@ -105,7 +108,7 @@ export default function ImageGrid({ isActive = true }) {
     };
 
     fetchTopicList();
-  }, [getImageTopicList, autoAssignTopics]);
+  }, [getImageTopicList, autoAssignTopics, dispatch]);
 
   const handlePlusClick = (idx) => {
     setSelectedIdx(idx);
@@ -193,7 +196,6 @@ export default function ImageGrid({ isActive = true }) {
               topic={imageTopicList[idx]}
               aspect={cell.aspect}
               idx={idx}
-              rosHost={rosHost}
               onClose={handleCellClose}
               onPlusClick={handlePlusClick}
               isActive={isActive}

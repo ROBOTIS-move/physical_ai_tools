@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { MdHome, MdVideocam, MdMemory } from 'react-icons/md';
 import { Toaster } from 'react-hot-toast';
@@ -23,11 +23,11 @@ import './App.css';
 import HomePage from './pages/HomePage';
 import RecordPage from './pages/RecordPage';
 import InferencePage from './pages/InferencePage';
-import SettingPage from './pages/SettingPage';
 import { useRosTaskStatus } from './hooks/useRosTaskStatus';
 import { useDispatch, useSelector } from 'react-redux';
 import { setRosHost } from './features/ros/rosSlice';
-import { setCurrentPage } from './features/ui/uiSlice';
+import { moveToPage } from './features/ui/uiSlice';
+import PageType from './constants/pageType';
 
 function App() {
   const dispatch = useDispatch();
@@ -37,40 +37,28 @@ function App() {
   const defaultRosHost = window.location.hostname;
   dispatch(setRosHost(defaultRosHost));
 
-  const rosHost = useSelector((state) => state.ros.rosHost);
   const page = useSelector((state) => state.ui.currentPage);
+  const robotType = useSelector((state) => state.tasks.taskStatus.robotType);
 
-  const [currentRobotType, setCurrentRobotType] = useState('');
   const isFirstLoad = useRef(true);
 
   // Subscribe to task status from ROS topic (always active)
   useRosTaskStatus();
 
   useEffect(() => {
-    if (isFirstLoad.current && page === 'home' && taskStatus.topicReceived) {
-      if (taskInfo?.taskType === 'record') {
-        dispatch(setCurrentPage('record'));
-      } else if (taskInfo?.taskType === 'inference') {
-        dispatch(setCurrentPage('inference'));
+    if (isFirstLoad.current && page === PageType.HOME && taskStatus.topicReceived) {
+      if (taskInfo?.taskType === PageType.RECORD) {
+        dispatch(moveToPage(PageType.RECORD));
+      } else if (taskInfo?.taskType === PageType.INFERENCE) {
+        dispatch(moveToPage(PageType.INFERENCE));
       }
       isFirstLoad.current = false;
     }
-  }, [page]);
-
-  // Load YAML content from local storage
-  const [yamlContent, setYamlContent] = useState(() => {
-    const savedContent = localStorage.getItem('yamlFileContent');
-    try {
-      return savedContent ? JSON.parse(savedContent) : null;
-    } catch (error) {
-      console.error('Error parsing YAML data from local storage:', error);
-      return null;
-    }
-  });
+  }, [page, taskInfo?.taskType, taskStatus.topicReceived, dispatch]);
 
   const handleHomePageNavigation = () => {
     isFirstLoad.current = false;
-    dispatch(setCurrentPage('home'));
+    dispatch(moveToPage(PageType.HOME));
   };
 
   // Check conditions for Record page navigation
@@ -78,7 +66,7 @@ function App() {
     if (process.env.REACT_APP_DEBUG === 'true') {
       console.log('handleRecordPageNavigation');
       isFirstLoad.current = false;
-      dispatch(setCurrentPage('record'));
+      dispatch(moveToPage(PageType.RECORD));
       return;
     }
 
@@ -86,12 +74,12 @@ function App() {
     if (taskStatus && taskStatus.robotType !== '') {
       console.log('robot type:', taskStatus.robotType, '=> allowing navigation to Record page');
       isFirstLoad.current = false;
-      dispatch(setCurrentPage('record'));
+      dispatch(moveToPage(PageType.RECORD));
       return;
     }
 
     // Block navigation if robot type is not set
-    if (!currentRobotType || currentRobotType.trim() === '') {
+    if (!robotType || robotType.trim() === '') {
       toast.error('Please select a robot type first in the Home page', {
         duration: 4000,
       });
@@ -101,14 +89,14 @@ function App() {
 
     // Allow navigation if conditions are met
     console.log('Robot type set, allowing navigation to Record page');
-    dispatch(setCurrentPage('record'));
+    dispatch(moveToPage(PageType.RECORD));
   };
 
   const handleInferencePageNavigation = () => {
     if (process.env.REACT_APP_DEBUG === 'true') {
       console.log('handleInferencePageNavigation');
       isFirstLoad.current = false;
-      dispatch(setCurrentPage('inference'));
+      dispatch(moveToPage(PageType.INFERENCE));
       return;
     }
 
@@ -116,12 +104,12 @@ function App() {
     if (taskStatus && taskStatus.robotType !== '') {
       console.log('robot type:', taskStatus.robotType, '=> allowing navigation to Inference page');
       isFirstLoad.current = false;
-      dispatch(setCurrentPage('inference'));
+      dispatch(moveToPage(PageType.INFERENCE));
       return;
     }
 
     // Block navigation if robot type is not set
-    if (!currentRobotType || currentRobotType.trim() === '') {
+    if (!robotType || robotType.trim() === '') {
       toast.error('Please select a robot type first in the Home page', {
         duration: 4000,
       });
@@ -131,7 +119,7 @@ function App() {
 
     // Allow navigation if conditions are met
     console.log('Robot type set, allowing navigation to Inference page');
-    dispatch(setCurrentPage('inference'));
+    dispatch(moveToPage(PageType.INFERENCE));
   };
 
   return (
@@ -154,8 +142,8 @@ function App() {
             'outline-none',
             'min-w-24',
             {
-              'hover:bg-gray-200 active:bg-gray-400': page !== 'home',
-              'bg-gray-300': page === 'home',
+              'hover:bg-gray-200 active:bg-gray-400': page !== PageType.HOME,
+              'bg-gray-300': page === PageType.HOME,
             }
           )}
           onClick={handleHomePageNavigation}
@@ -180,8 +168,8 @@ function App() {
             'outline-none',
             'min-w-24',
             {
-              'hover:bg-gray-200 active:bg-gray-400': page !== 'record',
-              'bg-gray-300': page === 'record',
+              'hover:bg-gray-200 active:bg-gray-400': page !== PageType.RECORD,
+              'bg-gray-300': page === PageType.RECORD,
             }
           )}
           onClick={handleRecordPageNavigation}
@@ -206,8 +194,8 @@ function App() {
             'outline-none',
             'w-24',
             {
-              'hover:bg-gray-200 active:bg-gray-400': page !== 'inference',
-              'bg-gray-300': page === 'inference',
+              'hover:bg-gray-200 active:bg-gray-400': page !== PageType.INFERENCE,
+              'bg-gray-300': page === PageType.INFERENCE,
             }
           )}
           onClick={handleInferencePageNavigation}
@@ -217,23 +205,14 @@ function App() {
         </button>
       </aside>
       <main className="flex-1 flex flex-col h-screen min-h-0">
-        {page === 'home' ? (
-          <HomePage
-            rosHost={rosHost}
-            currentRobotType={currentRobotType}
-            setCurrentRobotType={setCurrentRobotType}
-          />
-        ) : page === 'record' ? (
-          <RecordPage rosHost={rosHost} yamlContent={yamlContent} isActive={page === 'record'} />
-        ) : page === 'inference' ? (
-          <InferencePage rosHost={rosHost} isActive={page === 'inference'} />
+        {page === PageType.HOME ? (
+          <HomePage />
+        ) : page === PageType.RECORD ? (
+          <RecordPage isActive={page === PageType.RECORD} />
+        ) : page === PageType.INFERENCE ? (
+          <InferencePage isActive={page === PageType.INFERENCE} />
         ) : (
-          <SettingPage
-            rosHost={rosHost}
-            setRosHost={setRosHost}
-            yamlContent={yamlContent}
-            setYamlContent={setYamlContent}
-          />
+          <HomePage />
         )}
       </main>
       <Toaster

@@ -18,14 +18,17 @@
 
 import { createSlice } from '@reduxjs/toolkit';
 
+import PageType from '../../constants/pageType';
+
 const initialState = {
   isLoading: false,
   error: null,
-  currentPage: 'home',
+  currentPage: PageType.HOME,
   sidebarOpen: false,
   modalOpen: false,
   notifications: [],
   robotTypeList: [],
+  isFirstLoad: true,
 };
 
 const uiSlice = createSlice({
@@ -42,6 +45,10 @@ const uiSlice = createSlice({
       state.error = null;
     },
     setCurrentPage: (state, action) => {
+      state.currentPage = action.payload;
+    },
+    moveToPage: (state, action) => {
+      state.isFirstLoad = false;
       state.currentPage = action.payload;
     },
     toggleSidebar: (state) => {
@@ -78,6 +85,7 @@ export const {
   setError,
   clearError,
   setCurrentPage,
+  moveToPage,
   toggleSidebar,
   setSidebarOpen,
   setModalOpen,

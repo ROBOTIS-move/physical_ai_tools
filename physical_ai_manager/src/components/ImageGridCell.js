@@ -17,6 +17,7 @@
 import React from 'react';
 import clsx from 'clsx';
 import { MdClose } from 'react-icons/md';
+import { useSelector } from 'react-redux';
 
 const classImageGridCell = (topic) =>
   clsx(
@@ -56,12 +57,13 @@ export default function ImageGridCell({
   topic,
   aspect,
   idx,
-  rosHost,
   onClose,
   onPlusClick,
   isActive = true,
   style = {},
 }) {
+  const rosHost = useSelector((state) => state.ros.rosHost);
+
   return (
     <div
       className={classImageGridCell(topic)}

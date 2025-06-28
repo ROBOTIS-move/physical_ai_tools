@@ -96,6 +96,14 @@ const taskSlice = createSlice({
     setRecordInferenceMode: (state, action) => {
       state.taskInfo.recordInferenceMode = action.payload;
     },
+    addTag: (state, action) => {
+      if (!state.taskInfo.tags.includes(action.payload)) {
+        state.taskInfo.tags.push(action.payload);
+      }
+    },
+    removeTag: (state, action) => {
+      state.taskInfo.tags = state.taskInfo.tags.filter((tag) => tag !== action.payload);
+    },
   },
 });
 
@@ -110,6 +118,8 @@ export const {
   setTaskInstruction,
   setPolicyPath,
   setRecordInferenceMode,
+  addTag,
+  removeTag,
 } = taskSlice.actions;
 
 export default taskSlice.reducer;

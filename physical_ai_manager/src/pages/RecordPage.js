@@ -21,25 +21,20 @@ import toast, { useToasterStore } from 'react-hot-toast';
 import ImageGrid from '../components/ImageGrid';
 import ControlPanel from '../components/ControlPanel';
 import InfoPanel from '../components/InfoPanel';
-import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import TaskPhase from '../constants/taskPhases';
 import { useSelector, useDispatch } from 'react-redux';
-import { setTaskInfo } from '../features/tasks/taskSlice';
+import { addTag, setTaskType } from '../features/tasks/taskSlice';
 
 export default function RecordPage({ isActive = true }) {
-  const rosHost = useSelector((state) => state.ros.rosHost);
-  const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
+  const dispatch = useDispatch();
 
   const taskInfo = useSelector((state) => state.tasks.taskInfo);
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
-
-  const dispatch = useDispatch();
 
   // Toast limit implementation using useToasterStore
   const { toasts } = useToasterStore();
   const TOAST_LIMIT = 3;
 
-  const [episodeStatus, setEpisodeStatus] = useState(taskStatus);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
   const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
@@ -51,134 +46,19 @@ export default function RecordPage({ isActive = true }) {
       .forEach((t) => toast.dismiss(t.id)); // Dismiss – Use toast.remove(t.id) for no exit animation
   }, [toasts]);
 
-  // Update episodeStatus when taskStatus changes
   useEffect(() => {
-    if (taskStatus) {
-      setEpisodeStatus(taskStatus);
-
-      if (taskStatus.error !== '') {
-        toast.error(`${taskStatus.error}`);
-      }
+    if (taskStatus.robotType !== '' && taskInfo.tags.length === 0) {
+      dispatch(addTag(taskStatus.robotType));
+      dispatch(addTag('robotis'));
     }
-  }, [taskStatus]);
+  }, [taskInfo.tags, taskStatus.robotType, dispatch]);
 
   useEffect(() => {
-    if (taskStatus.robotType !== '') {
-      dispatch(
-        setTaskInfo({ ...taskInfo, tags: [taskStatus.robotType, 'robotis'], taskType: 'record' })
-      );
+    if (!taskStatus.running) {
+      console.log('record');
+      dispatch(setTaskType('record'));
     }
-  }, []);
-
-  const { sendRecordCommand } = useRosServiceCaller(rosbridgeUrl);
-
-  // Validation function for required fields
-  const validateTaskInfo = () => {
-    const requiredFields = [
-      { key: 'taskName', label: 'Task Name' },
-      { key: 'taskType', label: 'Task Type' },
-      { key: 'taskInstruction', label: 'Task Instruction' },
-      { key: 'userId', label: 'User ID' },
-      { key: 'fps', label: 'FPS' },
-      { key: 'warmupTime', label: 'Warmup Time' },
-      { key: 'episodeTime', label: 'Episode Time' },
-      { key: 'resetTime', label: 'Reset Time' },
-      { key: 'numEpisodes', label: 'Num Episodes' },
-    ];
-
-    const missingFields = [];
-
-    for (const field of requiredFields) {
-      const value = taskInfo[field.key];
-
-      // Check if field is empty or invalid
-      if (
-        value === null ||
-        value === undefined ||
-        value === '' ||
-        (typeof value === 'string' && value.trim() === '') ||
-        (typeof value === 'number' && (isNaN(value) || value <= 0))
-      ) {
-        missingFields.push(field.label);
-      }
-    }
-
-    if (taskInfo.userId === 'Select User ID') {
-      missingFields.push('User ID');
-    }
-
-    return {
-      isValid: missingFields.length === 0,
-      missingFields,
-    };
-  };
-
-  const handleControlCommand = async (cmd) => {
-    console.log('Control command received:', cmd);
-    let result;
-
-    try {
-      // Execute the appropriate command
-      if (cmd === 'Start') {
-        // Validate info before starting
-        const validation = validateTaskInfo();
-        if (!validation.isValid) {
-          toast.error(`Missing required fields: ${validation.missingFields.join(', ')}`);
-          console.error('Validation failed. Missing fields:', validation.missingFields);
-          return;
-        }
-        result = await sendRecordCommand('start_record', taskInfo);
-      } else if (cmd === 'Stop') {
-        result = await sendRecordCommand('stop', taskInfo);
-      } else if (cmd === 'Retry') {
-        result = await sendRecordCommand('rerecord', taskInfo);
-      } else if (cmd === 'Next') {
-        result = await sendRecordCommand('next', taskInfo);
-      } else if (cmd === 'Finish') {
-        result = await sendRecordCommand('finish', taskInfo);
-      } else {
-        console.warn(`Unknown command: ${cmd}`);
-        toast.error(`Unknown command: ${cmd}`);
-        return;
-      }
-
-      console.log('Service call result:', result);
-
-      // Handle service response
-      if (result && result.success === false) {
-        toast.error(`Command failed: ${result.message || 'Unknown error'}`);
-        console.error(`Command '${cmd}' failed:`, result.message);
-      } else if (result && result.success === true) {
-        toast.success(`Command [${cmd}] executed successfully`);
-        console.log(`Command '${cmd}' executed successfully`);
-
-        // Task status will be updated automatically from ROS
-      } else {
-        // Handle case where result is undefined or doesn't have success field
-        console.warn(`Unexpected result format for command '${cmd}':`, result);
-        toast.error(`Command [${cmd}] completed with uncertain status`);
-      }
-    } catch (error) {
-      console.error('Error handling control command:', error);
-
-      // Show more specific error messages
-      let errorMessage = error.message || error.toString();
-      if (
-        errorMessage.includes('ROS connection failed') ||
-        errorMessage.includes('ROS connection timeout') ||
-        errorMessage.includes('WebSocket')
-      ) {
-        toast.error(`🔌 ROS connection failed: rosbridge server is not running (${rosHost})`);
-      } else if (errorMessage.includes('timeout')) {
-        toast.error(`⏰ Command execution timeout [${cmd}]: Server did not respond`);
-      } else {
-        toast.error(`❌ Command execution failed [${cmd}]: ${errorMessage}`);
-      }
-
-      // Continue execution even after error - don't block UI
-      console.log(`Continuing after error in command '${cmd}'`);
-    }
-  };
+  }, [dispatch, taskStatus.running]);
 
   // track task status update
   useEffect(() => {
@@ -307,7 +187,7 @@ export default function RecordPage({ isActive = true }) {
             <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
           </div>
           <div className={classImageGridContainer}>
-            <ImageGrid rosHost={rosHost} isActive={isActive} />
+            <ImageGrid isActive={isActive} />
           </div>
         </div>
         <div className={classRightPanelArea}>
@@ -330,7 +210,7 @@ export default function RecordPage({ isActive = true }) {
           </div>
         </div>
       </div>
-      <ControlPanel onCommand={handleControlCommand} episodeStatus={episodeStatus} page="record" />
+      <ControlPanel />
     </div>
   );
 }

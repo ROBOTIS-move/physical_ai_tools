@@ -122,8 +122,12 @@ export function useRosTaskStatus() {
           progress = msg.total_time > 0 ? (msg.proceed_time / msg.total_time) * 100 : 0;
         }
 
-        // Determine if task is running (phase 1, 2, or 3)
-        const isRunning = msg.phase >= TaskPhase.WARMING_UP && msg.phase <= TaskPhase.RECORDING;
+        const isRunning =
+          msg.phase === TaskPhase.WARMING_UP ||
+          msg.phase === TaskPhase.RESETTING ||
+          msg.phase === TaskPhase.RECORDING ||
+          msg.phase === TaskPhase.SAVING ||
+          msg.phase === TaskPhase.INFERENCING;
 
         // ROS message to React state
         dispatch(
@@ -174,7 +178,7 @@ export function useRosTaskStatus() {
     } catch (error) {
       console.error('Failed to subscribe to task status topic:', error);
     }
-  }, [getRosConnection]);
+  }, [getRosConnection, dispatch]);
 
   const cleanup = useCallback(() => {
     if (topicRef.current) {

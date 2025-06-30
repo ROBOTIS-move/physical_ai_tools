@@ -18,6 +18,7 @@ import { useRef, useCallback } from 'react';
 import ROSLIB from 'roslib';
 import TaskCommand from '../constants/taskCommand';
 import { useSelector } from 'react-redux';
+import PageType from '../constants/pageType';
 
 export function useRosServiceCaller() {
   const rosRef = useRef(null);
@@ -25,6 +26,7 @@ export function useRosServiceCaller() {
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
 
   const taskInfo = useSelector((state) => state.tasks.taskInfo);
+  const page = useSelector((state) => state.ui.currentPage);
 
   const getRosConnection = useCallback(() => {
     return new Promise((resolve, reject) => {
@@ -137,9 +139,9 @@ export function useRosServiceCaller() {
 
         let taskType = '';
 
-        if (command === 'start_record') {
+        if (page === PageType.RECORD) {
           taskType = 'record';
-        } else if (command === 'start_inference') {
+        } else if (page === PageType.INFERENCE) {
           taskType = 'inference';
         }
 
@@ -179,7 +181,7 @@ export function useRosServiceCaller() {
         throw new Error(`${error.message || error}`);
       }
     },
-    [callService, taskInfo]
+    [callService, taskInfo, page]
   );
 
   const getImageTopicList = useCallback(async () => {

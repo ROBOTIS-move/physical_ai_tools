@@ -50,7 +50,7 @@ const InferencePanel = ({ disabled = false }) => {
       if (!isEditable) return; // Block changes when not editable
       dispatch(setTaskInfo({ ...info, [field]: value }));
     },
-    [isEditable, info]
+    [isEditable, info, dispatch]
   );
 
   const handleTokenSubmit = async () => {

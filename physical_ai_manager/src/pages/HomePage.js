@@ -17,6 +17,7 @@
 import React from 'react';
 import clsx from 'clsx';
 import RobotTypeSelector from '../components/RobotTypeSelector';
+import HeartbeatStatus from '../components/HeartbeatStatus';
 
 export default function HomePage() {
   const classContainer = clsx(
@@ -28,8 +29,13 @@ export default function HomePage() {
     'pt-10'
   );
 
+  const classHeartbeatStatus = clsx('absolute', 'top-5', 'left-35', 'z-10');
+
   return (
     <div className={classContainer}>
+      <div className={classHeartbeatStatus}>
+        <HeartbeatStatus />
+      </div>
       <RobotTypeSelector />
     </div>
   );

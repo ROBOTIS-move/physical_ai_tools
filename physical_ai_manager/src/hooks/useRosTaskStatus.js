@@ -18,11 +18,17 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import ROSLIB from 'roslib';
 import TaskPhase from '../constants/taskPhases';
-import { setTaskStatus, setTaskInfo } from '../features/tasks/taskSlice';
+import {
+  setTaskStatus,
+  setTaskInfo,
+  setHeartbeatStatus,
+  setLastHeartbeatTime,
+} from '../features/tasks/taskSlice';
 
 export function useRosTaskStatus() {
   const rosRef = useRef(null);
-  const topicRef = useRef(null);
+  const taskStatusTopicRef = useRef(null);
+  const heartbeatTopicRef = useRef(null);
 
   const dispatch = useDispatch();
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
@@ -52,24 +58,41 @@ export function useRosTaskStatus() {
     return rosRef.current;
   }, [rosbridgeUrl]);
 
+  const cleanup = useCallback(() => {
+    if (taskStatusTopicRef.current) {
+      taskStatusTopicRef.current.unsubscribe();
+      taskStatusTopicRef.current = null;
+    }
+    if (heartbeatTopicRef.current) {
+      heartbeatTopicRef.current.unsubscribe();
+      heartbeatTopicRef.current = null;
+    }
+    if (rosRef.current) {
+      rosRef.current.close();
+      rosRef.current = null;
+    }
+    setConnected(false);
+    dispatch(setHeartbeatStatus('disconnected'));
+  }, [dispatch]);
+
   const subscribeToTaskStatus = useCallback(() => {
     const ros = getRosConnection();
     if (!ros) return;
 
-    // Unsubscribe existing topic if any
-    if (topicRef.current) {
-      topicRef.current.unsubscribe();
-      topicRef.current = null;
+    // Skip if already subscribed
+    if (taskStatusTopicRef.current) {
+      console.log('Task status already subscribed, skipping...');
+      return;
     }
 
     try {
-      topicRef.current = new ROSLIB.Topic({
+      taskStatusTopicRef.current = new ROSLIB.Topic({
         ros,
         name: '/task/status',
         messageType: 'physical_ai_interfaces/msg/TaskStatus',
       });
 
-      topicRef.current.subscribe((msg) => {
+      taskStatusTopicRef.current.subscribe((msg) => {
         console.log('Received task status:', msg);
 
         let progress = 0;
@@ -141,26 +164,45 @@ export function useRosTaskStatus() {
     }
   }, [getRosConnection, dispatch]);
 
-  const cleanup = useCallback(() => {
-    if (topicRef.current) {
-      topicRef.current.unsubscribe();
-      topicRef.current = null;
+  const subscribeToHeartbeat = useCallback(() => {
+    const ros = getRosConnection();
+    if (!ros) return;
+
+    // Skip if already subscribed
+    if (heartbeatTopicRef.current) {
+      console.log('Heartbeat already subscribed, skipping...');
+      return;
     }
-    if (rosRef.current) {
-      rosRef.current.close();
-      rosRef.current = null;
+
+    try {
+      heartbeatTopicRef.current = new ROSLIB.Topic({
+        ros,
+        name: '/heartbeat',
+        messageType: 'std_msgs/Empty',
+      });
+
+      heartbeatTopicRef.current.subscribe((msg) => {
+        console.log('Received heartbeat:', msg);
+        dispatch(setHeartbeatStatus('connected'));
+        dispatch(setLastHeartbeatTime(Date.now()));
+      });
+
+      console.log('Heartbeat subscription established');
+    } catch (error) {
+      console.error('Failed to subscribe to heartbeat topic:', error);
     }
-    setConnected(false);
-  }, []);
+  }, [getRosConnection, dispatch]);
 
   // Start connection and subscription
   useEffect(() => {
     if (!rosbridgeUrl) return;
 
     subscribeToTaskStatus();
+    subscribeToHeartbeat();
 
     return cleanup;
-  }, [rosbridgeUrl, subscribeToTaskStatus, cleanup]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rosbridgeUrl]); // Only rosbridgeUrl as dependency to prevent unnecessary re-subscriptions
 
   // Helper function to get phase name
   const getPhaseName = useCallback((phase) => {

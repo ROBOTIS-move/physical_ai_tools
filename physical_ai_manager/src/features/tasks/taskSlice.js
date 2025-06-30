@@ -60,6 +60,8 @@ const initialState = {
   availableCameras: [],
   policyList: [],
   datasetList: [],
+  heartbeatStatus: 'disconnected',
+  lastHeartbeatTime: 0,
 };
 
 const taskSlice = createSlice({
@@ -104,6 +106,12 @@ const taskSlice = createSlice({
     removeTag: (state, action) => {
       state.taskInfo.tags = state.taskInfo.tags.filter((tag) => tag !== action.payload);
     },
+    setHeartbeatStatus: (state, action) => {
+      state.heartbeatStatus = action.payload;
+    },
+    setLastHeartbeatTime: (state, action) => {
+      state.lastHeartbeatTime = action.payload;
+    },
   },
 });
 
@@ -120,6 +128,8 @@ export const {
   setRecordInferenceMode,
   addTag,
   removeTag,
+  setHeartbeatStatus,
+  setLastHeartbeatTime,
 } = taskSlice.actions;
 
 export default taskSlice.reducer;

@@ -22,7 +22,8 @@ import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight } from 'react-ico
 import ControlPanel from '../components/ControlPanel';
 import ImageGrid from '../components/ImageGrid';
 import InfoPanel from '../components/InfoPanel';
-import { addTag, setTaskType } from '../features/tasks/taskSlice';
+import { addTag } from '../features/tasks/taskSlice';
+import { setIsFirstLoadFalse } from '../features/ui/uiSlice';
 
 export default function RecordPage({ isActive = true }) {
   const dispatch = useDispatch();
@@ -36,6 +37,8 @@ export default function RecordPage({ isActive = true }) {
 
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
+  const isFirstLoad = useSelector((state) => state.ui.isFirstLoad.record);
+
   useEffect(() => {
     toasts
       .filter((t) => t.visible) // Only consider visible toasts
@@ -44,18 +47,12 @@ export default function RecordPage({ isActive = true }) {
   }, [toasts]);
 
   useEffect(() => {
-    if (taskStatus.robotType !== '' && taskInfo.tags.length === 0) {
+    if (isFirstLoad && taskStatus.robotType !== '' && taskInfo.tags.length === 0) {
       dispatch(addTag(taskStatus.robotType));
       dispatch(addTag('robotis'));
     }
-  }, [taskInfo.tags, taskStatus.robotType, dispatch]);
-
-  useEffect(() => {
-    if (!taskStatus.running) {
-      console.log('record');
-      dispatch(setTaskType('record'));
-    }
-  }, [dispatch, taskStatus.running]);
+    dispatch(setIsFirstLoadFalse('record'));
+  }, [taskInfo.tags, taskStatus.robotType, dispatch, isFirstLoad]);
 
   const classMainContainer = 'h-full flex flex-col overflow-hidden';
   const classContentsArea = 'flex-1 flex min-h-0 pt-0 px-0 justify-center items-start';

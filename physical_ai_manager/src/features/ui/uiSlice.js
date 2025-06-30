@@ -28,7 +28,11 @@ const initialState = {
   modalOpen: false,
   notifications: [],
   robotTypeList: [],
-  isFirstLoad: true,
+  isFirstLoad: {
+    home: true,
+    record: true,
+    inference: true,
+  },
 };
 
 const uiSlice = createSlice({
@@ -48,7 +52,6 @@ const uiSlice = createSlice({
       state.currentPage = action.payload;
     },
     moveToPage: (state, action) => {
-      state.isFirstLoad = false;
       state.currentPage = action.payload;
     },
     toggleSidebar: (state) => {
@@ -77,6 +80,9 @@ const uiSlice = createSlice({
     setRobotTypeList: (state, action) => {
       state.robotTypeList = action.payload;
     },
+    setIsFirstLoadFalse: (state, action) => {
+      state.isFirstLoad[action.payload] = false;
+    },
   },
 });
 
@@ -93,6 +99,7 @@ export const {
   removeNotification,
   clearNotifications,
   setRobotTypeList,
+  setIsFirstLoadFalse,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

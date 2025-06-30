@@ -75,7 +75,7 @@ export default function RobotTypeSelector() {
       return;
     }
 
-    console.log('Attempting to set robot type to:', robotType);
+    console.log('Attempting to set robot type to:', selectedRobotType);
     setLoading(true);
     try {
       const result = await setRobotType(selectedRobotType);
@@ -83,7 +83,7 @@ export default function RobotTypeSelector() {
 
       if (result && result.success) {
         dispatch(selectRobotType(selectedRobotType));
-        toast.success(`Robot type set to: ${robotType}`);
+        toast.success(`Robot type set to: ${selectedRobotType}`);
       } else {
         toast.error(`Failed to set robot type: ${result.message || 'Unknown error'}`);
       }

@@ -44,7 +44,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
   const [taskInfo, setTaskInfo] = useState({
     taskName: '',
     taskType: 'record',
-    taskInstruction: [],
+    taskInstruction: '',
     userId: '',
     fps: 30,
     tags: [],
@@ -144,7 +144,7 @@ export function useRosTaskStatus(rosbridgeUrl, topicName = '/task/status') {
           setTaskInfo({
             taskName: msg.task_info.task_name || '',
             taskType: msg.task_info.task_type || '',
-            taskInstruction: msg.task_info.task_instruction || [],
+            taskInstruction: msg.task_info.task_instruction || '',
             userId: msg.task_info.user_id || '',
             fps: msg.task_info.fps || 0,
             tags: msg.task_info.tags || [],

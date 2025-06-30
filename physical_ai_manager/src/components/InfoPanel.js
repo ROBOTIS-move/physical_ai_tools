@@ -23,7 +23,7 @@ import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import TagInput from './TagInput';
 import TaskPhase from '../constants/taskPhases';
-import { setTaskInfo } from '../features/tasks/taskSlice';
+import { setTaskInfo, setUseMultiTaskMode } from '../features/tasks/taskSlice';
 
 const taskInfos = [
   {
@@ -65,6 +65,8 @@ const InfoPanel = () => {
   const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
   const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
 
+  const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
+
   const [showPopup, setShowPopup] = useState(false);
   const [taskInfoList] = useState(taskInfos);
   const disabled = taskStatus.phase !== TaskPhase.READY || !isTaskStatusPaused;
@@ -81,9 +83,6 @@ const InfoPanel = () => {
 
   // User ID selection states
   const [showUserIdDropdown, setShowUserIdDropdown] = useState(false);
-
-  // Multi-task mode states
-  const [multiTaskMode, setMultiTaskMode] = useState(false);
 
   const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller();
 
@@ -262,7 +261,7 @@ const InfoPanel = () => {
     'rounded-xl',
     'font-medium',
     'transition-colors',
-    !multiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
+    !useMultiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
     !isEditable && 'cursor-not-allowed opacity-60'
   );
 
@@ -273,7 +272,7 @@ const InfoPanel = () => {
     'rounded-xl',
     'font-medium',
     'transition-colors',
-    multiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
+    useMultiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
     !isEditable && 'cursor-not-allowed opacity-60'
   );
 
@@ -434,7 +433,7 @@ const InfoPanel = () => {
             <button
               type="button"
               className={classSingleTaskButton}
-              onClick={() => isEditable && setMultiTaskMode((prev) => !prev)}
+              onClick={() => isEditable && dispatch(setUseMultiTaskMode(!useMultiTaskMode))}
               disabled={!isEditable}
             >
               Single Task
@@ -442,14 +441,14 @@ const InfoPanel = () => {
             <button
               type="button"
               className={classMultiTaskButton}
-              onClick={() => isEditable && setMultiTaskMode((prev) => !prev)}
+              onClick={() => isEditable && dispatch(setUseMultiTaskMode(!useMultiTaskMode))}
               disabled={!isEditable}
             >
               Multi Task
             </button>
           </div>
 
-          {multiTaskMode && (
+          {useMultiTaskMode && (
             <div className="flex-1 min-w-0">
               <TaskInstructionInput
                 instructions={info.taskInstruction || []}
@@ -458,7 +457,7 @@ const InfoPanel = () => {
               />
             </div>
           )}
-          {!multiTaskMode && (
+          {!useMultiTaskMode && (
             <textarea
               className={classTaskInstructionTextarea}
               value={info.taskInstruction || ''}

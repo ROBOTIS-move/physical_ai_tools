@@ -185,6 +185,9 @@ export default function RecordPage({ isActive = true }) {
           </div>
         </div>
       </div>
+      <div className="flex text-gray-500 mx-14 text-xl">
+        Task: {taskStatus.currentTaskInstruction}
+      </div>
       <ControlPanel />
     </div>
   );

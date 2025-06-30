@@ -47,6 +47,7 @@ const initialState = {
     totalTime: 0,
     proceedTime: 0,
     currentEpisodeNumber: 0,
+    currentTaskInstruction: '',
     userId: '',
     usedStorageSize: 0,
     totalStorageSize: 0,
@@ -60,6 +61,7 @@ const initialState = {
   availableCameras: [],
   policyList: [],
   datasetList: [],
+  useMultiTaskMode: false,
 };
 
 const taskSlice = createSlice({
@@ -104,6 +106,9 @@ const taskSlice = createSlice({
     removeTag: (state, action) => {
       state.taskInfo.tags = state.taskInfo.tags.filter((tag) => tag !== action.payload);
     },
+    setUseMultiTaskMode: (state, action) => {
+      state.useMultiTaskMode = action.payload;
+    },
   },
 });
 
@@ -120,6 +125,7 @@ export const {
   setRecordInferenceMode,
   addTag,
   removeTag,
+  setUseMultiTaskMode,
 } = taskSlice.actions;
 
 export default taskSlice.reducer;

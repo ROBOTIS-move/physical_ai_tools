@@ -18,7 +18,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
-import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck } from 'react-icons/md';
+import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck, MdNavigateNext } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import CompactSystemStatus from './CompactSystemStatus';
 import EpisodeStatus from './EpisodeStatus';
@@ -62,6 +62,13 @@ const buttons = [
     icon: MdCheck,
     color: '#388e3c',
     description: 'Finish and save task',
+    shortcut: 'Ctrl+Shift+X',
+  },
+  {
+    label: 'Change\nTask',
+    icon: MdNavigateNext,
+    color: '#388e3c',
+    description: 'Change task',
     shortcut: 'Ctrl+Shift+X',
   },
 ];
@@ -113,6 +120,7 @@ export default function ControlPanel() {
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
   const rosHost = useSelector((state) => state.ros.rosHost);
   const page = useSelector((state) => state.ui.currentPage);
+  const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
 
   const [hovered, setHovered] = useState(null);
   const [pressed, setPressed] = useState(null);
@@ -120,6 +128,15 @@ export default function ControlPanel() {
   const [expandedSystemIndex, setExpandedSystemIndex] = useState(null);
   const [spinnerIndex, setSpinnerIndex] = useState(0);
   const startedRef = useRef(started);
+
+  const buttonEnabled = {
+    Start: true,
+    Stop: true,
+    Retry: true,
+    Next: true,
+    Finish: true,
+    'Change\nTask': useMultiTaskMode,
+  };
 
   const { sendRecordCommand } = useRosServiceCaller();
 
@@ -447,20 +464,19 @@ export default function ControlPanel() {
       'font-extrabold',
       'w-full',
       'h-full',
-      'flex-grow',
-      'min-w-16',
+      'min-w-0',
       'rounded-2xl',
       'border-none',
       'cursor-pointer',
-      'mr-2',
+      'px-2',
       'flex',
       'items-center',
       'justify-center',
       'flex-col',
-      'gap-1',
       'bg-gray-100',
       'transition-all',
       'duration-200',
+      'overflow-hidden',
       {
         'bg-gray-300': pressed === label && !isDisabled,
         'bg-gray-200': hovered === label && pressed !== label && !isDisabled,
@@ -518,7 +534,7 @@ export default function ControlPanel() {
 
   return (
     <div className={classControlPanelBody}>
-      <div className="flex flex-[2] items-center w-full h-full gap-4">
+      <div className="flex flex-[2] w-full h-full gap-4">
         {buttons.map(({ label, icon: Icon, color, description, shortcut }) => {
           const isDisabled = !isButtonEnabled(label);
 
@@ -534,16 +550,23 @@ export default function ControlPanel() {
             </div>
           );
 
+          if (!buttonEnabled[label]) {
+            return null;
+          }
+
           return (
             <Tooltip
               key={label}
               content={tooltipContent}
               disabled={false}
-              className="whitespace-normal max-w-48"
+              className="relative h-full flex-1 min-w-0"
             >
               <button
                 className={classControlPanelButtons(label, isDisabled)}
-                style={{ fontFamily: 'Pretendard Variable', fontSize: 'clamp(1rem, 2vw, 2.2rem)' }}
+                style={{
+                  fontFamily: 'Pretendard Variable',
+                  fontSize: 'clamp(1rem, 1.5vw, 2.2rem)',
+                }}
                 tabIndex={isDisabled ? -1 : 0}
                 onClick={() => !isDisabled && handleCommand(label)}
                 onKeyUp={(e) => handleButtonKeyUp(e, label, isDisabled)}
@@ -554,13 +577,16 @@ export default function ControlPanel() {
                 onMouseUp={handleMouseUp}
                 disabled={isDisabled}
               >
+                <span className="h-[30%] w-full flex items-center justify-center"></span>
                 <span className={classControlPanelButtonIcon}>
                   <Icon
                     style={{ fontSize: 'clamp(1rem, 4vw, 4rem)' }}
                     color={isDisabled ? '#9ca3af' : color}
                   />
                 </span>
-                {label}
+                <span className="text-center whitespace-pre-line leading-tight text-ellipsis overflow-hidden block w-full h-full flex items-center justify-center">
+                  {label}
+                </span>
               </button>
             </Tooltip>
           );
@@ -583,14 +609,29 @@ export default function ControlPanel() {
             )}
           </div>
         </div>
-        <div className="w-full flex flex-col items-center gap-1">
-          <div className="w-full max-w-xl flex flex-col items-center gap-1">
-            <div className="flex px-3 w-full justify-end text-xl text-gray-500 font-bold whitespace-nowrap ">
-              {taskStatus.proceedTime} / {taskStatus.totalTime} (s)
+        {!useMultiTaskMode && (
+          <div className="w-full flex flex-col items-center gap-1">
+            <div className="w-full max-w-xl flex flex-col items-center gap-1">
+              <div className="flex px-3 w-full justify-end text-xl text-gray-500 font-bold whitespace-nowrap ">
+                {taskStatus.proceedTime} / {taskStatus.totalTime} (s)
+              </div>
+              <ProgressBar percent={taskStatus.progress} />
             </div>
-            <ProgressBar percent={taskStatus.progress} />
           </div>
-        </div>
+        )}
+        {useMultiTaskMode && (
+          <>
+            <div className="h-3"></div>
+            <div className="flex items-center justify-center gap-2">
+              <div className="flex w-full justify-center text-2xl text-gray-900 font-semibold whitespace-nowrap">
+                {taskStatus.proceedTime}
+              </div>
+              <div className="w-full justify-center text-2xl text-gray-500 font-semibold whitespace-nowrap">
+                seconds passed
+              </div>
+            </div>
+          </>
+        )}
       </div>
       <div className="flex justify-end flex-[0.4] min-w-30 h-full p-1">
         <EpisodeStatus />

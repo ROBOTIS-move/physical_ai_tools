@@ -76,10 +76,6 @@ class DataManager:
                 return self.RECORDING
 
         elif self._status == 'run':
-            # if not self._single_task and not self._check_time(self._task_info.episode_time_s, 'save'):
-            #     frame = self.create_frame(images, state, action)
-            #     self._lerobot_dataset.add_frame_with_marking(frame)
-                
             if not self._check_time(self._task_info.episode_time_s, 'save'):
                 if RAMChecker.get_free_ram_gb() < self.RAM_LIMIT_GB:
                     self.record_early_save()
@@ -99,7 +95,7 @@ class DataManager:
                     self._status = 'reset'
                     self._start_time_s = 0
                     self._on_saving = False
-                elif not self._single_task:
+                elif not self._single_task and self._lerobot_dataset.check_append_buffer_completed():
                     self._episode_reset()
                     self._record_episode_count += 1
                     self._current_task += 1
@@ -149,9 +145,12 @@ class DataManager:
                             self._task_info.private_mode)
                     return self.RECORD_COMPLETED
             else:
-                self.save()
-                self._proceed_time = 0
-                self._on_saving = True
+                if not self._single_task:
+                    self._lerobot_dataset.video_encoding()
+                else:
+                    self.save()
+                    self._proceed_time = 0
+                    self._on_saving = True
 
         if self._record_episode_count >= self._task_info.num_episodes:
             if self._lerobot_dataset.check_video_encoding_completed():
@@ -165,16 +164,16 @@ class DataManager:
         return self.RECORDING
 
     def save(self):
-        if not self._single_task:
-            # self._lerobot_dataset.save_all_marked_episodes()
-            self._lerobot_dataset.save_episode_without_video_encoding()
-        else:
-            if self._lerobot_dataset.episode_buffer is None:
-                return
-            if self._task_info.use_optimized_save_mode:
-                self._lerobot_dataset.save_episode_without_write_image()
+        if self._lerobot_dataset.episode_buffer is None:
+            return
+        if self._task_info.use_optimized_save_mode:
+            if not self._single_task:
+                self._lerobot_dataset.save_episode_without_video_encoding()
+                # self._lerobot_dataset.save_episode_without_write_image()
             else:
-                self._lerobot_dataset.save_episode()
+                self._lerobot_dataset.save_episode_without_write_image()
+        else:
+            self._lerobot_dataset.save_episode()
 
     def create_frame(
             self,
@@ -211,11 +210,10 @@ class DataManager:
     def record_skip(self):
         self._stop_save_completed = False
         self._episode_reset()
-        self._sta6tus = 'skip'
+        self._status = 'skip'
         self._current_task += 1
 
     def record_next_episode(self):
-        # self._lerobot_dataset.mark_episode_split()
         self._status = 'save'
         self._current_task += 1
 

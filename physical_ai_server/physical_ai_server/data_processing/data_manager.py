@@ -146,7 +146,10 @@ class DataManager:
                     return self.RECORD_COMPLETED
             else:
                 if not self._single_task:
+                    self.save()
                     self._lerobot_dataset.video_encoding()
+                    self._proceed_time = 0
+                    self._on_saving = True
                 else:
                     self.save()
                     self._proceed_time = 0

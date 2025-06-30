@@ -85,7 +85,7 @@ class DataManager:
                 frame = self.create_frame(images, state, action)
                 if self._task_info.use_optimized_save_mode:
                     self._lerobot_dataset.add_frame_without_write_image(
-                        frame, 
+                        frame,
                         self._task_info.task_instruction)
                 else:
                     self._lerobot_dataset.add_frame(frame)

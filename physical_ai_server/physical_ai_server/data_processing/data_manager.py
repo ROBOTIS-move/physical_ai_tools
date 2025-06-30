@@ -218,7 +218,6 @@ class DataManager:
 
     def record_next_episode(self):
         self._status = 'save'
-        self._current_task += 1
 
     def get_current_record_status(self):
         current_status = TaskStatus()

@@ -201,7 +201,14 @@ export default function ControlPanel() {
           return false;
       }
     },
-    [taskStatus.phase, taskStatus.running, taskInfo.recordInferenceMode, taskInfo.taskType, page]
+    [
+      taskStatus.phase,
+      taskStatus.running,
+      taskInfo.recordInferenceMode,
+      taskInfo.taskType,
+      taskInfo.taskInstruction,
+      page,
+    ]
   );
 
   const validateTaskInfo = useCallback(() => {

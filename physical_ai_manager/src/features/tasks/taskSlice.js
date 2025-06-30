@@ -23,7 +23,7 @@ const initialState = {
   taskInfo: {
     taskName: '',
     taskType: '',
-    taskInstruction: '',
+    taskInstruction: [],
     policyPath: '',
     recordInferenceMode: false,
     userId: '',

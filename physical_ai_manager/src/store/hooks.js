@@ -18,6 +18,5 @@
 
 import { useDispatch, useSelector } from 'react-redux';
 
-// 타입이 지정된 버전의 useDispatch와 useSelector hooks
 export const useAppDispatch = () => useDispatch();
 export const useAppSelector = useSelector;

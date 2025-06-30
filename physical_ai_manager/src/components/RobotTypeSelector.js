@@ -16,10 +16,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { MdRefresh } from 'react-icons/md';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-
+import { MdRefresh } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import TaskPhase from '../constants/taskPhases';
 import { selectRobotType } from '../features/tasks/taskSlice';

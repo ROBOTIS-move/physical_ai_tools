@@ -15,14 +15,14 @@
 // Author: Kiwoong Park
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
-import TagInput from './TagInput';
-import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
-import { useSelector, useDispatch } from 'react-redux';
-import { setTaskInfo } from '../features/tasks/taskSlice';
+import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import TagInput from './TagInput';
 import TaskPhase from '../constants/taskPhases';
+import { setTaskInfo } from '../features/tasks/taskSlice';
 
 const InferencePanel = () => {
   const dispatch = useDispatch();

@@ -15,18 +15,18 @@
 // Author: Kiwoong Park
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import clsx from 'clsx';
-import ProgressBar from './ProgressBar';
-import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck } from 'react-icons/md';
-import CompactSystemStatus from './CompactSystemStatus';
-import SystemStatus from './SystemStatus';
-import EpisodeStatus from './EpisodeStatus';
-import PageType from '../constants/pageType';
-import Tooltip from './Tooltip';
-import TaskPhase from '../constants/taskPhases';
 import { useSelector } from 'react-redux';
-import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
+import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck } from 'react-icons/md';
+import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import CompactSystemStatus from './CompactSystemStatus';
+import EpisodeStatus from './EpisodeStatus';
+import ProgressBar from './ProgressBar';
+import SystemStatus from './SystemStatus';
+import Tooltip from './Tooltip';
+import PageType from '../constants/pageType';
+import TaskPhase from '../constants/taskPhases';
 
 const buttons = [
   {

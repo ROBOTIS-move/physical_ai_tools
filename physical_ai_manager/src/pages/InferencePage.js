@@ -15,13 +15,13 @@
 // Author: Kiwoong Park
 
 import React, { useState, useEffect } from 'react';
-import clsx from 'clsx';
-import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight } from 'react-icons/md';
-import toast, { useToasterStore } from 'react-hot-toast';
-import ImageGrid from '../components/ImageGrid';
-import ControlPanel from '../components/ControlPanel';
-import InferencePanel from '../components/InferencePanel';
 import { useSelector, useDispatch } from 'react-redux';
+import clsx from 'clsx';
+import toast, { useToasterStore } from 'react-hot-toast';
+import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight } from 'react-icons/md';
+import ControlPanel from '../components/ControlPanel';
+import ImageGrid from '../components/ImageGrid';
+import InferencePanel from '../components/InferencePanel';
 import { addTag, setTaskType } from '../features/tasks/taskSlice';
 
 export default function InferencePage({ isActive = true }) {

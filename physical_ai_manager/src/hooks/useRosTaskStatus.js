@@ -15,9 +15,9 @@
 // Author: Kiwoong Park
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import ROSLIB from 'roslib';
 import TaskPhase from '../constants/taskPhases';
-import { useDispatch, useSelector } from 'react-redux';
 import { setTaskStatus, setTaskInfo } from '../features/tasks/taskSlice';
 
 export function useRosTaskStatus() {
@@ -26,45 +26,6 @@ export function useRosTaskStatus() {
 
   const dispatch = useDispatch();
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
-
-  // const [taskStatus, setTaskStatus] = useState({
-  //   robotType: '',
-  //   taskName: 'idle',
-  //   running: false,
-  //   phase: TaskPhase.READY,
-  //   progress: 0,
-  //   totalTime: 0,
-  //   proceedTime: 0,
-  //   currentEpisodeNumber: 0,
-  //   userId: '',
-  //   usedStorageSize: 0,
-  //   totalStorageSize: 0,
-  //   usedCpu: 0,
-  //   usedRamSize: 0,
-  //   totalRamSize: 0,
-  //   error: '',
-  //   topicReceived: false,
-  // });
-
-  // const [taskInfo, setTaskInfo] = useState({
-  //   taskName: '',
-  //   taskType: '',
-  //   taskInstruction: '',
-  //   policyPath: '',
-  //   recordInferenceMode: false,
-  //   userId: '',
-  //   fps: 30,
-  //   tags: [],
-  //   warmupTime: 5,
-  //   episodeTime: 20,
-  //   resetTime: 5,
-  //   numEpisodes: 5,
-  //   token: '',
-  //   pushToHub: true,
-  //   privateMode: false,
-  //   useOptimizedSave: true,
-  // });
-
   const [connected, setConnected] = useState(false);
 
   const getRosConnection = useCallback(() => {

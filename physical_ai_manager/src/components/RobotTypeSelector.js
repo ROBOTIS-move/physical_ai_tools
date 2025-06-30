@@ -27,12 +27,11 @@ import { setRobotTypeList } from '../features/ui/uiSlice';
 export default function RobotTypeSelector() {
   const dispatch = useDispatch();
 
-  const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
   const robotTypeList = useSelector((state) => state.ui.robotTypeList);
   const robotType = useSelector((state) => state.tasks.taskStatus.robotType);
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
 
-  const { getRobotTypeList, setRobotType } = useRosServiceCaller(rosbridgeUrl);
+  const { getRobotTypeList, setRobotType } = useRosServiceCaller();
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);

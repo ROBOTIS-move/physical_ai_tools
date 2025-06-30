@@ -81,9 +81,7 @@ const InfoPanel = () => {
   // User ID selection states
   const [showUserIdDropdown, setShowUserIdDropdown] = useState(false);
 
-  const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
-
-  const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller(rosbridgeUrl);
+  const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller();
 
   const handleChange = useCallback(
     (field, value) => {

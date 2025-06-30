@@ -14,12 +14,11 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import clsx from 'clsx';
 
 const TagInput = ({ tags, onChange, disabled, className }) => {
   const [inputValue, setInputValue] = useState('');
-  const inputRef = useRef(null);
 
   const addTag = (tag) => {
     const trimmedTag = tag.trim();
@@ -77,19 +76,12 @@ const TagInput = ({ tags, onChange, disabled, className }) => {
         'focus-within:ring-2',
         'focus-within:ring-blue-500',
         'focus-within:border-transparent',
-        'max-h-24',
-        'overflow-y-auto',
         {
           'bg-gray-100 cursor-not-allowed': disabled,
           'bg-white': !disabled,
         },
         className
       )}
-      onClick={() => {
-        if (!disabled && inputRef.current) {
-          inputRef.current.focus();
-        }
-      }}
     >
       {/* Render existing tags */}
       {tags.map((tag, index) => (
@@ -105,8 +97,6 @@ const TagInput = ({ tags, onChange, disabled, className }) => {
             'text-xs',
             'font-medium',
             'rounded-full',
-            'max-w-[80%]',
-            'break-all',
             {
               'cursor-default': disabled,
               'cursor-pointer': !disabled,
@@ -128,7 +118,6 @@ const TagInput = ({ tags, onChange, disabled, className }) => {
 
       {/* Input for new tags */}
       <input
-        ref={inputRef}
         type="text"
         value={inputValue}
         onChange={handleInputChange}
@@ -136,10 +125,9 @@ const TagInput = ({ tags, onChange, disabled, className }) => {
         disabled={disabled}
         placeholder={tags.length === 0 ? 'Add tags' : ''}
         className={clsx(
-          'w-auto',
-          'min-w-12',
-          'max-w-[40%]',
-          'break-all',
+          'flex-1',
+          'min-w-0',
+          'max-w-full',
           'bg-transparent',
           'border-none',
           'outline-none',

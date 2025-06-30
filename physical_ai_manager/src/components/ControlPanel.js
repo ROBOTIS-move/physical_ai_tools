@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import clsx from 'clsx';
 import ProgressBar from './ProgressBar';
-import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdNavigateNext, MdCheck } from 'react-icons/md';
+import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck } from 'react-icons/md';
 import CompactSystemStatus from './CompactSystemStatus';
 import SystemStatus from './SystemStatus';
 import EpisodeStatus from './EpisodeStatus';
@@ -55,10 +55,10 @@ const buttons = [
   },
   {
     label: 'Skip',
-    icon: MdNavigateNext,
+    icon: MdSkipNext,
     color: '#fbc02d',
     description: 'Skip current episode',
-    shortcut: 'Ctrl+Shift+→',
+    shortcut: '→',
   },
   {
     label: 'Finish',
@@ -167,13 +167,6 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
         return 'Retry';
       } else if (e.key === 'ArrowRight' && isButtonEnabled('Next')) {
         return 'Next';
-      } else if (
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        e.key === 'ArrowRight' &&
-        isButtonEnabled('Skip')
-      ) {
-        return 'Skip';
       } else if (e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') {
         if (isButtonEnabled('Start')) {
           return 'Start';

@@ -22,11 +22,19 @@ import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 import { useSelector, useDispatch } from 'react-redux';
 import { setTaskInfo } from '../features/tasks/taskSlice';
+import TaskPhase from '../constants/taskPhases';
 
-const InferencePanel = ({ disabled = false }) => {
-  const info = useSelector((state) => state.tasks.taskInfo);
+const InferencePanel = () => {
   const dispatch = useDispatch();
 
+  const info = useSelector((state) => state.tasks.taskInfo);
+  const taskStatus = useSelector((state) => state.tasks.taskStatus);
+
+  const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
+  const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
+
+  // Calculate if the panel should be disabled based on task status
+  const disabled = taskStatus.phase !== TaskPhase.READY || !isTaskStatusPaused;
   const [isEditable, setIsEditable] = useState(!disabled);
 
   // User ID list for dropdown
@@ -111,8 +119,16 @@ const InferencePanel = ({ disabled = false }) => {
 
   // Update isEditable state when the disabled prop changes
   useEffect(() => {
+    console.log(
+      'Disabled state changed:',
+      disabled,
+      'Phase:',
+      taskStatus.phase,
+      'Paused:',
+      isTaskStatusPaused
+    );
     setIsEditable(!disabled);
-  }, [disabled]);
+  }, [disabled, taskStatus.phase, isTaskStatusPaused]);
 
   // Reset dropdown state when Push to Hub is unchecked
   useEffect(() => {
@@ -130,6 +146,28 @@ const InferencePanel = ({ disabled = false }) => {
       handleUserIdSelect(userIdList[0]);
     }
   }, [userIdList, info.userId, handleUserIdSelect]);
+
+  // track task status update
+  useEffect(() => {
+    if (taskStatus) {
+      setLastTaskStatusUpdate(Date.now());
+      setIsTaskStatusPaused(false);
+    }
+  }, [taskStatus]);
+
+  // Check if task status updates are paused (considered paused if no updates for 1 second)
+  useEffect(() => {
+    const UPDATE_PAUSE_THRESHOLD = 1000;
+    const timer = setInterval(() => {
+      const timeSinceLastUpdate = Date.now() - lastTaskStatusUpdate;
+      const isPaused = timeSinceLastUpdate >= UPDATE_PAUSE_THRESHOLD;
+      if (isPaused !== isTaskStatusPaused) {
+        setIsTaskStatusPaused(isPaused);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lastTaskStatusUpdate, isTaskStatusPaused]);
 
   const classLabel = clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium');
 

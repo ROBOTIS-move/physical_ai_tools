@@ -21,7 +21,6 @@ import toast, { useToasterStore } from 'react-hot-toast';
 import ImageGrid from '../components/ImageGrid';
 import ControlPanel from '../components/ControlPanel';
 import InfoPanel from '../components/InfoPanel';
-import TaskPhase from '../constants/taskPhases';
 import { useSelector, useDispatch } from 'react-redux';
 import { addTag, setTaskType } from '../features/tasks/taskSlice';
 
@@ -36,8 +35,6 @@ export default function RecordPage({ isActive = true }) {
   const TOAST_LIMIT = 3;
 
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
-  const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
-  const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
 
   useEffect(() => {
     toasts
@@ -59,25 +56,6 @@ export default function RecordPage({ isActive = true }) {
       dispatch(setTaskType('record'));
     }
   }, [dispatch, taskStatus.running]);
-
-  // track task status update
-  useEffect(() => {
-    if (taskStatus) {
-      setLastTaskStatusUpdate(Date.now());
-      setIsTaskStatusPaused(false);
-    }
-  }, [taskStatus]);
-
-  // Check if task status updates are paused (considered paused if no updates for 1 second)
-  useEffect(() => {
-    const UPDATE_PAUSE_THRESHOLD = 1000;
-    const timer = setInterval(() => {
-      const timeSinceLastUpdate = Date.now() - lastTaskStatusUpdate;
-      setIsTaskStatusPaused(timeSinceLastUpdate >= UPDATE_PAUSE_THRESHOLD);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [lastTaskStatusUpdate]);
 
   const classMainContainer = 'h-full flex flex-col overflow-hidden';
   const classContentsArea = 'flex-1 flex min-h-0 pt-0 px-0 justify-center items-start';
@@ -206,7 +184,7 @@ export default function RecordPage({ isActive = true }) {
           </button>
           <div className={classRightPanel}>
             <div className="w-full min-h-10"></div>
-            <InfoPanel disabled={taskStatus?.phase !== TaskPhase.READY || !isTaskStatusPaused} />
+            <InfoPanel />
           </div>
         </div>
       </div>

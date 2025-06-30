@@ -47,8 +47,8 @@ const TaskInstructionInput = ({ instructions = [''], onChange, disabled, classNa
 
   return (
     <div className={clsx('w-full', className)}>
-      <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md bg-white">
-        <div className="p-2 space-y-2">
+      <div className="max-h-50 overflow-y-auto border border-gray-300 rounded-md bg-white">
+        <div className="p-2 space-y-3">
           {localInstructions.map((instruction, index) => (
             <div key={index} className="relative">
               <textarea
@@ -58,14 +58,14 @@ const TaskInstructionInput = ({ instructions = [''], onChange, disabled, classNa
                 placeholder={`Task instruction ${index + 1}`}
                 className={clsx(
                   'w-full',
-                  'p-2',
+                  'p-3',
                   'border',
                   'border-gray-200',
-                  'rounded',
+                  'rounded-lg',
                   'text-sm',
                   'resize-none',
-                  'min-h-8',
-                  'h-14',
+                  'min-h-10',
+                  'h-20',
                   'focus:ring-2',
                   'focus:ring-blue-500',
                   'focus:border-transparent',
@@ -75,7 +75,7 @@ const TaskInstructionInput = ({ instructions = [''], onChange, disabled, classNa
                     'pr-10': !disabled && localInstructions.length > 1,
                   }
                 )}
-                rows={2}
+                rows={3}
               />
               {!disabled && localInstructions.length > 1 && (
                 <button
@@ -110,16 +110,16 @@ const TaskInstructionInput = ({ instructions = [''], onChange, disabled, classNa
       </div>
 
       {!disabled && (
-        <div className="mt-3 flex justify-between items-center">
+        <div className="mt-3 flex justify-center">
           <button
             type="button"
             onClick={addInstruction}
             className={clsx(
-              'px-3',
-              'py-1',
+              'px-4',
+              'py-2',
               'bg-blue-500',
               'text-white',
-              'rounded',
+              'rounded-lg',
               'hover:bg-blue-600',
               'focus:outline-none',
               'focus:ring-2',
@@ -131,15 +131,9 @@ const TaskInstructionInput = ({ instructions = [''], onChange, disabled, classNa
               'font-medium'
             )}
           >
-            <span className="text-base font-bold">+</span>
+            <span className="text-lg font-bold">+</span>
             Add Instruction
           </button>
-          <span className="block text-xs text-gray-600 mb-0.5 px-0 select-none">
-            <span role="img" aria-label="task">
-              📝
-            </span>{' '}
-            {localInstructions.length}
-          </span>
         </div>
       )}
     </div>

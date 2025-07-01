@@ -64,6 +64,7 @@ class DataManager:
         self.data_converter = DataConverter()
         self.force_save_for_safety = False
         self._stop_save_completed = False
+        self.current_instruction = ''
         self._current_task = 0
         self._single_task = len(task_info.task_instruction) == 1
 
@@ -194,10 +195,10 @@ class DataManager:
             frame[f'observation.images.{camera_name}'] = image
         frame['observation.state'] = np.array(state)
         frame['action'] = np.array(action)
-        current_instruction = self._task_info.task_instruction[
+        self.current_instruction = self._task_info.task_instruction[
             self._current_task % len(self._task_info.task_instruction)
         ]
-        frame['task'] = current_instruction
+        frame['task'] = self.current_instruction
         return frame
 
     def record_early_save(self):
@@ -235,6 +236,7 @@ class DataManager:
         elif self._status == 'run':
             current_status.phase = TaskStatus.RECORDING
             current_status.total_time = int(self._task_info.episode_time_s)
+            
         elif self._status == 'reset':
             current_status.phase = TaskStatus.RESETTING
             current_status.total_time = int(self._task_info.reset_time_s)
@@ -255,6 +257,7 @@ class DataManager:
             else:
                 current_status.phase = TaskStatus.STOPPED
 
+        current_status.current_task_instruction = self.current_instruction
         current_status.proceed_time = int(getattr(self, '_proceed_time', 0))
         current_status.current_episode_number = int(self._record_episode_count)
 

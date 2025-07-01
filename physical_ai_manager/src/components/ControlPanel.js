@@ -293,6 +293,8 @@ export default function ControlPanel() {
           result = await sendRecordCommand('rerecord');
         } else if (cmd === 'Next') {
           result = await sendRecordCommand('next');
+        } else if (cmd === 'Change\nTask') {
+          result = await sendRecordCommand('change_task');
         } else if (cmd === 'Finish') {
           result = await sendRecordCommand('finish');
         } else {

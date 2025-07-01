@@ -213,7 +213,7 @@ export default function ControlPanel() {
           return !isReadyState(taskStatus.phase);
         case 'Change\nTask':
           if (page === PageType.RECORD) {
-            return taskStatus.running;
+            return !isReadyState(taskStatus.phase);
           }
           return false;
         case 'Finish':

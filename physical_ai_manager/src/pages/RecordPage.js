@@ -30,6 +30,7 @@ export default function RecordPage({ isActive = true }) {
 
   const taskInfo = useSelector((state) => state.tasks.taskInfo);
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
+  const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
 
   // Toast limit implementation using useToasterStore
   const { toasts } = useToasterStore();
@@ -185,9 +186,11 @@ export default function RecordPage({ isActive = true }) {
           </div>
         </div>
       </div>
-      <div className="flex text-gray-500 mx-14 text-xl">
-        Task: {taskStatus.currentTaskInstruction}
-      </div>
+      {useMultiTaskMode && (
+        <div className="flex text-gray-500 mx-14 text-xl">
+          Task: {taskStatus.currentTaskInstruction}
+        </div>
+      )}
       <ControlPanel />
     </div>
   );

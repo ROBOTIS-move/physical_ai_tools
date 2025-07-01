@@ -14,12 +14,16 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
-import TagInput from './TagInput';
-import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import TaskInstructionInput from './TaskInstructionInput';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
+import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import TagInput from './TagInput';
+import TaskPhase from '../constants/taskPhases';
+import { setTaskInfo, setUseMultiTaskMode } from '../features/tasks/taskSlice';
 
 const taskInfos = [
   {
@@ -52,9 +56,20 @@ const taskInfos = [
   },
 ];
 
-const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
+const InfoPanel = () => {
+  const dispatch = useDispatch();
+
+  const info = useSelector((state) => state.tasks.taskInfo);
+  const taskStatus = useSelector((state) => state.tasks.taskStatus);
+
+  const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
+  const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
+
+  const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
+
   const [showPopup, setShowPopup] = useState(false);
   const [taskInfoList] = useState(taskInfos);
+  const disabled = taskStatus.phase !== TaskPhase.READY || !isTaskStatusPaused;
   const [isEditable, setIsEditable] = useState(!disabled);
 
   // User ID list for dropdown
@@ -69,18 +84,18 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
   // User ID selection states
   const [showUserIdDropdown, setShowUserIdDropdown] = useState(false);
 
-  // ROS service caller
+  const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller();
 
-  const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
-  const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller(rosbridgeUrl);
-
-  const handleChange = (field, value) => {
-    if (!isEditable) return; // Block changes when not editable
-    onChange({ ...info, [field]: value });
-  };
+  const handleChange = useCallback(
+    (field, value) => {
+      if (!isEditable) return; // Block changes when not editable
+      dispatch(setTaskInfo({ ...info, [field]: value }));
+    },
+    [isEditable, info, dispatch]
+  );
 
   const handleSelect = (selected) => {
-    onChange(selected);
+    dispatch(setTaskInfo(selected));
     setShowPopup(false);
   };
 
@@ -111,7 +126,7 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
     }
   };
 
-  const handleLoadUserId = async () => {
+  const handleLoadUserId = useCallback(async () => {
     setIsLoading(true);
     try {
       const result = await getRegisteredHFUser();
@@ -130,12 +145,15 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getRegisteredHFUser]);
 
-  const handleUserIdSelect = (selectedUserId) => {
-    handleChange('userId', selectedUserId);
-    setShowUserIdDropdown(false);
-  };
+  const handleUserIdSelect = useCallback(
+    (selectedUserId) => {
+      handleChange('userId', selectedUserId);
+      setShowUserIdDropdown(false);
+    },
+    [handleChange]
+  );
 
   // Update isEditable state when the disabled prop changes
   useEffect(() => {
@@ -148,6 +166,38 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
       setShowUserIdDropdown(false);
     }
   }, [info.pushToHub]);
+
+  useEffect(() => {
+    handleLoadUserId();
+  }, [handleLoadUserId]);
+
+  useEffect(() => {
+    if (userIdList.length > 0 && !info.userId) {
+      handleUserIdSelect(userIdList[0]);
+    }
+  }, [userIdList, info.userId, handleUserIdSelect]);
+
+  // track task status update
+  useEffect(() => {
+    if (taskStatus) {
+      setLastTaskStatusUpdate(Date.now());
+      setIsTaskStatusPaused(false);
+    }
+  }, [taskStatus]);
+
+  // Check if task status updates are paused (considered paused if no updates for 1 second)
+  useEffect(() => {
+    const UPDATE_PAUSE_THRESHOLD = 1000;
+    const timer = setInterval(() => {
+      const timeSinceLastUpdate = Date.now() - lastTaskStatusUpdate;
+      const isPaused = timeSinceLastUpdate >= UPDATE_PAUSE_THRESHOLD;
+      if (isPaused !== isTaskStatusPaused) {
+        setIsTaskStatusPaused(isPaused);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lastTaskStatusUpdate, isTaskStatusPaused]);
 
   const classLabel = clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium');
 
@@ -202,6 +252,28 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
       'bg-gray-100 cursor-not-allowed': !isEditable,
       'bg-white': isEditable,
     }
+  );
+
+  const classSingleTaskButton = clsx(
+    'px-3',
+    'py-1',
+    'text-sm',
+    'rounded-xl',
+    'font-medium',
+    'transition-colors',
+    !useMultiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
+    !isEditable && 'cursor-not-allowed opacity-60'
+  );
+
+  const classMultiTaskButton = clsx(
+    'px-3',
+    'py-1',
+    'text-sm',
+    'rounded-xl',
+    'font-medium',
+    'transition-colors',
+    useMultiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
+    !isEditable && 'cursor-not-allowed opacity-60'
   );
 
   const classRepoIdTextarea = clsx(
@@ -354,13 +426,47 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
         >
           Task Instruction
         </span>
-        <textarea
-          className={classTaskInstructionTextarea}
-          value={info.taskInstruction || ''}
-          onChange={(e) => handleChange('taskInstruction', e.target.value)}
-          disabled={!isEditable}
-          placeholder="Enter Task Instruction"
-        />
+
+        <div>
+          {/* Single/Multi Task Mode Toggle */}
+          <div className={clsx('flex', 'justify-start', 'mb-3', 'gap-3')}>
+            <button
+              type="button"
+              className={classSingleTaskButton}
+              onClick={() => isEditable && dispatch(setUseMultiTaskMode(!useMultiTaskMode))}
+              disabled={!isEditable}
+            >
+              Single Task
+            </button>
+            <button
+              type="button"
+              className={classMultiTaskButton}
+              onClick={() => isEditable && dispatch(setUseMultiTaskMode(!useMultiTaskMode))}
+              disabled={!isEditable}
+            >
+              Multi Task
+            </button>
+          </div>
+
+          {useMultiTaskMode && (
+            <div className="flex-1 min-w-0">
+              <TaskInstructionInput
+                instructions={info.taskInstruction || []}
+                onChange={(newInstructions) => handleChange('taskInstruction', newInstructions)}
+                disabled={!isEditable}
+              />
+            </div>
+          )}
+          {!useMultiTaskMode && (
+            <textarea
+              className={classTaskInstructionTextarea}
+              value={info.taskInstruction || ''}
+              onChange={(e) => handleChange('taskInstruction', [e.target.value])}
+              disabled={!isEditable}
+              placeholder="Enter Task Instruction"
+            />
+          )}
+        </div>
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2')}>

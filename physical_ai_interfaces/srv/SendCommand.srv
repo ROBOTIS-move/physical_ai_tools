@@ -13,7 +13,6 @@ uint8 SKIP = 7
 
 uint8 command
 TaskInfo task_info
-string model_path
 ---
 bool success
 string message

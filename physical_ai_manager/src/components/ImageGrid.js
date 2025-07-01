@@ -15,23 +15,26 @@
 // Author: Kiwoong Park
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
+import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import ImageGridCell from './ImageGridCell';
 import ImageTopicSelectModal from './ImageTopicSelectModal';
-import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import { setImageTopicList } from '../features/ros/rosSlice';
 
 const layout = [{ aspect: '16/9' }, { aspect: '16/9' }, { aspect: '16/9' }];
 
-export default function ImageGrid({ topics, setTopics, rosHost }) {
+export default function ImageGrid({ isActive = true }) {
+  const dispatch = useDispatch();
+  const imageTopicList = useSelector((state) => state.ros.imageTopicList);
+
   const [modalOpen, setModalOpen] = React.useState(false);
   const [selectedIdx, setSelectedIdx] = React.useState(null);
-  const [topicList, setTopicList] = useState([]);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [topicListError, setTopicListError] = useState(null);
 
-  const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
-  const { getImageTopicList } = useRosServiceCaller(rosbridgeUrl);
+  const { getImageTopicList } = useRosServiceCaller();
 
   // Auto-assign topics to grid cells (center, left, right order)
   const autoAssignTopics = useCallback(
@@ -52,7 +55,7 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
         }
 
         console.log(`Final ${isRefresh ? 're-assigned' : 'auto-assigned'} topics:`, autoTopics);
-        setTopics(autoTopics);
+        dispatch(setImageTopicList(autoTopics));
         toast.success(
           `${isRefresh ? 'Re-a' : 'Auto-a'}ssigned ${Math.min(
             imageTopics.length,
@@ -61,13 +64,13 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
         );
       }
     },
-    [setTopics]
+    [dispatch]
   );
 
   // Adjust the length of the topics array
   React.useEffect(() => {
-    if (topics.length !== layout.length) {
-      setTopics(Array(layout.length).fill(null));
+    if (imageTopicList.length !== layout.length) {
+      dispatch(setImageTopicList(Array(layout.length).fill(null)));
     }
     // eslint-disable-next-line
   }, []);
@@ -81,7 +84,7 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
         const result = await getImageTopicList();
         if (result && result.success) {
           const imageTopics = result.image_topic_list || [];
-          setTopicList(imageTopics);
+          dispatch(setImageTopicList(imageTopics));
           setTopicListError(null);
           toast.success(`Loaded ${imageTopics.length} image topics`);
 
@@ -91,13 +94,13 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
           console.error('Failed to get image topic list:', result?.message);
           const errorMsg = result?.message || 'Unknown error occurred';
           setTopicListError(`Service error: ${errorMsg}`);
-          setTopicList([]);
+          dispatch(setImageTopicList([]));
           toast.error(`Failed to load image topics: ${errorMsg}`);
         }
       } catch (error) {
         console.error('Error fetching image topic list:', error);
         setTopicListError('Failed to load image topic list');
-        setTopicList([]);
+        dispatch(setImageTopicList([]));
         toast.error('Failed to load image topic list');
       } finally {
         setIsLoadingTopics(false);
@@ -105,7 +108,7 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
     };
 
     fetchTopicList();
-  }, [getImageTopicList, setTopics, autoAssignTopics]);
+  }, [getImageTopicList, autoAssignTopics, dispatch]);
 
   const handlePlusClick = (idx) => {
     setSelectedIdx(idx);
@@ -119,7 +122,7 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
       const result = await getImageTopicList();
       if (result && result.success) {
         const imageTopics = result.image_topic_list || [];
-        setTopicList(imageTopics);
+        dispatch(setImageTopicList(imageTopics));
         setTopicListError(null);
         toast.success(`Refreshed: ${imageTopics.length} image topics`);
 
@@ -128,12 +131,12 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
       } else {
         const errorMsg = result?.message || 'Unknown error occurred';
         setTopicListError(`Service error: ${errorMsg}`);
-        setTopicList([]);
+        dispatch(setImageTopicList([]));
         toast.error(`Failed to refresh topics: ${errorMsg}`);
       }
     } catch (error) {
       setTopicListError('Failed to load image topic list');
-      setTopicList([]);
+      dispatch(setImageTopicList([]));
       toast.error('Failed to refresh image topics');
     } finally {
       setIsLoadingTopics(false);
@@ -141,7 +144,7 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
   };
 
   const handleTopicSelect = (topic) => {
-    setTopics(topics.map((t, i) => (i === selectedIdx ? topic : t)));
+    dispatch(setImageTopicList(imageTopicList.map((t, i) => (i === selectedIdx ? topic : t))));
     setModalOpen(false);
     setSelectedIdx(null);
   };
@@ -149,7 +152,7 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
   const handleCellClose = (idx) => {
     const img = document.querySelector(`#img-stream-${idx}`);
     if (img) img.src = '';
-    setTopics(topics.map((t, i) => (i === idx ? null : t)));
+    dispatch(setImageTopicList(imageTopicList.map((t, i) => (i === idx ? null : t))));
   };
 
   const classImageGridArea = clsx(
@@ -190,19 +193,19 @@ export default function ImageGrid({ topics, setTopics, rosHost }) {
         {layout.map((cell, idx) => (
           <div key={idx} className={classImageGridCell(idx)}>
             <ImageGridCell
-              topic={topics[idx]}
+              topic={imageTopicList[idx]}
               aspect={cell.aspect}
               idx={idx}
-              rosHost={rosHost}
               onClose={handleCellClose}
               onPlusClick={handlePlusClick}
+              isActive={isActive}
             />
-            <div className={classTopicLabel}>{topics[idx] || ''}</div>
+            <div className={classTopicLabel}>{imageTopicList[idx] || ''}</div>
           </div>
         ))}
         {modalOpen && (
           <ImageTopicSelectModal
-            topicList={topicList}
+            topicList={imageTopicList}
             onSelect={handleTopicSelect}
             onClose={() => setModalOpen(false)}
             isLoading={isLoadingTopics}

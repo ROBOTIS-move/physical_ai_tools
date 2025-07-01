@@ -127,6 +127,9 @@ export function useRosServiceCaller() {
           case 'next':
             command_enum = TaskCommand.NEXT;
             break;
+          case 'change_task':
+            command_enum = TaskCommand.CHANGE_TASK;
+            break;
           case 'rerecord':
             command_enum = TaskCommand.RERECORD;
             break;

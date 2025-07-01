@@ -452,7 +452,7 @@ class PhysicalAIServer(Node):
                         response.success = True
                         response.message = 'All operations terminated'
 
-                    elif request.command == SendCommand.Request.SKIP:
+                    elif request.command == SendCommand.Request.CHANGE_TASK:
                         self.get_logger().info('Skipping current episode')
                         self.data_manager.record_skip()
                         response.success = True

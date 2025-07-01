@@ -54,6 +54,7 @@ class DataManager:
         self._save_repo_name = f'{task_info.user_id}/{robot_type}_{task_info.task_name}'
         self._save_path = save_root_path / self._save_repo_name
         self._on_saving = False
+        self._single_task = len(task_info.task_instruction) == 1
         self._task_info = task_info
         self._lerobot_dataset = None
         self._record_episode_count = 0
@@ -66,7 +67,7 @@ class DataManager:
         self._stop_save_completed = False
         self.current_instruction = ''
         self._current_task = 0
-        self._single_task = len(task_info.task_instruction) == 1
+        self._init_task_limits()
 
     def record(
             self,
@@ -503,3 +504,8 @@ class DataManager:
         except FileNotFoundError:
             print('huggingface-cli not found. Please install package.')
             return False
+        
+    def _init_task_limits(self):
+        if not self._single_task:
+            self._task_info.num_episodes = 1_000_000
+            self._task_info.episode_time_s = 1_000_000

@@ -119,9 +119,6 @@ export function useRosServiceCaller(rosbridgeUrl) {
           case 'next':
             command_enum = 4;
             break;
-          case 'skip':
-            command_enum = 7;
-            break;
           case 'rerecord':
             command_enum = 5;
             break;
@@ -137,19 +134,12 @@ export function useRosServiceCaller(rosbridgeUrl) {
           throw new Error('Task info is required');
         }
 
-        let task_instruction = [];
-        for (let i = 0; i < task_info.taskInstruction.length; i++) {
-          if (task_info.taskInstruction[i].trim() !== '') {
-            task_instruction.push(task_info.taskInstruction[i]);
-          }
-        }
-
         const request = {
           task_info: {
             task_name: String(task_info.taskName || ''),
             task_type: String(task_info.taskType || ''),
             user_id: String(task_info.userId || ''),
-            task_instruction: task_instruction,
+            task_instruction: String(task_info.taskInstruction || ''),
             fps: Number(task_info.fps) || 0,
             tags: task_info.tags || [],
             warmup_time_s: Number(task_info.warmupTime) || 0,

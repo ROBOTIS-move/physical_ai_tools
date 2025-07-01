@@ -17,7 +17,6 @@
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import TagInput from './TagInput';
-import TaskInstructionInput from './TaskInstructionInput';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
@@ -69,9 +68,6 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
 
   // User ID selection states
   const [showUserIdDropdown, setShowUserIdDropdown] = useState(false);
-
-  // Multi-task mode states
-  const [multiTaskMode, setMultiTaskMode] = useState(false);
 
   // ROS service caller
 
@@ -206,28 +202,6 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
       'bg-gray-100 cursor-not-allowed': !isEditable,
       'bg-white': isEditable,
     }
-  );
-
-  const classSingleTaskButton = clsx(
-    'px-3',
-    'py-1',
-    'text-sm',
-    'rounded-xl',
-    'font-medium',
-    'transition-colors',
-    !multiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
-    !isEditable && 'cursor-not-allowed opacity-60'
-  );
-
-  const classMultiTaskButton = clsx(
-    'px-3',
-    'py-1',
-    'text-sm',
-    'rounded-xl',
-    'font-medium',
-    'transition-colors',
-    multiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
-    !isEditable && 'cursor-not-allowed opacity-60'
   );
 
   const classRepoIdTextarea = clsx(
@@ -380,47 +354,13 @@ const InfoPanel = ({ info, onChange, disabled = false, rosHost }) => {
         >
           Task Instruction
         </span>
-
-        <div>
-          {/* Single/Multi Task Mode Toggle */}
-          <div className={clsx('flex', 'justify-start', 'mb-3', 'gap-3')}>
-            <button
-              type="button"
-              className={classSingleTaskButton}
-              onClick={() => isEditable && setMultiTaskMode((prev) => !prev)}
-              disabled={!isEditable}
-            >
-              Single Task
-            </button>
-            <button
-              type="button"
-              className={classMultiTaskButton}
-              onClick={() => isEditable && setMultiTaskMode((prev) => !prev)}
-              disabled={!isEditable}
-            >
-              Multi Task
-            </button>
-          </div>
-
-          {multiTaskMode && (
-            <div className="flex-1 min-w-0">
-              <TaskInstructionInput
-                instructions={info.taskInstruction || []}
-                onChange={(newInstructions) => handleChange('taskInstruction', newInstructions)}
-                disabled={!isEditable}
-              />
-            </div>
-          )}
-          {!multiTaskMode && (
-            <textarea
-              className={classTaskInstructionTextarea}
-              value={info.taskInstruction || ''}
-              onChange={(e) => handleChange('taskInstruction', [e.target.value])}
-              disabled={!isEditable}
-              placeholder="Enter Task Instruction"
-            />
-          )}
-        </div>
+        <textarea
+          className={classTaskInstructionTextarea}
+          value={info.taskInstruction || ''}
+          onChange={(e) => handleChange('taskInstruction', e.target.value)}
+          disabled={!isEditable}
+          placeholder="Enter Task Instruction"
+        />
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2')}>

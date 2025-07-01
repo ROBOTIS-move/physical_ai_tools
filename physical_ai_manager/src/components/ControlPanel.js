@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import clsx from 'clsx';
 import ProgressBar from './ProgressBar';
-import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdNavigateNext, MdCheck } from 'react-icons/md';
+import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck } from 'react-icons/md';
 import CompactSystemStatus from './CompactSystemStatus';
 import SystemStatus from './SystemStatus';
 import EpisodeStatus from './EpisodeStatus';
@@ -52,13 +52,6 @@ const buttons = [
     color: '#388e3c',
     description: 'Move to next episode',
     shortcut: '→',
-  },
-  {
-    label: 'Skip',
-    icon: MdNavigateNext,
-    color: '#fbc02d',
-    description: 'Skip current episode',
-    shortcut: 'Ctrl+Shift+→',
   },
   {
     label: 'Finish',
@@ -137,9 +130,6 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
         case 'Next':
           // Next button enabled only when task is stopped
           return !isReadyState(phase);
-        case 'Skip':
-          // Skip button enabled only when task is stopped
-          return !isReadyState(phase) && taskInfo?.taskInstruction.length > 1;
         case 'Finish':
           // Finish button enabled only when task is stopped
           return true; // Always enabled
@@ -167,13 +157,6 @@ export default function ControlPanel({ onCommand, episodeStatus, taskInfo }) {
         return 'Retry';
       } else if (e.key === 'ArrowRight' && isButtonEnabled('Next')) {
         return 'Next';
-      } else if (
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        e.key === 'ArrowRight' &&
-        isButtonEnabled('Skip')
-      ) {
-        return 'Skip';
       } else if (e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') {
         if (isButtonEnabled('Start')) {
           return 'Start';

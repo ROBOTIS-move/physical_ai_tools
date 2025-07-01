@@ -144,8 +144,6 @@ export default function RecordPage({
         result = await sendRecordCommand('rerecord', info);
       } else if (cmd === 'Next') {
         result = await sendRecordCommand('next', info);
-      } else if (cmd === 'Skip') {
-        result = await sendRecordCommand('skip', info);
       } else if (cmd === 'Finish') {
         result = await sendRecordCommand('finish', info);
       } else {

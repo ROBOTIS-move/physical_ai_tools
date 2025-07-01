@@ -18,7 +18,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import ROSLIB from 'roslib';
 import TaskPhase from '../constants/taskPhases';
-import { setTaskStatus, setTaskInfo } from '../features/tasks/taskSlice';
+import { setTaskStatus, setTaskInfo, setUseMultiTaskMode } from '../features/tasks/taskSlice';
 
 export function useRosTaskStatus() {
   const rosRef = useRef(null);
@@ -101,7 +101,7 @@ export function useRosTaskStatus() {
             totalTime: msg.total_time || 0,
             proceedTime: msg.proceed_time || 0,
             currentEpisodeNumber: msg.current_episode_number || 0,
-            currentTaskInstruction: msg.task_info?.task_instruction || '',
+            currentTaskInstruction: msg.task_info?.current_task_instruction || '',
             userId: msg.task_info?.user_id || '',
             usedStorageSize: msg.used_storage_size || 0,
             totalStorageSize: msg.total_storage_size || 0,
@@ -135,6 +135,12 @@ export function useRosTaskStatus() {
               useOptimizedSave: msg.task_info.use_optimized_save_mode || false,
             })
           );
+        }
+
+        if (msg.task_info?.task_instruction.length > 1) {
+          dispatch(setUseMultiTaskMode(true));
+        } else {
+          dispatch(setUseMultiTaskMode(false));
         }
       });
     } catch (error) {

@@ -210,7 +210,12 @@ export default function ControlPanel() {
           if (isInferenceTaskType) {
             return !isReadyState(taskStatus.phase) && taskInfo.recordInferenceMode;
           }
-          return !isReadyState(taskStatus.phase) && taskInfo?.taskInstruction.length > 1;
+          return !isReadyState(taskStatus.phase);
+        case 'Change\nTask':
+          if (page === PageType.RECORD) {
+            return taskStatus.running;
+          }
+          return false;
         case 'Finish':
           // Finish button enabled only when task is stopped
           return true; // Always enabled
@@ -218,14 +223,7 @@ export default function ControlPanel() {
           return false;
       }
     },
-    [
-      taskStatus.phase,
-      taskStatus.running,
-      taskInfo.recordInferenceMode,
-      taskInfo.taskType,
-      taskInfo.taskInstruction,
-      page,
-    ]
+    [taskStatus.phase, taskStatus.running, taskInfo.recordInferenceMode, taskInfo.taskType, page]
   );
 
   const validateTaskInfo = useCallback(() => {

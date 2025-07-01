@@ -86,7 +86,7 @@ export default function ImageGridCell({
       {topic && topic.trim() !== '' && isActive ? (
         <img
           id={`img-stream-${idx}`}
-          src={`http://${rosHost}/stream?quality=50&default_transport=compressed&topic=${topic}`}
+          src={`http://${rosHost}:8080/stream?quality=50&default_transport=compressed&topic=${topic}`}
           alt={topic}
           className="w-full h-full object-cover rounded-3xl bg-gray-100"
           onClick={(e) => e.stopPropagation()}

@@ -660,47 +660,51 @@ const InfoPanel = () => {
         />
       </div>
 
-      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={classLabel}>Episode Time (s)</span>
-        <input
-          className={classTextInput}
-          type="number"
-          step="5"
-          min={0}
-          max={65535}
-          value={info.episodeTime || ''}
-          onChange={(e) => handleChange('episodeTime', Number(e.target.value) || 0)}
-          disabled={!isEditable}
-        />
-      </div>
+      {!useMultiTaskMode && (
+        <>
+          <div className={clsx('flex', 'items-center', 'mb-2.5')}>
+            <span className={classLabel}>Episode Time (s)</span>
+            <input
+              className={classTextInput}
+              type="number"
+              step="5"
+              min={0}
+              max={65535}
+              value={info.episodeTime || ''}
+              onChange={(e) => handleChange('episodeTime', Number(e.target.value) || 0)}
+              disabled={!isEditable}
+            />
+          </div>
 
-      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={classLabel}>Reset Time (s)</span>
-        <input
-          className={classTextInput}
-          type="number"
-          step="5"
-          min={0}
-          max={65535}
-          value={info.resetTime || ''}
-          onChange={(e) => handleChange('resetTime', Number(e.target.value) || 0)}
-          disabled={!isEditable}
-        />
-      </div>
+          <div className={clsx('flex', 'items-center', 'mb-2.5')}>
+            <span className={classLabel}>Reset Time (s)</span>
+            <input
+              className={classTextInput}
+              type="number"
+              step="5"
+              min={0}
+              max={65535}
+              value={info.resetTime || ''}
+              onChange={(e) => handleChange('resetTime', Number(e.target.value) || 0)}
+              disabled={!isEditable || useMultiTaskMode}
+            />
+          </div>
 
-      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={classLabel}>Num Episodes</span>
-        <input
-          className={classTextInput}
-          type="number"
-          step="1"
-          min={0}
-          max={65535}
-          value={info.numEpisodes || ''}
-          onChange={(e) => handleChange('numEpisodes', Number(e.target.value) || 0)}
-          disabled={!isEditable}
-        />
-      </div>
+          <div className={clsx('flex', 'items-center', 'mb-2.5')}>
+            <span className={classLabel}>Num Episodes</span>
+            <input
+              className={classTextInput}
+              type="number"
+              step="1"
+              min={0}
+              max={65535}
+              value={info.numEpisodes || ''}
+              onChange={(e) => handleChange('numEpisodes', Number(e.target.value) || 0)}
+              disabled={!isEditable || useMultiTaskMode}
+            />
+          </div>
+        </>
+      )}
 
       <div className={clsx('flex', 'items-center', 'mb-2')}>
         <span className={classLabel}>Optimized Save</span>

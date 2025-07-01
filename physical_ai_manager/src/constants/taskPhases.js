@@ -24,6 +24,7 @@ const TaskPhase = {
   RECORDING: 3,
   SAVING: 4,
   STOPPED: 5,
+  INFERENCING: 6,
   // Add more phases as needed
 };
 

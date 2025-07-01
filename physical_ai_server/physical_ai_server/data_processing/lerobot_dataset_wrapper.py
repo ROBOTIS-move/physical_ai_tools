@@ -151,30 +151,20 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         tasks = episode_buffer.pop('task')
         episode_tasks = list(set(tasks))
         episode_index = episode_buffer['episode_index']
-        from rclpy.logging import get_logger
-        logger = get_logger('save_episode_without_write_image')
-        logger.info(f"buffer_index: {episode_index}")
-        logger.info(f"episode_length: {episode_length}")
-        logger.info(f"tasks: {tasks}")
-        logger.info(f"episode_tasks: {episode_tasks}")
 
         episode_buffer['index'] = np.arange(
             self.meta.total_frames,
             self.meta.total_frames + episode_length)
         episode_buffer['episode_index'] = np.full((episode_length,), episode_index)
-        logger.info(f"episode_buffer['index']: {episode_buffer['index']}")
-        logger.info(f"episode_buffer['episode_index']: {episode_buffer['episode_index']}")
+
         # Add new tasks to the tasks dictionary
         for task in episode_tasks:
-            logger.info(f"current task: {task}")
             task_index = self.meta.get_task_index(task)
-            logger.info(f"current task index: {task_index}")
             if task_index is None:
                 self.meta.add_task(task)
 
         # Given tasks in natural language, find their corresponding task indices
         episode_buffer['task_index'] = np.array([self.meta.get_task_index(task) for task in tasks])
-        logger.info(f"episode_buffer['task_index']: {episode_buffer['task_index']}") #
 
         for key, ft in self.features.items():
             if (key in ['index', 'episode_index', 'task_index'] or
@@ -221,30 +211,19 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         tasks = episode_buffer.pop('task')
         episode_tasks = list(set(tasks))
         episode_index = episode_buffer['episode_index']
-        from rclpy.logging import get_logger
-        logger = get_logger('save_episode_without_write_image')
-        logger.info(f"buffer_index: {episode_index}")
-        logger.info(f"episode_length: {episode_length}")
-        logger.info(f"tasks: {tasks}")
-        logger.info(f"episode_tasks: {episode_tasks}")
 
         episode_buffer['index'] = np.arange(
             self.meta.total_frames,
             self.meta.total_frames + episode_length)
         episode_buffer['episode_index'] = np.full((episode_length,), episode_index)
-        logger.info(f"episode_buffer['index']: {episode_buffer['index']}")
-        logger.info(f"episode_buffer['episode_index']: {episode_buffer['episode_index']}")
         # Add new tasks to the tasks dictionary
         for task in episode_tasks:
-            logger.info(f"current task: {task}")
             task_index = self.meta.get_task_index(task)
-            logger.info(f"current task index: {task_index}")
             if task_index is None:
                 self.meta.add_task(task)
 
         # Given tasks in natural language, find their corresponding task indices
         episode_buffer['task_index'] = np.array([self.meta.get_task_index(task) for task in tasks])
-        logger.info(f"episode_buffer['task_index']: {episode_buffer['task_index']}") #
 
         for key, ft in self.features.items():
             if (key in ['index', 'episode_index', 'task_index'] or

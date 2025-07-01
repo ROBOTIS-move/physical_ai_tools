@@ -17,6 +17,8 @@
 import React from 'react';
 import clsx from 'clsx';
 
+import { useSelector } from 'react-redux';
+
 const classEpisodeStatusBody = clsx(
   'h-full',
   'w-full',
@@ -31,16 +33,20 @@ const classEpisodeStatusBody = clsx(
   'border',
   'border-gray-200',
   'py-5',
-  'px-4',
+  'px-3',
   'box-border',
   'shadow-md',
   'bg-white'
 );
 
-export default function EpisodeStatus({ episodeStatus }) {
+export default function EpisodeStatus() {
+  const taskStatus = useSelector((state) => state.tasks.taskStatus);
+  const taskInfo = useSelector((state) => state.tasks.taskInfo);
+  const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
+
   return (
     <div className={classEpisodeStatusBody}>
-      <div className="mb-1 justify- text-3xl" style={{ fontSize: 'clamp(1.5rem, 1.5vw, 2rem)' }}>
+      <div className="mb-1 text-3xl" style={{ fontSize: 'clamp(1.5rem, 1.5vw, 2rem)' }}>
         Episode
       </div>
       <div className="h-3"></div>
@@ -48,8 +54,15 @@ export default function EpisodeStatus({ episodeStatus }) {
         className="w-full bg-gray-200 rounded-lg py-1.5 px-3 font-bold whitespace-nowrap"
         style={{ fontSize: 'clamp(1rem, 1.5vw, 2rem)' }}
       >
-        <span className="font-bold">{episodeStatus?.currentEpisodeNumber}</span> /{' '}
-        <span className="text-gray-600">{episodeStatus?.numEpisodes}</span>
+        {useMultiTaskMode ? (
+          <span className="font-bold">{taskStatus.currentEpisodeNumber}</span>
+        ) : (
+          <>
+            <span className="font-bold">{taskStatus.currentEpisodeNumber}</span>
+            <span className="text-gray-600">{' / '}</span>
+            <span className="text-gray-600">{taskInfo.numEpisodes}</span>
+          </>
+        )}
       </div>
     </div>
   );

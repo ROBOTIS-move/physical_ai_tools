@@ -15,10 +15,18 @@
 // Author: Kiwoong Park
 
 import { useRef, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import ROSLIB from 'roslib';
+import PageType from '../constants/pageType';
+import TaskCommand from '../constants/taskCommand';
 
-export function useRosServiceCaller(rosbridgeUrl) {
+export function useRosServiceCaller() {
   const rosRef = useRef(null);
+
+  const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
+
+  const taskInfo = useSelector((state) => state.tasks.taskInfo);
+  const page = useSelector((state) => state.ui.currentPage);
 
   const getRosConnection = useCallback(() => {
     return new Promise((resolve, reject) => {
@@ -100,58 +108,72 @@ export function useRosServiceCaller(rosbridgeUrl) {
   );
 
   const sendRecordCommand = useCallback(
-    async (command, task_info, model_path = '') => {
+    async (command) => {
       try {
         let command_enum;
         switch (command) {
           case 'none':
-            command_enum = 0;
+            command_enum = TaskCommand.NONE;
             break;
           case 'start_record':
-            command_enum = 1;
+            command_enum = TaskCommand.START_RECORD;
             break;
           case 'start_inference':
-            command_enum = 2;
+            command_enum = TaskCommand.START_INFERENCE;
             break;
           case 'stop':
-            command_enum = 3;
+            command_enum = TaskCommand.STOP;
             break;
           case 'next':
-            command_enum = 4;
+            command_enum = TaskCommand.NEXT;
+            break;
+          case 'change_task':
+            command_enum = TaskCommand.CHANGE_TASK;
             break;
           case 'rerecord':
-            command_enum = 5;
+            command_enum = TaskCommand.RERECORD;
             break;
           case 'finish':
-            command_enum = 6;
+            command_enum = TaskCommand.FINISH;
             break;
           default:
             throw new Error(`Unknown command: ${command}`);
         }
 
-        // Validate required task_info fields
-        if (!task_info) {
-          throw new Error('Task info is required');
+        let taskType = '';
+
+        if (page === PageType.RECORD) {
+          taskType = 'record';
+        } else if (page === PageType.INFERENCE) {
+          taskType = 'inference';
+        }
+
+        let task_instruction = [];
+        for (let i = 0; i < taskInfo.taskInstruction.length; i++) {
+          if (taskInfo.taskInstruction[i].trim() !== '') {
+            task_instruction.push(taskInfo.taskInstruction[i]);
+          }
         }
 
         const request = {
           task_info: {
-            task_name: String(task_info.taskName || ''),
-            task_type: String(task_info.taskType || ''),
-            user_id: String(task_info.userId || ''),
-            task_instruction: String(task_info.taskInstruction || ''),
-            fps: Number(task_info.fps) || 0,
-            tags: task_info.tags || [],
-            warmup_time_s: Number(task_info.warmupTime) || 0,
-            episode_time_s: Number(task_info.episodeTime) || 0,
-            reset_time_s: Number(task_info.resetTime) || 0,
-            num_episodes: Number(task_info.numEpisodes) || 0,
-            push_to_hub: Boolean(task_info.pushToHub),
-            private_mode: Boolean(task_info.privateMode),
-            use_optimized_save_mode: Boolean(task_info.useOptimizedSave),
+            task_name: String(taskInfo.taskName || ''),
+            task_type: String(taskType),
+            user_id: String(taskInfo.userId || ''),
+            task_instruction: task_instruction,
+            policy_path: String(taskInfo.policyPath || ''),
+            record_inference_mode: Boolean(taskInfo.recordInferenceMode),
+            fps: Number(taskInfo.fps) || 0,
+            tags: taskInfo.tags || [],
+            warmup_time_s: Number(taskInfo.warmupTime) || 0,
+            episode_time_s: Number(taskInfo.episodeTime) || 0,
+            reset_time_s: Number(taskInfo.resetTime) || 0,
+            num_episodes: Number(taskInfo.numEpisodes) || 0,
+            push_to_hub: Boolean(taskInfo.pushToHub),
+            private_mode: Boolean(taskInfo.privateMode),
+            use_optimized_save_mode: Boolean(taskInfo.useOptimizedSave),
           },
           command: Number(command_enum),
-          model_path: String(model_path),
         };
 
         console.log(`Sending command '${command}' (${command_enum}) to service`);
@@ -169,7 +191,7 @@ export function useRosServiceCaller(rosbridgeUrl) {
         throw new Error(`${error.message || error}`);
       }
     },
-    [callService]
+    [callService, taskInfo, page]
   );
 
   const getImageTopicList = useCallback(async () => {

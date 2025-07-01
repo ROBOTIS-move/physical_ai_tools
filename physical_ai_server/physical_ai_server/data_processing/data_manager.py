@@ -172,7 +172,6 @@ class DataManager:
         if self._task_info.use_optimized_save_mode:
             if not self._single_task:
                 self._lerobot_dataset.save_episode_without_video_encoding()
-                # self._lerobot_dataset.save_episode_without_write_image()
             else:
                 self._lerobot_dataset.save_episode_without_write_image()
         else:

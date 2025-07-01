@@ -18,10 +18,21 @@ import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 
 const TaskInstructionInput = ({ instructions = [''], onChange, disabled, className }) => {
-  const [localInstructions, setLocalInstructions] = useState(instructions);
+  const [localInstructions, setLocalInstructions] = useState(() => {
+    // Ensure instructions is always an array
+    if (Array.isArray(instructions) && instructions.length > 0) {
+      return instructions;
+    }
+    return [''];
+  });
 
   useEffect(() => {
-    setLocalInstructions(instructions.length > 0 ? instructions : ['']);
+    // Add proper type checking to ensure instructions is an array
+    if (Array.isArray(instructions)) {
+      setLocalInstructions(instructions.length > 0 ? instructions : ['']);
+    } else {
+      setLocalInstructions(['']);
+    }
   }, [instructions]);
 
   const addInstruction = () => {

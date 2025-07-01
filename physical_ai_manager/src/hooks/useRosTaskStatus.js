@@ -178,7 +178,7 @@ export function useRosTaskStatus() {
       heartbeatTopicRef.current = new ROSLIB.Topic({
         ros,
         name: '/heartbeat',
-        messageType: 'std_msgs/Empty',
+        messageType: 'std_msgs/msg/Empty',
       });
 
       heartbeatTopicRef.current.subscribe((msg) => {

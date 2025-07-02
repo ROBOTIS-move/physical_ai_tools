@@ -38,7 +38,7 @@ export default function HeartbeatStatus({
 
   const intervalRef = useRef(null);
 
-  // Heartbeat 상태: 'connected', 'timeout', 'disconnected'
+  // Heartbeat status: 'connected', 'timeout', 'disconnected'
   const getStatusInfo = () => {
     switch (heartbeatStatus) {
       case 'connected':

@@ -27,16 +27,15 @@ from physical_ai_interfaces.srv import (
 )
 from physical_ai_server.communication.multi_subscriber import MultiSubscriber
 from physical_ai_server.utils.parameter_utils import parse_topic_list_with_names
-import rclpy
 from rclpy.node import Node
 from rclpy.qos import (
-    QoSProfile,
-    ReliabilityPolicy,
     DurabilityPolicy,
-    HistoryPolicy
+    HistoryPolicy,
+    QoSProfile,
+    ReliabilityPolicy
 )
-from std_msgs.msg import Empty
 from sensor_msgs.msg import CompressedImage, JointState
+from std_msgs.msg import Empty
 from trajectory_msgs.msg import JointTrajectory
 
 
@@ -94,7 +93,6 @@ class Communicator:
         self.init_subscribers()
         self.init_publishers()
         self.init_services()
-
 
     def _get_enabled_sources_for_mode(self, mode: str) -> Set[str]:
         enabled_sources = set()

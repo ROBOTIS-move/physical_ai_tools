@@ -84,16 +84,17 @@ class Communicator:
         self.follower_topic_msgs = {}
         self.leader_topic_msgs = {}
 
-        self.init_subscribers()
-        self.init_publishers()
-        self.init_services()
-
         self.heartbeat_qos_profile = QoSProfile(
             depth=1,
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST
         )
+
+        self.init_subscribers()
+        self.init_publishers()
+        self.init_services()
+
 
     def _get_enabled_sources_for_mode(self, mode: str) -> Set[str]:
         enabled_sources = set()

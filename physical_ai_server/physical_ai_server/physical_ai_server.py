@@ -163,7 +163,7 @@ class PhysicalAIServer(Node):
             self.heartbeat_timer.set_timer(
                 timer_name='heartbeat',
                 timer_frequency=1.0,
-                callback_function=self.communicator.heartbeat_timer_callback()
+                callback_function=self.communicator.heartbeat_timer_callback
             )
             self.heartbeat_timer.start(timer_name='heartbeat')
 

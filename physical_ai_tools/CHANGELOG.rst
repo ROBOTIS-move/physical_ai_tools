@@ -2,12 +2,17 @@
 Changelog for package physical_ai_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.5.7 (2025-07-02)
+0.5.8 (2025-07-02)
 ------------------
 * Applied Redux Toolkit for better state management
 * Added heartbeat status to the UI
 * Added heartbeat topic publishing to monitor alive status of Physical AI Server
 * Contributors: Kiwoong Park, Dongyun Kim
+
+0.5.7 (2025-06-26)
+------------------
+* Added Image Transport Plugin and fixed missing Gstreamer components
+* Contributors: Dongyun Kim
 
 0.5.6 (2025-06-26)
 ------------------

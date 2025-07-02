@@ -271,4 +271,3 @@ class Communicator:
     def heartbeat_timer_callback(self):
         heartbeat_msg = Empty()
         self.heartbeat_publisher.publish(heartbeat_msg)
-        self.node.get_logger().info('Heartbeat message published')

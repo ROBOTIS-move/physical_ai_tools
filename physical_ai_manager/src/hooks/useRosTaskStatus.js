@@ -181,8 +181,7 @@ export function useRosTaskStatus() {
         messageType: 'std_msgs/msg/Empty',
       });
 
-      heartbeatTopicRef.current.subscribe((msg) => {
-        console.log('Received heartbeat:', msg);
+      heartbeatTopicRef.current.subscribe(() => {
         dispatch(setHeartbeatStatus('connected'));
         dispatch(setLastHeartbeatTime(Date.now()));
       });

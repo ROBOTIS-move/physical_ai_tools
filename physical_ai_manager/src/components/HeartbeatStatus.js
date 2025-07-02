@@ -27,7 +27,7 @@ import { setHeartbeatStatus } from '../features/tasks/taskSlice';
  */
 export default function HeartbeatStatus({
   timeoutMs = 3000,
-  disconnetTimeoutMs = 10000,
+  disconnectTimeoutMs = 10000,
   className = '',
   showLabel = true,
   size = 'medium',
@@ -95,7 +95,7 @@ export default function HeartbeatStatus({
 
       const timeSinceLastHeartbeat = now - lastHeartbeatTime;
 
-      if (timeSinceLastHeartbeat >= disconnetTimeoutMs) {
+      if (timeSinceLastHeartbeat >= disconnectTimeoutMs) {
         // If 10 seconds have passed - disconnected
         if (heartbeatStatus !== 'disconnected') {
           dispatch(setHeartbeatStatus('disconnected'));
@@ -119,7 +119,7 @@ export default function HeartbeatStatus({
         clearInterval(intervalRef.current);
       }
     };
-  }, [lastHeartbeatTime, timeoutMs, disconnetTimeoutMs, heartbeatStatus, dispatch]);
+  }, [lastHeartbeatTime, timeoutMs, disconnectTimeoutMs, heartbeatStatus, dispatch]);
 
   const statusInfo = getStatusInfo();
 

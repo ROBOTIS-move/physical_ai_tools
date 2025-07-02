@@ -77,9 +77,6 @@ const taskSlice = createSlice({
     setTaskStatus: (state, action) => {
       state.taskStatus = { ...state.taskStatus, ...action.payload };
     },
-    setRobotType: (state, action) => {
-      state.taskStatus.robotType = action.payload;
-    },
     selectRobotType: (state, action) => {
       state.taskStatus.robotType = action.payload;
     },
@@ -119,7 +116,6 @@ export const {
   setTaskInfo,
   resetTaskInfo,
   setTaskStatus,
-  setRobotType,
   selectRobotType,
   resetTaskStatus,
   setTaskType,

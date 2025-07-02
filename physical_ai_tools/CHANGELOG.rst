@@ -2,6 +2,13 @@
 Changelog for package physical_ai_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.7 (2025-07-02)
+------------------
+* Applied Redux Toolkit for better state management
+* Added heartbeat status to the UI
+* Added heartbeat topic publishing to monitor alive status of Physical AI Server
+* Contributors: Kiwoong Park, Dongyun Kim
+
 0.5.6 (2025-06-26)
 ------------------
 * Reordered pip install order in Dockerfile to fix the numpy version issue

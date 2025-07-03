@@ -15,6 +15,7 @@
 // Author: Kiwoong Park
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
 import ROSLIB from 'roslib';
 import TaskPhase from '../constants/taskPhases';
@@ -96,6 +97,12 @@ export function useRosTaskStatus() {
         console.log('Received task status:', msg);
 
         let progress = 0;
+
+        if (msg.error !== '') {
+          console.log('error:', msg.error);
+          toast.error(msg.error);
+          return;
+        }
 
         // Calculate progress percentage
         if (msg.phase === TaskPhase.SAVING) {

@@ -384,7 +384,7 @@ const InferencePanel = () => {
         <textarea
           className={classTaskInstructionTextarea}
           value={info.taskInstruction || ''}
-          onChange={(e) => handleChange('taskInstruction', e.target.value)}
+          onChange={(e) => handleChange('taskInstruction', [e.target.value])}
           disabled={!isEditable}
           placeholder="Enter Task Instruction"
         />

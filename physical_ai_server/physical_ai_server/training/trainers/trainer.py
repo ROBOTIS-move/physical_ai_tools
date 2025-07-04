@@ -27,12 +27,8 @@ class Trainer(ABC):
         
     @abstractmethod
     def send_training_metrics(self) -> Dict[str, Any]:
-        """
-        Send training metrics to the server.
-        """
         pass
 
     @abstractmethod
     def train(self):
-
         pass

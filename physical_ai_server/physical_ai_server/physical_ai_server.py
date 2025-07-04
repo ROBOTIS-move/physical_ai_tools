@@ -37,6 +37,7 @@ from physical_ai_interfaces.srv import (
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.inference.inference_manager import InferenceManager
+from physical_ai_server.training.training_manager import TrainingManager
 from physical_ai_server.timer.timer_manager import TimerManager
 from physical_ai_server.utils.parameter_utils import (
     declare_parameters,
@@ -77,6 +78,7 @@ class PhysicalAIServer(Node):
         self.data_manager: Optional[DataManager] = None
         self.timer_manager: Optional[TimerManager] = None
         self.inference_manager: Optional[InferenceManager] = None
+        self.training_manager: Optional[TrainingManager] = None
 
     def _init_ros_service(self):
         self.get_logger().info('Initializing ROS services...')
@@ -418,6 +420,9 @@ class PhysicalAIServer(Node):
                 self.start_recording_time = time.perf_counter()
                 response.success = True
                 response.message = 'Inference started'
+
+            elif request.command == SendCommand.Request.START_TRAINING:
+                self.training_manager.train()
 
             else:
                 if not self.on_recording and not self.on_inference:

@@ -16,14 +16,11 @@
 #
 # Author: Seongwoo Kim
 
-import os
-import torch
-
 from training.trainers.lerobot.lerobot_trainer import LerobotTrainer
 from training.trainers.grootn1.grootn1_trainer import GrootN1Trainer
 from training.trainers.openvla.openvla_trainer import OpenVLATrainer
 
-class TrainManager:
+class TrainingManager:
     
     def __init__(self, framework, config, device: str = 'cuda'):
         self.framework = framework

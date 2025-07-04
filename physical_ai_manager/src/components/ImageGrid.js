@@ -33,44 +33,39 @@ export default function ImageGrid({ isActive = true }) {
   const [selectedIdx, setSelectedIdx] = React.useState(null);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [topicListError, setTopicListError] = useState(null);
+  const [asignedImageTopicList, setAsignedImageTopicList] = useState([]);
 
   const { getImageTopicList } = useRosServiceCaller();
 
   // Auto-assign topics to grid cells (center, left, right order)
-  const autoAssignTopics = useCallback(
-    (imageTopics, isRefresh = false) => {
-      if (imageTopics.length > 0) {
-        const autoTopics = Array(layout.length).fill(null);
+  const autoAssignTopics = useCallback((imageTopics, isRefresh = false) => {
+    if (imageTopics.length > 0) {
+      const autoTopics = Array(layout.length).fill(null);
 
-        // Assignment order: center (idx=1), left (idx=0), right (idx=2)
-        const assignmentOrder = [1, 0, 2];
+      // Assignment order: center (idx=1), left (idx=0), right (idx=2)
+      const assignmentOrder = [1, 0, 2];
 
-        for (let i = 0; i < Math.min(imageTopics.length, assignmentOrder.length); i++) {
-          autoTopics[assignmentOrder[i]] = imageTopics[i];
-          console.log(
-            `${isRefresh ? 'Re-a' : 'A'}ssigned topic ${imageTopics[i]} to grid position ${
-              assignmentOrder[i]
-            }`
-          );
-        }
-
-        console.log(`Final ${isRefresh ? 're-assigned' : 'auto-assigned'} topics:`, autoTopics);
-        dispatch(setImageTopicList(autoTopics));
-        toast.success(
-          `${isRefresh ? 'Re-a' : 'Auto-a'}ssigned ${Math.min(
-            imageTopics.length,
-            3
-          )} topics to grid`
+      for (let i = 0; i < Math.min(imageTopics.length, assignmentOrder.length); i++) {
+        autoTopics[assignmentOrder[i]] = imageTopics[i];
+        console.log(
+          `${isRefresh ? 'Re-a' : 'A'}ssigned topic ${imageTopics[i]} to grid position ${
+            assignmentOrder[i]
+          }`
         );
       }
-    },
-    [dispatch]
-  );
+
+      console.log(`Final ${isRefresh ? 're-assigned' : 'auto-assigned'} topics:`, autoTopics);
+      setAsignedImageTopicList(autoTopics);
+      toast.success(
+        `${isRefresh ? 'Re-a' : 'Auto-a'}ssigned ${Math.min(imageTopics.length, 3)} topics to grid`
+      );
+    }
+  }, []);
 
   // Adjust the length of the topics array
   React.useEffect(() => {
-    if (imageTopicList.length !== layout.length) {
-      dispatch(setImageTopicList(Array(layout.length).fill(null)));
+    if (asignedImageTopicList.length !== layout.length) {
+      setAsignedImageTopicList(Array(layout.length).fill(null));
     }
     // eslint-disable-next-line
   }, []);
@@ -125,9 +120,6 @@ export default function ImageGrid({ isActive = true }) {
         dispatch(setImageTopicList(imageTopics));
         setTopicListError(null);
         toast.success(`Refreshed: ${imageTopics.length} image topics`);
-
-        // Auto-assign topics to grid cells
-        autoAssignTopics(imageTopics, true);
       } else {
         const errorMsg = result?.message || 'Unknown error occurred';
         setTopicListError(`Service error: ${errorMsg}`);
@@ -144,7 +136,7 @@ export default function ImageGrid({ isActive = true }) {
   };
 
   const handleTopicSelect = (topic) => {
-    dispatch(setImageTopicList(imageTopicList.map((t, i) => (i === selectedIdx ? topic : t))));
+    setAsignedImageTopicList(asignedImageTopicList.map((t, i) => (i === selectedIdx ? topic : t)));
     setModalOpen(false);
     setSelectedIdx(null);
   };
@@ -152,7 +144,7 @@ export default function ImageGrid({ isActive = true }) {
   const handleCellClose = (idx) => {
     const img = document.querySelector(`#img-stream-${idx}`);
     if (img) img.src = '';
-    dispatch(setImageTopicList(imageTopicList.map((t, i) => (i === idx ? null : t))));
+    setAsignedImageTopicList(asignedImageTopicList.map((t, i) => (i === idx ? null : t)));
   };
 
   const classImageGridArea = clsx(
@@ -193,14 +185,14 @@ export default function ImageGrid({ isActive = true }) {
         {layout.map((cell, idx) => (
           <div key={idx} className={classImageGridCell(idx)}>
             <ImageGridCell
-              topic={imageTopicList[idx]}
+              topic={asignedImageTopicList[idx]}
               aspect={cell.aspect}
               idx={idx}
               onClose={handleCellClose}
               onPlusClick={handlePlusClick}
               isActive={isActive}
             />
-            <div className={classTopicLabel}>{imageTopicList[idx] || ''}</div>
+            <div className={classTopicLabel}>{asignedImageTopicList[idx] || ''}</div>
           </div>
         ))}
         {modalOpen && (

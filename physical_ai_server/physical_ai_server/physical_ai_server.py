@@ -466,7 +466,7 @@ class PhysicalAIServer(Node):
 
                     elif request.command == SendCommand.Request.CHANGE_TASK:
                         self.get_logger().info('Skipping current episode')
-                        self.data_manager.record_skip()
+                        self.data_manager.record_next_task()
                         response.success = True
                         response.message = 'Current episode skipped'
 

@@ -124,7 +124,7 @@ class DataManager:
                 if not self._check_time(self._task_info.reset_time_s, 'run'):
                     return self.RECORDING
 
-        elif self._status == 'skip':
+        elif self._status == 'change_task':
             if not self._check_time(self.SKIP_TIME, 'run'):
                 return self.RECORDING
 
@@ -220,10 +220,10 @@ class DataManager:
         self._episode_reset()
         self._status = 'reset'
 
-    def record_skip(self):
+    def record_change_task(self):
         self._stop_save_completed = False
         self._episode_reset()
-        self._status = 'skip'
+        self._status = 'change_task'
         self._current_task += 1
 
     def record_next_episode(self):

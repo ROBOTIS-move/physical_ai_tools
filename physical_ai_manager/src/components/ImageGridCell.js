@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { MdClose } from 'react-icons/md';
 import { useSelector } from 'react-redux';
@@ -63,18 +63,86 @@ export default function ImageGridCell({
   style = {},
 }) {
   const rosHost = useSelector((state) => state.ros.rosHost);
+  const containerRef = useRef(null);
+  const currentImgRef = useRef(null);
 
-  // Cleanup stream connection only when component unmounts
+  // Completely remove img element from DOM
+  const destroyImage = useCallback(() => {
+    if (currentImgRef.current) {
+      console.log(`Destroying image stream for idx ${idx}`);
+      // First set src to empty
+      currentImgRef.current.src = '';
+      // Remove from DOM completely
+      if (currentImgRef.current.parentNode) {
+        currentImgRef.current.parentNode.removeChild(currentImgRef.current);
+      }
+      currentImgRef.current = null;
+    }
+  }, [idx]);
+
+  // Create new img element and add to DOM
+  const createImage = useCallback(() => {
+    if (!topic || !topic.trim() || !isActive || !containerRef.current) {
+      return;
+    }
+
+    destroyImage(); // Remove any existing image first
+
+    console.log(`Creating new image stream for idx ${idx}, topic: ${topic}`);
+
+    const img = document.createElement('img');
+    const timestamp = Date.now();
+    img.src = `http://${rosHost}:8080/stream?quality=50&type=ros_compressed&default_transport=compressed&topic=${topic}&t=${timestamp}`;
+    img.alt = topic;
+    img.className = 'w-full h-full object-cover rounded-3xl bg-gray-100';
+    img.onclick = (e) => e.stopPropagation();
+
+    // Error and load handlers
+    img.onerror = () => {
+      console.error(`Image stream error for idx ${idx}, topic: ${topic}`);
+    };
+
+    img.onload = () => {
+      console.log(`Image stream started for idx ${idx}, topic: ${topic}`);
+    };
+
+    containerRef.current.appendChild(img);
+    currentImgRef.current = img;
+  }, [topic, isActive, rosHost, idx, destroyImage]);
+
+  // Create/recreate image when topic, isActive, or rosHost changes
+  useEffect(() => {
+    if (topic && topic.trim() !== '' && isActive) {
+      createImage();
+    } else {
+      destroyImage();
+    }
+
+    return () => {
+      destroyImage();
+    };
+  }, [topic, isActive, rosHost, idx, createImage, destroyImage]);
+
+  // Force cleanup on unmount
   useEffect(() => {
     return () => {
-      // Clear image src to close MJPEG stream connection
-      const img = document.querySelector(`#img-stream-${idx}`);
-      if (img) {
-        img.src = '';
-        console.log(`Cleaned up stream for idx ${idx} on unmount`);
+      destroyImage();
+      // Also clean up any remaining img with same id
+      const existingImg = document.querySelector(`#img-stream-${idx}`);
+      if (existingImg) {
+        existingImg.src = '';
+        if (existingImg.parentNode) {
+          existingImg.parentNode.removeChild(existingImg);
+        }
       }
     };
-  }, [idx]); // Only depend on idx, not topic
+  }, [idx, destroyImage]);
+
+  const handleClose = (e) => {
+    e.stopPropagation();
+    destroyImage();
+    onClose(idx);
+  };
 
   return (
     <div
@@ -83,29 +151,13 @@ export default function ImageGridCell({
       style={{ cursor: !topic ? 'pointer' : 'default', aspectRatio: aspect, ...style }}
     >
       {topic && topic.trim() !== '' && (
-        <button
-          className={classImageGridCellButton}
-          onClick={(e) => {
-            e.stopPropagation();
-            const img = document.querySelector(`#img-stream-${idx}`);
-            if (img) img.src = '';
-            onClose(idx);
-          }}
-        >
+        <button className={classImageGridCellButton} onClick={handleClose}>
           <MdClose size={20} />
         </button>
       )}
-      {topic && topic.trim() !== '' && isActive ? (
-        <img
-          id={`img-stream-${idx}`}
-          src={`http://${rosHost}:8080/stream?quality=50&type=ros_compressed&default_transport=compressed&topic=${topic}`}
-          alt={topic}
-          className="w-full h-full object-cover rounded-3xl bg-gray-100"
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : (
-        <div className="text-6xl text-gray-400 font-light">+</div>
-      )}
+      <div ref={containerRef} className="w-full h-full flex items-center justify-center">
+        {(!topic || !isActive) && <div className="text-6xl text-gray-400 font-light">+</div>}
+      </div>
     </div>
   );
 }

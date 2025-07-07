@@ -131,6 +131,48 @@ function App() {
     dispatch(moveToPage(PageType.INFERENCE));
   };
 
+  // Force cleanup of all image streams when page changes
+  useEffect(() => {
+    return () => {
+      // Clean up all possible image streams when page changes
+      console.log('Page changing, forcing complete cleanup of all image streams');
+
+      // Method 1: Find by ID pattern
+      for (let i = 0; i < 10; i++) {
+        const img = document.querySelector(`#img-stream-${i}`);
+        if (img) {
+          img.src = '';
+          if (img.parentNode) {
+            img.parentNode.removeChild(img);
+          }
+          console.log(`Page cleanup: removed img-stream-${i}`);
+        }
+      }
+
+      // Method 2: Find all streaming images by src pattern
+      const allStreamImgs = document.querySelectorAll('img[src*="/stream"]');
+      allStreamImgs.forEach((img, index) => {
+        img.src = '';
+        if (img.parentNode) {
+          img.parentNode.removeChild(img);
+        }
+        console.log(`Page cleanup: removed stream image ${index}`);
+      });
+
+      // Method 3: Find all images with stream URLs in any form
+      const allImgs = document.querySelectorAll('img');
+      allImgs.forEach((img, index) => {
+        if (img.src && img.src.includes('/stream')) {
+          img.src = '';
+          if (img.parentNode) {
+            img.parentNode.removeChild(img);
+          }
+          console.log(`Page cleanup: removed additional stream image ${index}`);
+        }
+      });
+    };
+  }, [page]);
+
   return (
     <div className="flex h-screen w-screen">
       <aside className="w-30 bg-gray-100 h-full flex flex-col items-center pt-10 gap-4 shadow-[inset_0_0_2px_rgba(0,0,0,0.1)]">

@@ -108,13 +108,28 @@ export default function ImageGrid({ isActive = true }) {
   // Cleanup all image streams when component unmounts
   useEffect(() => {
     return () => {
+      console.log('ImageGrid unmounting - cleaning up all streams');
       // Clear all image streams when ImageGrid unmounts
       layout.forEach((_, idx) => {
-        const img = document.querySelector(`#img-stream-${idx}`);
-        if (img) {
-          img.src = '';
-          console.log(`ImageGrid cleanup: cleared stream for idx ${idx}`);
+        // Try multiple ways to find and clean up images
+        const imgById = document.querySelector(`#img-stream-${idx}`);
+        if (imgById) {
+          imgById.src = '';
+          if (imgById.parentNode) {
+            imgById.parentNode.removeChild(imgById);
+          }
+          console.log(`ImageGrid cleanup: removed img with id img-stream-${idx}`);
         }
+
+        // Also clean up any streaming images without IDs
+        const streamingImgs = document.querySelectorAll('img[src*="/stream"]');
+        streamingImgs.forEach((img, streamIdx) => {
+          img.src = '';
+          if (img.parentNode) {
+            img.parentNode.removeChild(img);
+          }
+          console.log(`ImageGrid cleanup: removed streaming img ${streamIdx}`);
+        });
       });
     };
   }, []);
@@ -156,8 +171,28 @@ export default function ImageGrid({ isActive = true }) {
   };
 
   const handleCellClose = (idx) => {
-    const img = document.querySelector(`#img-stream-${idx}`);
-    if (img) img.src = '';
+    console.log(`Manually closing cell ${idx}`);
+    // Force cleanup of image stream
+    const imgById = document.querySelector(`#img-stream-${idx}`);
+    if (imgById) {
+      imgById.src = '';
+      if (imgById.parentNode) {
+        imgById.parentNode.removeChild(imgById);
+      }
+    }
+
+    // Also clean up any images in the specific cell container
+    const cellContainer = document.querySelector(`[data-cell-idx="${idx}"]`);
+    if (cellContainer) {
+      const imgs = cellContainer.querySelectorAll('img[src*="/stream"]');
+      imgs.forEach((img) => {
+        img.src = '';
+        if (img.parentNode) {
+          img.parentNode.removeChild(img);
+        }
+      });
+    }
+
     setAsignedImageTopicList(asignedImageTopicList.map((t, i) => (i === idx ? null : t)));
   };
 
@@ -197,7 +232,7 @@ export default function ImageGrid({ isActive = true }) {
     <div className="w-full h-full overflow-hidden">
       <div className={classImageGridArea}>
         {layout.map((cell, idx) => (
-          <div key={idx} className={classImageGridCell(idx)}>
+          <div key={idx} className={classImageGridCell(idx)} data-cell-idx={idx}>
             <ImageGridCell
               topic={asignedImageTopicList[idx]}
               aspect={cell.aspect}

@@ -109,9 +109,10 @@ export default function ImageGrid({ isActive = true }) {
   useEffect(() => {
     return () => {
       console.log('ImageGrid unmounting - cleaning up all streams');
+
       // Clear all image streams when ImageGrid unmounts
       layout.forEach((_, idx) => {
-        // Try multiple ways to find and clean up images
+        // Clean up images by ID
         const imgById = document.querySelector(`#img-stream-${idx}`);
         if (imgById) {
           imgById.src = '';
@@ -120,16 +121,16 @@ export default function ImageGrid({ isActive = true }) {
           }
           console.log(`ImageGrid cleanup: removed img with id img-stream-${idx}`);
         }
+      });
 
-        // Also clean up any streaming images without IDs
-        const streamingImgs = document.querySelectorAll('img[src*="/stream"]');
-        streamingImgs.forEach((img, streamIdx) => {
-          img.src = '';
-          if (img.parentNode) {
-            img.parentNode.removeChild(img);
-          }
-          console.log(`ImageGrid cleanup: removed streaming img ${streamIdx}`);
-        });
+      // Clean up all streaming images without IDs (perform query only once)
+      const streamingImgs = document.querySelectorAll('img[src*="/stream"]');
+      streamingImgs.forEach((img, streamIdx) => {
+        img.src = '';
+        if (img.parentNode) {
+          img.parentNode.removeChild(img);
+        }
+        console.log(`ImageGrid cleanup: removed streaming img ${streamIdx}`);
       });
     };
   }, []);

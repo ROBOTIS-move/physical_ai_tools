@@ -17,7 +17,7 @@
 # Author: Seongwoo Kim
 
 from training.trainers.lerobot.lerobot_trainer import LerobotTrainer
-from training.trainers.grootn1.grootn1_trainer import GrootN1Trainer
+from training.trainers.gr00tn1.gr00tn1_trainer import Gr00tN1Trainer
 from training.trainers.openvla.openvla_trainer import OpenVLATrainer
 
 class TrainingManager:
@@ -32,12 +32,11 @@ class TrainingManager:
         metrics = self.trainer.send_training_metrics()
         return metrics
         
-
     def _get_trainer(self):
         if self.framework == "lerobot":
             return LerobotTrainer(self.config)
-        elif self.framework == "grootn1":
-            return GrootN1Trainer(self.config)
+        elif self.framework == "gr00tn1":
+            return Gr00tN1Trainer(self.config)
         elif self.framework == "openvla":
             return OpenVLATrainer(self.config)
         else:

@@ -19,7 +19,7 @@
 from training.trainers.trainer import Trainer
 
 
-class GrootN1Trainer(Trainer):
+class Gr00tN1Trainer(Trainer):
     
     def send_training_metrics(self):
         pass

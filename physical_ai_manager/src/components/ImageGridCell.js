@@ -65,6 +65,7 @@ export default function ImageGridCell({
   const rosHost = useSelector((state) => state.ros.rosHost);
   const containerRef = useRef(null);
   const currentImgRef = useRef(null);
+  const isCreatingRef = useRef(false); // Track if createImage is in progress
 
   // Completely remove img element from DOM
   const destroyImage = useCallback(() => {
@@ -86,53 +87,68 @@ export default function ImageGridCell({
       return;
     }
 
-    destroyImage(); // Remove any existing image first
-
-    // Staggered delay - center first, then left and right
-    let staggeredDelay = 0;
-    if (idx === 1) {
-      // Center cell connects immediately
-      staggeredDelay = 0;
-    } else if (idx === 0 || idx === 2) {
-      // Left and right cells connect after 300ms
-      staggeredDelay = 300;
-    }
-
-    if (staggeredDelay > 0) {
-      console.log(
-        `Staggered delay ${staggeredDelay}ms for image stream idx ${idx}, topic: ${topic}`
-      );
-      await new Promise((resolve) => setTimeout(resolve, staggeredDelay));
-    } else {
-      console.log(`Immediate connection for center cell idx ${idx}, topic: ${topic}`);
-    }
-
-    // Check again if conditions are still valid after delay
-    if (!topic || !topic.trim() || !isActive || !containerRef.current) {
-      console.log(`Conditions changed during delay, aborting image stream for idx ${idx}`);
+    // Prevent multiple createImage calls from running simultaneously
+    if (isCreatingRef.current) {
+      console.log(`CreateImage already in progress for idx ${idx}, skipping`);
       return;
     }
 
-    console.log(`Creating new image stream for idx ${idx}, topic: ${topic}`);
+    isCreatingRef.current = true;
+    destroyImage(); // Remove any existing image first
 
-    const img = document.createElement('img');
-    const timestamp = Date.now();
-    img.src = `http://${rosHost}:8080/stream?quality=50&type=ros_compressed&default_transport=compressed&topic=${topic}&t=${timestamp}`;
-    img.alt = topic;
-    img.className = 'w-full h-full object-cover rounded-3xl bg-gray-100';
-    img.onclick = (e) => e.stopPropagation();
+    try {
+      // Staggered delay - center first, then left and right
+      let staggeredDelay = 0;
+      if (idx === 1) {
+        // Center cell connects immediately
+        staggeredDelay = 0;
+      } else if (idx === 0 || idx === 2) {
+        // Left and right cells connect after 300ms
+        staggeredDelay = 300;
+      }
 
-    // Error and load handlers
-    img.onerror = () => {
-      console.error(`Image stream error for idx ${idx}, topic: ${topic}`);
-    };
+      if (staggeredDelay > 0) {
+        console.log(
+          `Staggered delay ${staggeredDelay}ms for image stream idx ${idx}, topic: ${topic}`
+        );
+        await new Promise((resolve) => setTimeout(resolve, staggeredDelay));
+      } else {
+        console.log(`Immediate connection for center cell idx ${idx}, topic: ${topic}`);
+      }
 
-    img.onload = () => {
-      console.log(`Image stream started for idx ${idx}, topic: ${topic}`);
-    };
+      // Check again if conditions are still valid after delay and if we should still proceed
+      if (!topic || !topic.trim() || !isActive || !containerRef.current || !isCreatingRef.current) {
+        console.log(
+          `Conditions changed during delay or cancelled, aborting image stream for idx ${idx}`
+        );
+        return;
+      }
 
-    containerRef.current.appendChild(img);
-    currentImgRef.current = img;
+      console.log(`Creating new image stream for idx ${idx}, topic: ${topic}`);
+
+      const img = document.createElement('img');
+      const timestamp = Date.now();
+      img.src = `http://${rosHost}:8080/stream?quality=50&type=ros_compressed&default_transport=compressed&topic=${topic}&t=${timestamp}`;
+      img.alt = topic;
+      img.className = 'w-full h-full object-cover rounded-3xl bg-gray-100';
+      img.onclick = (e) => e.stopPropagation();
+
+      // Error and load handlers
+      img.onerror = () => {
+        console.error(`Image stream error for idx ${idx}, topic: ${topic}`);
+      };
+
+      img.onload = () => {
+        console.log(`Image stream started for idx ${idx}, topic: ${topic}`);
+      };
+
+      if (containerRef.current && isCreatingRef.current) {
+        containerRef.current.appendChild(img);
+        currentImgRef.current = img;
+      }
+    } finally {
+      isCreatingRef.current = false;
+    }
   }, [topic, isActive, rosHost, idx, destroyImage]);
 
   // Create/recreate image when topic, isActive, or rosHost changes
@@ -141,12 +157,15 @@ export default function ImageGridCell({
       // Call async createImage function with error handling
       createImage().catch((error) => {
         console.error(`Error creating image stream for idx ${idx}:`, error);
+        isCreatingRef.current = false; // Reset flag on error
       });
     } else {
       destroyImage();
     }
 
     return () => {
+      // Cancel any ongoing createImage operation
+      isCreatingRef.current = false;
       destroyImage();
     };
   }, [topic, isActive, rosHost, idx, createImage, destroyImage]);

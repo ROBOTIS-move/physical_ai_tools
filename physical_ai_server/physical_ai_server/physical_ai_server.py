@@ -343,6 +343,7 @@ class PhysicalAIServer(Node):
         try:
             if not self.on_inference:
                 self.get_logger().info('Inference mode is not active')
+                current_status = self.data_manager.get_current_record_status()
                 current_status.phase = TaskStatus.READY
                 self.communicator.publish_status(status=current_status)
                 self.inference_manager.clear_policy()
@@ -375,6 +376,7 @@ class PhysicalAIServer(Node):
             error_msg = f'Inference failed, please check : {str(e)}'
             self.on_recording = False
             self.on_inference = False
+            current_status = self.data_manager.get_current_record_status()
             current_status.phase = TaskStatus.READY
             current_status.error = error_msg
             self.communicator.publish_status(status=current_status)

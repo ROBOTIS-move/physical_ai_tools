@@ -174,14 +174,6 @@ export default function ImageGridCell({
   useEffect(() => {
     return () => {
       destroyImage();
-      // Also clean up any remaining img with same id
-      const existingImg = document.querySelector(`#img-stream-${idx}`);
-      if (existingImg) {
-        existingImg.src = '';
-        if (existingImg.parentNode) {
-          existingImg.parentNode.removeChild(existingImg);
-        }
-      }
     };
   }, [idx, destroyImage]);
 

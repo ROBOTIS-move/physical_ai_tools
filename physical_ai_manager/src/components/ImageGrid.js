@@ -173,27 +173,7 @@ export default function ImageGrid({ isActive = true }) {
 
   const handleCellClose = (idx) => {
     console.log(`Manually closing cell ${idx}`);
-    // Force cleanup of image stream
-    const imgById = document.querySelector(`#img-stream-${idx}`);
-    if (imgById) {
-      imgById.src = '';
-      if (imgById.parentNode) {
-        imgById.parentNode.removeChild(imgById);
-      }
-    }
-
-    // Also clean up any images in the specific cell container
-    const cellContainer = document.querySelector(`[data-cell-idx="${idx}"]`);
-    if (cellContainer) {
-      const imgs = cellContainer.querySelectorAll('img[src*="/stream"]');
-      imgs.forEach((img) => {
-        img.src = '';
-        if (img.parentNode) {
-          img.parentNode.removeChild(img);
-        }
-      });
-    }
-
+    // Only update state - DOM cleanup is handled by ImageGridCell
     setAsignedImageTopicList(asignedImageTopicList.map((t, i) => (i === idx ? null : t)));
   };
 

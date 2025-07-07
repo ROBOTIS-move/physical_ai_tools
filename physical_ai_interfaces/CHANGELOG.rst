@@ -4,7 +4,7 @@ Changelog for package physical_ai_interfaces
 
 0.5.9 (2025-07-07)
 ------------------
-* Added multi-tasking-related service types
+* Added multi-tasking-related service types and message types
 * Contributors: Kiwoong Park, Seongwoo Kim
 
 0.5.8 (2025-07-07)

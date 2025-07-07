@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import clsx from 'clsx';
 import { MdClose } from 'react-icons/md';
 import { useSelector } from 'react-redux';
@@ -63,6 +63,18 @@ export default function ImageGridCell({
   style = {},
 }) {
   const rosHost = useSelector((state) => state.ros.rosHost);
+
+  // Cleanup stream connection only when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear image src to close MJPEG stream connection
+      const img = document.querySelector(`#img-stream-${idx}`);
+      if (img) {
+        img.src = '';
+        console.log(`Cleaned up stream for idx ${idx} on unmount`);
+      }
+    };
+  }, [idx]); // Only depend on idx, not topic
 
   return (
     <div

@@ -105,6 +105,20 @@ export default function ImageGrid({ isActive = true }) {
     fetchTopicList();
   }, [getImageTopicList, autoAssignTopics, dispatch]);
 
+  // Cleanup all image streams when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear all image streams when ImageGrid unmounts
+      layout.forEach((_, idx) => {
+        const img = document.querySelector(`#img-stream-${idx}`);
+        if (img) {
+          img.src = '';
+          console.log(`ImageGrid cleanup: cleared stream for idx ${idx}`);
+        }
+      });
+    };
+  }, []);
+
   const handlePlusClick = (idx) => {
     setSelectedIdx(idx);
     setModalOpen(true);

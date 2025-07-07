@@ -563,12 +563,11 @@ const InfoPanel = () => {
         </div>
       </div>
 
-      <div className="text-xs text-gray-500 mt-1 leading-relaxed bg-gray-100 p-2 rounded-md mb-2">
-        Dataset will be saved with the following repo id:
-        <br />
-        <span className="text-blue-500 font-bold">
+      <div className="flex flex-col items-center text-xs text-gray-500 mt-1 leading-relaxed bg-gray-100 p-2 rounded-md mb-2">
+        <div>Dataset will be saved with the following repo id</div>
+        <div className="text-blue-500 font-bold break-all">
           {taskStatus?.robotType}_{info.taskName}
-        </span>
+        </div>
       </div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>

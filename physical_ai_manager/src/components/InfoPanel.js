@@ -207,7 +207,9 @@ const InfoPanel = () => {
     'p-4',
     'w-full',
     'max-w-[350px]',
-    'relative'
+    'relative',
+    'overflow-y-auto',
+    'scrollbar-thin'
   );
 
   const classTaskNameTextarea = clsx(

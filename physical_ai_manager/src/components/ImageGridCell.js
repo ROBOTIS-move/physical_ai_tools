@@ -80,13 +80,38 @@ export default function ImageGridCell({
     }
   }, [idx]);
 
-  // Create new img element and add to DOM
-  const createImage = useCallback(() => {
+  // Create new img element and add to DOM with staggered delay
+  const createImage = useCallback(async () => {
     if (!topic || !topic.trim() || !isActive || !containerRef.current) {
       return;
     }
 
     destroyImage(); // Remove any existing image first
+
+    // Staggered delay - center first, then left and right
+    let staggeredDelay = 0;
+    if (idx === 1) {
+      // Center cell connects immediately
+      staggeredDelay = 0;
+    } else if (idx === 0 || idx === 2) {
+      // Left and right cells connect after 300ms
+      staggeredDelay = 300;
+    }
+
+    if (staggeredDelay > 0) {
+      console.log(
+        `Staggered delay ${staggeredDelay}ms for image stream idx ${idx}, topic: ${topic}`
+      );
+      await new Promise((resolve) => setTimeout(resolve, staggeredDelay));
+    } else {
+      console.log(`Immediate connection for center cell idx ${idx}, topic: ${topic}`);
+    }
+
+    // Check again if conditions are still valid after delay
+    if (!topic || !topic.trim() || !isActive || !containerRef.current) {
+      console.log(`Conditions changed during delay, aborting image stream for idx ${idx}`);
+      return;
+    }
 
     console.log(`Creating new image stream for idx ${idx}, topic: ${topic}`);
 
@@ -113,7 +138,10 @@ export default function ImageGridCell({
   // Create/recreate image when topic, isActive, or rosHost changes
   useEffect(() => {
     if (topic && topic.trim() !== '' && isActive) {
-      createImage();
+      // Call async createImage function with error handling
+      createImage().catch((error) => {
+        console.error(`Error creating image stream for idx ${idx}:`, error);
+      });
     } else {
       destroyImage();
     }

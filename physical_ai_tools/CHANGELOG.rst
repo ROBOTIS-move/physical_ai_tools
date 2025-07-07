@@ -2,7 +2,7 @@
 Changelog for package physical_ai_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.5.8 (2025-07-02)
+0.5.8 (2025-07-07)
 ------------------
 * Applied Redux Toolkit for better state management
 * Added heartbeat status to the UI

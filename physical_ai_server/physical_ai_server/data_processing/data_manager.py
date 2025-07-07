@@ -102,7 +102,10 @@ class DataManager:
                     self._status = 'reset'
                     self._start_time_s = 0
                     self._on_saving = False
-                elif not self._single_task and self._lerobot_dataset.check_append_buffer_completed():
+                elif (
+                    not self._single_task
+                    and self._lerobot_dataset.check_append_buffer_completed()
+                ):
                     self._episode_reset()
                     self._record_episode_count += 1
                     self._current_task += 1
@@ -237,7 +240,6 @@ class DataManager:
         elif self._status == 'run':
             current_status.phase = TaskStatus.RECORDING
             current_status.total_time = int(self._task_info.episode_time_s)
-            
         elif self._status == 'reset':
             current_status.phase = TaskStatus.RESETTING
             current_status.total_time = int(self._task_info.reset_time_s)
@@ -335,7 +337,11 @@ class DataManager:
             raise ValueError(f'Unsupported message type: {type(msg_data)}')
 
     def _episode_reset(self):
-        if self._lerobot_dataset and hasattr(self._lerobot_dataset, 'episode_buffer') or self._current_task == 0:
+        if (
+            self._lerobot_dataset
+            and hasattr(self._lerobot_dataset, 'episode_buffer')
+            or self._current_task == 0
+        ):
             if self._lerobot_dataset.episode_buffer is not None:
                 for key, value in self._lerobot_dataset.episode_buffer.items():
                     if isinstance(value, list):
@@ -504,7 +510,7 @@ class DataManager:
         except FileNotFoundError:
             print('huggingface-cli not found. Please install package.')
             return False
-        
+
     def _init_task_limits(self):
         if not self._single_task:
             self._task_info.num_episodes = 1_000_000

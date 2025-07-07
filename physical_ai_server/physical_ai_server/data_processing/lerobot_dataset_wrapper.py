@@ -42,9 +42,9 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         self.episode_ranges = []
         self._append_in_progress = False
 
-    def video_encoding(self):        
+    def video_encoding(self):
         video_paths = {}
-        for episode_index, (start, end) in enumerate(self.episode_ranges):    
+        for episode_index, (start, end) in enumerate(self.episode_ranges):
             episode_buffer = self._extract_episode_buffer(start, end, episode_index)
             for key, ep in episode_buffer.items():
                 if 'observation.images' in key:
@@ -55,7 +55,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
     def append_episode_buffer(self, episode_buffer: dict, episode_length) -> None:
         self._append_in_progress = True
 
-        try:            
+        try:
             if not hasattr(self, 'total_frame_buffer') or self.total_frame_buffer is None:
                 self.total_frame_buffer = self.create_episode_buffer()
             if not hasattr(self, 'episode_ranges'):
@@ -71,7 +71,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 if key not in self.total_frame_buffer:
                     if isinstance(value, list):
                         self.total_frame_buffer[key] = value.copy()
-                    elif hasattr(value, "tolist"):
+                    elif hasattr(value, 'tolist'):
                         self.total_frame_buffer[key] = value.tolist()
                     else:
                         self.total_frame_buffer[key] = [value]
@@ -79,7 +79,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                     if isinstance(self.total_frame_buffer[key], list):
                         if isinstance(value, list):
                             self.total_frame_buffer[key].extend(value)
-                        elif hasattr(value, "tolist"):
+                        elif hasattr(value, 'tolist'):
                             self.total_frame_buffer[key].extend(value.tolist())
                         else:
                             self.total_frame_buffer[key].append(value)
@@ -88,12 +88,12 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 self.total_frame_buffer['frame_index'].extend(
                     list(range(start_index, start_index + num_new_frames))
                 )
-            
+
             if 'timestamp' not in episode_buffer:
                 self.total_frame_buffer['timestamp'].extend(
                     [(start_index + i) / self.fps for i in range(num_new_frames)]
                 )
-            
+
             self.total_frame_buffer['size'] += num_new_frames
             self.episode_ranges.append((start_index, end_index))
         finally:
@@ -139,7 +139,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 self.episode_buffer[key].append(frame[key])
 
         self.episode_buffer['size'] += 1
-    
+
     def save_episode_without_video_encoding(self):
         episode_buffer = self.episode_buffer
         validate_episode_buffer(
@@ -335,7 +335,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 return False
 
         return True
-    
+
     def check_append_buffer_completed(self) -> bool:
         return not self._append_in_progress
 

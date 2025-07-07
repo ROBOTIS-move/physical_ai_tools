@@ -563,6 +563,14 @@ const InfoPanel = () => {
         </div>
       </div>
 
+      <div className="text-xs text-gray-500 mt-1 leading-relaxed bg-gray-100 p-2 rounded-md mb-2">
+        Dataset will be saved with the following repo id:
+        <br />
+        <span className="text-blue-500 font-bold">
+          {taskStatus?.robotType}_{info.taskName}
+        </span>
+      </div>
+
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
         <span className={classLabel}>FPS</span>
         <input

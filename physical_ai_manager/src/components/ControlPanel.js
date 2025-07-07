@@ -97,7 +97,6 @@ const requiredFieldsForRecord = [
 const requiredFieldsForRecordInferenceMode = [
   { key: 'taskName', label: 'Task Name' },
   { key: 'taskInstruction', label: 'Task Instruction' },
-  { key: 'recordInferenceMode', label: 'Record Inference Mode' },
   { key: 'policyPath', label: 'Policy Path' },
   { key: 'userId', label: 'User ID' },
   { key: 'fps', label: 'FPS' },
@@ -110,7 +109,6 @@ const requiredFieldsForRecordInferenceMode = [
 const requiredFieldsForInferenceOnly = [
   { key: 'taskInstruction', label: 'Task Instruction' },
   { key: 'policyPath', label: 'Policy Path' },
-  { key: 'recordInferenceMode', label: 'Record Inference Mode' },
 ];
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];

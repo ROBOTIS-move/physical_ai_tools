@@ -48,9 +48,6 @@ const uiSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    setCurrentPage: (state, action) => {
-      state.currentPage = action.payload;
-    },
     moveToPage: (state, action) => {
       state.currentPage = action.payload;
     },
@@ -90,7 +87,6 @@ export const {
   setLoading,
   setError,
   clearError,
-  setCurrentPage,
   moveToPage,
   toggleSidebar,
   setSidebarOpen,

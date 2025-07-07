@@ -61,6 +61,8 @@ const initialState = {
   availableCameras: [],
   policyList: [],
   datasetList: [],
+  heartbeatStatus: 'disconnected',
+  lastHeartbeatTime: 0,
   useMultiTaskMode: false,
 };
 
@@ -76,9 +78,6 @@ const taskSlice = createSlice({
     },
     setTaskStatus: (state, action) => {
       state.taskStatus = { ...state.taskStatus, ...action.payload };
-    },
-    setRobotType: (state, action) => {
-      state.taskStatus.robotType = action.payload;
     },
     selectRobotType: (state, action) => {
       state.taskStatus.robotType = action.payload;
@@ -106,6 +105,12 @@ const taskSlice = createSlice({
     removeTag: (state, action) => {
       state.taskInfo.tags = state.taskInfo.tags.filter((tag) => tag !== action.payload);
     },
+    setHeartbeatStatus: (state, action) => {
+      state.heartbeatStatus = action.payload;
+    },
+    setLastHeartbeatTime: (state, action) => {
+      state.lastHeartbeatTime = action.payload;
+    },
     setUseMultiTaskMode: (state, action) => {
       state.useMultiTaskMode = action.payload;
     },
@@ -116,7 +121,6 @@ export const {
   setTaskInfo,
   resetTaskInfo,
   setTaskStatus,
-  setRobotType,
   selectRobotType,
   resetTaskStatus,
   setTaskType,
@@ -125,6 +129,8 @@ export const {
   setRecordInferenceMode,
   addTag,
   removeTag,
+  setHeartbeatStatus,
+  setLastHeartbeatTime,
   setUseMultiTaskMode,
 } = taskSlice.actions;
 

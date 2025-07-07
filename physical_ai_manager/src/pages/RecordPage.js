@@ -20,6 +20,7 @@ import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
 import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight, MdTask } from 'react-icons/md';
 import ControlPanel from '../components/ControlPanel';
+import HeartbeatStatus from '../components/HeartbeatStatus';
 import ImageGrid from '../components/ImageGrid';
 import InfoPanel from '../components/InfoPanel';
 import { addTag } from '../features/tasks/taskSlice';
@@ -154,6 +155,8 @@ export default function RecordPage({ isActive = true }) {
     'mx-1 my-2 px-2 text-lg text-blue-600 focus:outline-none bg-blue-100 rounded-full'
   );
 
+  const classHeartbeatStatus = clsx('absolute', 'top-20', 'left-5', 'z-10');
+
   const classTaskInstructionContainer = clsx(
     'absolute',
     'bottom-1',
@@ -206,6 +209,9 @@ export default function RecordPage({ isActive = true }) {
           <div className={classRobotTypeContainer}>
             <div className={classRobotType}>Robot Type</div>
             <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
+          </div>
+          <div className={classHeartbeatStatus}>
+            <HeartbeatStatus />
           </div>
           <div className={classImageGridContainer}>
             <ImageGrid isActive={isActive} />

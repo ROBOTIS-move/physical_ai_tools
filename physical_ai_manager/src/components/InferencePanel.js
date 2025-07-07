@@ -117,16 +117,8 @@ const InferencePanel = () => {
 
   // Update isEditable state when the disabled prop changes
   useEffect(() => {
-    console.log(
-      'Disabled state changed:',
-      disabled,
-      'Phase:',
-      taskStatus.phase,
-      'Paused:',
-      isTaskStatusPaused
-    );
     setIsEditable(!disabled);
-  }, [disabled, taskStatus.phase, isTaskStatusPaused]);
+  }, [disabled]);
 
   // Reset dropdown state when Push to Hub is unchecked
   useEffect(() => {

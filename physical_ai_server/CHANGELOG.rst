@@ -2,6 +2,11 @@
 Changelog for package physical_ai_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.9 (2025-07-08)
+------------------
+* Added multi-tasking data recording support to the Physical AI Server
+* Contributors: Seongwoo Kim
+
 0.5.8 (2025-07-07)
 ------------------
 * Added heartbeat topic publishing to monitor alive status of Physical AI Server

@@ -155,15 +155,11 @@ class DataManager:
                             self._task_info.private_mode)
                     return self.RECORD_COMPLETED
             else:
+                self.save()
                 if not self._single_task:
-                    self.save()
                     self._lerobot_dataset.video_encoding()
-                    self._proceed_time = 0
-                    self._on_saving = True
-                else:
-                    self.save()
-                    self._proceed_time = 0
-                    self._on_saving = True
+                self._proceed_time = 0
+                self._on_saving = True
 
         if self._record_episode_count >= self._task_info.num_episodes:
             if self._lerobot_dataset.check_video_encoding_completed():

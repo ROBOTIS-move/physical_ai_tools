@@ -2,6 +2,11 @@
 Changelog for package physical_ai_manager
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.10 (2025-07-08)
+------------------
+* Added multi-tasking data recording support in record page
+* Contributors: Kiwoong Park
+
 0.5.9 (2025-07-07)
 ------------------
 * Use global ROS connection instead of multiple instances

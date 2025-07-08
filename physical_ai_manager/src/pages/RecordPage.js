@@ -82,7 +82,7 @@ export default function RecordPage({ isActive = true }) {
     'duration-300',
     'ease-in-out',
     'relative',
-    'overflow-scroll',
+    'overflow-y-auto',
     {
       'flex-[0_0_40px]': isRightPanelCollapsed,
       'flex-[1]': !isRightPanelCollapsed,
@@ -124,7 +124,6 @@ export default function RecordPage({ isActive = true }) {
     'overflow-hidden',
     'transition-opacity',
     'duration-300',
-    'overflow-scroll',
     {
       'opacity-0': isRightPanelCollapsed,
       'opacity-100': !isRightPanelCollapsed,

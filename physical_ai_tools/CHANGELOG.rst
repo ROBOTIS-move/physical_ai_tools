@@ -2,10 +2,17 @@
 Changelog for package physical_ai_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.5.9 (2025-07-08)
+0.5.10 (2025-07-08)
 ------------------
 * Added multi-tasking data recording support to the Physical AI Server
 * Contributors: Kiwoong Park, Seongwoo Kim
+
+0.5.9 (2025-07-07)
+------------------
+* Use global ROS connection instead of multiple instances
+* Add proper cleanup for image streams to prevent accumulation
+* Remove unnecessary scrollbars in Chrome browser
+* Contributors: Kiwoong Park
 
 0.5.8 (2025-07-07)
 ------------------

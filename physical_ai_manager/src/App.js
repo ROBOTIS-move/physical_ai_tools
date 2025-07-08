@@ -17,12 +17,14 @@
 import React, { useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import { MdHome, MdVideocam, MdMemory } from 'react-icons/md';
+import { GoGraph } from 'react-icons/go';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 import './App.css';
 import HomePage from './pages/HomePage';
 import RecordPage from './pages/RecordPage';
 import InferencePage from './pages/InferencePage';
+import TrainingPage from './pages/TrainingPage';
 import { useRosTaskStatus } from './hooks/useRosTaskStatus';
 import rosConnectionManager from './utils/rosConnectionManager';
 import { useDispatch, useSelector } from 'react-redux';
@@ -131,6 +133,36 @@ function App() {
     dispatch(moveToPage(PageType.INFERENCE));
   };
 
+  const handleTrainingPageNavigation = () => {
+    if (process.env.REACT_APP_DEBUG === 'true') {
+      console.log('handleTrainingPageNavigation');
+      isFirstLoad.current = false;
+      dispatch(moveToPage(PageType.TRAINING));
+      return;
+    }
+
+    // Allow navigation if task is in progress
+    if (taskStatus && taskStatus.robotType !== '') {
+      console.log('robot type:', taskStatus.robotType, '=> allowing navigation to Training page');
+      isFirstLoad.current = false;
+      dispatch(moveToPage(PageType.TRAINING));
+      return;
+    }
+
+    // Block navigation if robot type is not set
+    if (!robotType || robotType.trim() === '') {
+      toast.error('Please select a robot type first in the Home page', {
+        duration: 4000,
+      });
+      console.log('Robot type not set, blocking navigation to Training page');
+      return;
+    }
+
+    // Allow navigation if conditions are met
+    console.log('Robot type set, allowing navigation to Training page');
+    dispatch(moveToPage(PageType.TRAINING));
+  };
+
   // Force cleanup of all image streams when page changes
   useEffect(() => {
     return () => {
@@ -232,6 +264,32 @@ function App() {
           <MdMemory size={32} className="mb-1.5" />
           <span className="mt-1 text-sm">Inference</span>
         </button>
+        <button
+          className={clsx(
+            'flex',
+            'flex-col',
+            'items-center',
+            'rounded-2xl',
+            'border-none',
+            'py-5',
+            'px-4',
+            'text-base',
+            'text-gray-800',
+            'cursor-pointer',
+            'transition-colors',
+            'duration-150',
+            'outline-none',
+            'w-24',
+            {
+              'hover:bg-gray-200 active:bg-gray-400': page !== PageType.TRAINING,
+              'bg-gray-300': page === PageType.TRAINING,
+            }
+          )}
+          onClick={handleTrainingPageNavigation}
+        >
+          <GoGraph size={28} className="mb-1.5" />
+          <span className="mt-1 text-sm">Training</span>
+        </button>
       </aside>
       <main className="flex-1 flex flex-col h-screen min-h-0">
         {page === PageType.HOME ? (
@@ -240,6 +298,8 @@ function App() {
           <RecordPage isActive={page === PageType.RECORD} />
         ) : page === PageType.INFERENCE ? (
           <InferencePage isActive={page === PageType.INFERENCE} />
+        ) : page === PageType.TRAINING ? (
+          <TrainingPage isActive={page === PageType.TRAINING} />
         ) : (
           <HomePage />
         )}

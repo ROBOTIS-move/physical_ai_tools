@@ -2,6 +2,19 @@
 Changelog for package physical_ai_manager
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.9 (2025-07-07)
+------------------
+* Use global ROS connection instead of multiple instances
+* Add proper cleanup for image streams to prevent accumulation
+* Remove unnecessary scrollbars in Chrome browser
+* Contributors: Kiwoong Park
+
+0.5.8 (2025-07-07)
+------------------
+* Applied Redux Toolkit for better state management
+* Added heartbeat status to the UI
+* Contributors: Kiwoong Park
+
 0.5.7 (2025-06-26)
 ------------------
 * None

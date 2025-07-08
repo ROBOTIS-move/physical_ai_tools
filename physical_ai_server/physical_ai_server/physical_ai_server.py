@@ -77,6 +77,7 @@ class PhysicalAIServer(Node):
         self.communicator: Optional[Communicator] = None
         self.data_manager: Optional[DataManager] = None
         self.timer_manager: Optional[TimerManager] = None
+        self.heartbeat_timer: Optional[TimerManager] = None
         self.inference_manager: Optional[InferenceManager] = None
         self.training_manager: Optional[TrainingManager] = None
 
@@ -158,6 +159,15 @@ class PhysicalAIServer(Node):
             operation_mode=self.operation_mode,
             params=self.params
         )
+
+        if self.heartbeat_timer is None:
+            self.heartbeat_timer = TimerManager(node=self)
+            self.heartbeat_timer.set_timer(
+                timer_name='heartbeat',
+                timer_frequency=1.0,
+                callback_function=self.communicator.heartbeat_timer_callback
+            )
+            self.heartbeat_timer.start(timer_name='heartbeat')
 
         self.inference_manager = InferenceManager()
         self.get_logger().info(
@@ -335,6 +345,7 @@ class PhysicalAIServer(Node):
         try:
             if not self.on_inference:
                 self.get_logger().info('Inference mode is not active')
+                current_status = self.data_manager.get_current_record_status()
                 current_status.phase = TaskStatus.READY
                 self.communicator.publish_status(status=current_status)
                 self.inference_manager.clear_policy()
@@ -367,6 +378,7 @@ class PhysicalAIServer(Node):
             error_msg = f'Inference failed, please check : {str(e)}'
             self.on_recording = False
             self.on_inference = False
+            current_status = self.data_manager.get_current_record_status()
             current_status.phase = TaskStatus.READY
             current_status.error = error_msg
             self.communicator.publish_status(status=current_status)

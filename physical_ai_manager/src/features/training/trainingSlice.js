@@ -23,6 +23,10 @@ const initialState = {
   datasetList: [],
   selectedUser: undefined,
   selectedDataset: undefined,
+  policyList: [],
+  deviceList: [],
+  selectedPolicy: undefined,
+  selectedDevice: undefined,
 };
 
 const trainingSlice = createSlice({
@@ -41,10 +45,30 @@ const trainingSlice = createSlice({
     setSelectedDataset: (state, action) => {
       state.selectedDataset = action.payload;
     },
+    setPolicyList: (state, action) => {
+      state.policyList = action.payload;
+    },
+    setDeviceList: (state, action) => {
+      state.deviceList = action.payload;
+    },
+    setSelectedPolicy: (state, action) => {
+      state.selectedPolicy = action.payload;
+    },
+    setSelectedDevice: (state, action) => {
+      state.selectedDevice = action.payload;
+    },
   },
 });
 
-export const { setUserList, setDatasetList, setSelectedUser, setSelectedDataset } =
-  trainingSlice.actions;
+export const {
+  setUserList,
+  setDatasetList,
+  setSelectedUser,
+  setSelectedDataset,
+  setPolicyList,
+  setDeviceList,
+  setSelectedPolicy,
+  setSelectedDevice,
+} = trainingSlice.actions;
 
 export default trainingSlice.reducer;

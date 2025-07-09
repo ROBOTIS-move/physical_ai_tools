@@ -278,6 +278,24 @@ export function useRosServiceCaller() {
     [callService]
   );
 
+  const getPolicyList = useCallback(async () => {
+    try {
+      console.log('Calling service /training/get_policy_list with request:', {});
+
+      const result = await callService(
+        '/training/get_available_policy',
+        'physical_ai_interfaces/srv/GetPolicyList',
+        {}
+      );
+
+      console.log('getPolicyList service response:', result);
+      return result;
+    } catch (error) {
+      console.error('Failed to get policy list:', error);
+      throw new Error(`${error.message || error}`);
+    }
+  }, [callService]);
+
   return {
     callService,
     sendRecordCommand,
@@ -288,5 +306,6 @@ export function useRosServiceCaller() {
     getRegisteredHFUser,
     getUserList,
     getDatasetList,
+    getPolicyList,
   };
 }

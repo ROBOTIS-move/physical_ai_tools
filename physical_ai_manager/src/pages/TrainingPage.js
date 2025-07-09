@@ -14,11 +14,13 @@
 //
 // Author: Kiwoong Park
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import clsx from 'clsx';
+import toast, { useToasterStore } from 'react-hot-toast';
 import HeartbeatStatus from '../components/HeartbeatStatus';
 import DatasetSelector from '../components/DatasetSelector';
 import PolicySelector from '../components/PolicySelector';
+import TrainingOutputFolderInput from '../components/TrainingOutputFolderInput';
 
 export default function TrainingPage() {
   const classContainer = clsx(
@@ -33,6 +35,17 @@ export default function TrainingPage() {
 
   const classHeartbeatStatus = clsx('absolute', 'top-5', 'left-35', 'z-10');
 
+  // Toast limit implementation using useToasterStore
+  const { toasts } = useToasterStore();
+  const TOAST_LIMIT = 3;
+
+  useEffect(() => {
+    toasts
+      .filter((t) => t.visible) // Only consider visible toasts
+      .filter((_, i) => i >= TOAST_LIMIT) // Is toast index over limit?
+      .forEach((t) => toast.dismiss(t.id)); // Dismiss – Use toast.remove(t.id) for no exit animation
+  }, [toasts]);
+
   return (
     <div className={classContainer}>
       <div className={classHeartbeatStatus}>
@@ -45,6 +58,9 @@ export default function TrainingPage() {
 
         {/* Policy Selector */}
         <PolicySelector />
+
+        {/* Training Output Folder Input */}
+        <TrainingOutputFolderInput />
       </div>
     </div>
   );

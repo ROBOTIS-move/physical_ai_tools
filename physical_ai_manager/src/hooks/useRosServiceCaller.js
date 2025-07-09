@@ -296,6 +296,24 @@ export function useRosServiceCaller() {
     }
   }, [callService]);
 
+  const getModelWeightList = useCallback(async () => {
+    try {
+      console.log('Calling service /training/get_model_weight_list with request:', {});
+
+      const result = await callService(
+        '/training/get_model_weight_list',
+        'physical_ai_interfaces/srv/GetModelWeightList',
+        {}
+      );
+
+      console.log('getModelWeightList service response:', result);
+      return result;
+    } catch (error) {
+      console.error('Failed to get model weight list:', error);
+      throw new Error(`${error.message || error}`);
+    }
+  }, [callService]);
+
   return {
     callService,
     sendRecordCommand,
@@ -307,5 +325,6 @@ export function useRosServiceCaller() {
     getUserList,
     getDatasetList,
     getPolicyList,
+    getModelWeightList,
   };
 }

@@ -27,6 +27,8 @@ const initialState = {
   deviceList: [],
   selectedPolicy: undefined,
   selectedDevice: undefined,
+  outputFolderName: '',
+  modelWeightList: [],
 };
 
 const trainingSlice = createSlice({
@@ -57,6 +59,12 @@ const trainingSlice = createSlice({
     setSelectedDevice: (state, action) => {
       state.selectedDevice = action.payload;
     },
+    setOutputFolderName: (state, action) => {
+      state.outputFolderName = action.payload;
+    },
+    setModelWeightList: (state, action) => {
+      state.modelWeightList = action.payload;
+    },
   },
 });
 
@@ -69,6 +77,8 @@ export const {
   setDeviceList,
   setSelectedPolicy,
   setSelectedDevice,
+  setOutputFolderName,
+  setModelWeightList,
 } = trainingSlice.actions;
 
 export default trainingSlice.reducer;

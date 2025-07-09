@@ -86,17 +86,11 @@ class InferenceManager:
             images: dict[str, np.ndarray],
             state: list[float],
             task_instruction: str = None) -> list:
-        for image_key, image_value in images.items():
-            cv2.imwrite(f'/root/ros2_ws/src/physical_ai_tools/physical_ai_server/physical_ai_server/inference/episode_images/observation_{image_key}.png', image_value)
-            print(f"Image {image_key} shape: {image_value.shape}, dtype: {image_value.dtype}")
-        
-        print(f"State: {state}")
 
         observation = self._preprocess(images, state, task_instruction)
         with torch.inference_mode():
             action = self.policy.select_action(observation)
             action = action.squeeze(0).to('cpu').numpy()
-            print(f"Action: {action}")
 
         return action
 

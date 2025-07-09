@@ -184,8 +184,8 @@ function App() {
   }, [page]);
 
   return (
-    <div className="flex h-screen w-screen">
-      <aside className="w-30 bg-gray-100 h-full flex flex-col items-center pt-10 gap-4 shadow-[inset_0_0_2px_rgba(0,0,0,0.1)]">
+    <div className="flex min-h-screen w-screen">
+      <aside className="w-30 bg-gray-100 min-h-screen flex flex-col items-center pt-10 gap-4 shadow-[inset_0_0_2px_rgba(0,0,0,0.1)]">
         <button
           className={clsx(
             'flex',
@@ -291,7 +291,7 @@ function App() {
           <span className="mt-1 text-sm">Training</span>
         </button>
       </aside>
-      <main className="flex-1 flex flex-col h-screen min-h-0">
+      <main className="flex-1 flex flex-col min-h-screen">
         {page === PageType.HOME ? (
           <HomePage />
         ) : page === PageType.RECORD ? (

@@ -15,25 +15,68 @@
 // Author: Kiwoong Park
 
 import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
 import HeartbeatStatus from '../components/HeartbeatStatus';
 import DatasetSelector from '../components/DatasetSelector';
 import PolicySelector from '../components/PolicySelector';
 import TrainingOutputFolderInput from '../components/TrainingOutputFolderInput';
+import ModelWeightSelector from '../components/ModelWeightSelector';
+import { setTrainingMode } from '../features/training/trainingSlice';
 
 export default function TrainingPage() {
+  const dispatch = useDispatch();
+  const trainingMode = useSelector((state) => state.training.trainingMode);
+
   const classContainer = clsx(
     'w-full',
     'h-full',
     'flex',
-    'items-center',
-    'justify-center',
-    'pt-10',
-    'gap-8'
+    'flex-col',
+    'items-start',
+    'justify-start',
+    'pt-10'
   );
 
   const classHeartbeatStatus = clsx('absolute', 'top-5', 'left-35', 'z-10');
+
+  const classModeSelector = clsx(
+    'flex',
+    'items-center',
+    'gap-6',
+    'bg-white',
+    'border',
+    'border-gray-200',
+    'rounded-2xl',
+    'shadow-lg',
+    'mt-10',
+    'ml-10',
+    'p-6'
+  );
+
+  const classRadioGroup = clsx('flex', 'items-center', 'gap-2');
+
+  const classRadioInput = clsx(
+    'w-4',
+    'h-4',
+    'text-blue-600',
+    'bg-gray-100',
+    'border-gray-300',
+    'focus:ring-blue-500',
+    'focus:ring-2'
+  );
+
+  const classRadioLabel = clsx('text-lg', 'font-medium', 'text-gray-700', 'cursor-pointer');
+
+  const classComponentsContainer = clsx(
+    'w-full',
+    'flex',
+    'p-10',
+    'gap-8',
+    'items-start',
+    'justify-start'
+  );
 
   // Toast limit implementation using useToasterStore
   const { toasts } = useToasterStore();
@@ -46,22 +89,67 @@ export default function TrainingPage() {
       .forEach((t) => toast.dismiss(t.id)); // Dismiss – Use toast.remove(t.id) for no exit animation
   }, [toasts]);
 
+  const handleModeChange = (mode) => {
+    dispatch(setTrainingMode(mode));
+  };
+
+  const renderTrainingComponents = () => {
+    if (trainingMode === 'resume') {
+      return <ModelWeightSelector />;
+    } else {
+      return (
+        <>
+          <DatasetSelector />
+          <PolicySelector />
+          <TrainingOutputFolderInput />
+        </>
+      );
+    }
+  };
+
   return (
     <div className={classContainer}>
       <div className={classHeartbeatStatus}>
         <HeartbeatStatus />
       </div>
 
-      <div className="w-full h-full flex p-10 gap-8 items-start justify-start">
-        {/* Dataset Selector */}
-        <DatasetSelector />
+      {/* Training Mode Selector */}
+      <div className={classModeSelector}>
+        <h3 className="text-xl font-bold text-gray-800 mr-4">Training Mode</h3>
 
-        {/* Policy Selector */}
-        <PolicySelector />
+        <div className={classRadioGroup}>
+          <input
+            type="radio"
+            id="new-training"
+            name="trainingMode"
+            value="new"
+            checked={trainingMode === 'new'}
+            onChange={() => handleModeChange('new')}
+            className={classRadioInput}
+          />
+          <label htmlFor="new-training" className={classRadioLabel}>
+            New Training
+          </label>
+        </div>
 
-        {/* Training Output Folder Input */}
-        <TrainingOutputFolderInput />
+        <div className={classRadioGroup}>
+          <input
+            type="radio"
+            id="resume-training"
+            name="trainingMode"
+            value="resume"
+            checked={trainingMode === 'resume'}
+            onChange={() => handleModeChange('resume')}
+            className={classRadioInput}
+          />
+          <label htmlFor="resume-training" className={classRadioLabel}>
+            Resume Training
+          </label>
+        </div>
       </div>
+
+      {/* Components based on selected mode */}
+      <div className={classComponentsContainer}>{renderTrainingComponents()}</div>
     </div>
   );
 }

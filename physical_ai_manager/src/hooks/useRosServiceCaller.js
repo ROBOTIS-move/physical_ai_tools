@@ -237,6 +237,47 @@ export function useRosServiceCaller() {
     }
   }, [callService]);
 
+  const getUserList = useCallback(async () => {
+    try {
+      console.log('Calling service /training/get_user_list with request:', {});
+
+      const result = await callService(
+        '/training/get_user_list',
+        'physical_ai_interfaces/srv/GetUserList',
+        {}
+      );
+
+      console.log('getUserList service response:', result);
+      return result;
+    } catch (error) {
+      console.error('Failed to get user list:', error);
+      throw new Error(`${error.message || error}`);
+    }
+  }, [callService]);
+
+  const getDatasetList = useCallback(
+    async (user_id) => {
+      try {
+        console.log('Calling service /training/get_dataset_list with request:', {
+          user_id: user_id,
+        });
+
+        const result = await callService(
+          '/training/get_dataset_list',
+          'physical_ai_interfaces/srv/GetDatasetList',
+          { user_id: user_id }
+        );
+
+        console.log('getDatasetList service response:', result);
+        return result;
+      } catch (error) {
+        console.error('Failed to get dataset list:', error);
+        throw new Error(`${error.message || error}`);
+      }
+    },
+    [callService]
+  );
+
   return {
     callService,
     sendRecordCommand,
@@ -245,5 +286,7 @@ export function useRosServiceCaller() {
     setRobotType,
     registerHFUser,
     getRegisteredHFUser,
+    getUserList,
+    getDatasetList,
   };
 }

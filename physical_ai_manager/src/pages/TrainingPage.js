@@ -18,6 +18,7 @@ import React, { useState } from 'react';
 import clsx from 'clsx';
 import { MdRefresh } from 'react-icons/md';
 import HeartbeatStatus from '../components/HeartbeatStatus';
+import DatasetSelector from '../components/DatasetSelector';
 
 export default function TrainingPage() {
   const itemList = ['item1', 'item2', 'item3'];
@@ -49,7 +50,8 @@ export default function TrainingPage() {
     'flex',
     'items-center',
     'justify-center',
-    'pt-10'
+    'pt-10',
+    'gap-8'
   );
 
   const classHeartbeatStatus = clsx('absolute', 'top-5', 'left-35', 'z-10');
@@ -112,6 +114,11 @@ export default function TrainingPage() {
       <div className={classHeartbeatStatus}>
         <HeartbeatStatus />
       </div>
+
+      {/* Dataset Selector */}
+      <DatasetSelector />
+
+      {/* Original Training Card */}
       <div className={classCard}>
         <h1 className={classTitle}>{title}</h1>
         <label className={classLabel}>Select {itemType}:</label>

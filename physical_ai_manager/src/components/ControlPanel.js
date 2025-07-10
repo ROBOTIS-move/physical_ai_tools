@@ -69,7 +69,7 @@ const buttons = [
     icon: MdNavigateNext,
     color: '#388e3c',
     description: 'Change task',
-    shortcut: 'Ctrl+Shift+X',
+    shortcut: 'Ctrl+Shift+N',
   },
 ];
 
@@ -245,7 +245,9 @@ export default function ControlPanel() {
         value === undefined ||
         value === '' ||
         (typeof value === 'string' && value.trim() === '') ||
-        (typeof value === 'number' && (isNaN(value) || value <= 0))
+        (typeof value === 'number' && (isNaN(value) || value <= 0)) ||
+        (Array.isArray(value) && value.length === 0) ||
+        (Array.isArray(value) && value.every((item) => item.trim() === ''))
       ) {
         missingFields.push(field.label);
       }

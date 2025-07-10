@@ -112,12 +112,9 @@ export function useRosServiceCaller() {
           taskType = 'inference';
         }
 
-        let task_instruction = [];
-        for (let i = 0; i < taskInfo.taskInstruction.length; i++) {
-          if (taskInfo.taskInstruction[i].trim() !== '') {
-            task_instruction.push(taskInfo.taskInstruction[i]);
-          }
-        }
+        const task_instruction = taskInfo.taskInstruction.filter(
+          (instruction) => instruction.trim() !== ''
+        );
 
         const request = {
           task_info: {
@@ -139,6 +136,8 @@ export function useRosServiceCaller() {
           },
           command: Number(command_enum),
         };
+
+        console.log('request:', request);
 
         console.log(`Sending command '${command}' (${command_enum}) to service`);
         const result = await callService(

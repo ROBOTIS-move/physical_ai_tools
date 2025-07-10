@@ -82,7 +82,6 @@ class Communicator:
         self.camera_topic_msgs = {}
         self.follower_topic_msgs = {}
         self.leader_topic_msgs = {}
-        self.joystick_msgs = {}
 
         self.heartbeat_qos_profile = QoSProfile(
             depth=1,

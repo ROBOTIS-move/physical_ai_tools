@@ -5,10 +5,10 @@ string[] task_instruction
 string policy_path
 uint8 fps
 string[] tags
-uint32 warmup_time_s    # [s]
-uint32 episode_time_s   # [s]
-uint32 reset_time_s     # [s]
-uint32 num_episodes
+uint16 warmup_time_s    # [s]
+uint16 episode_time_s   # [s]
+uint16 reset_time_s     # [s]
+uint16 num_episodes
 bool push_to_hub
 bool private_mode
 bool use_optimized_save_mode

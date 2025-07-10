@@ -6,10 +6,10 @@ string policy_device
 
 # Options
 bool resume
-int seed
-int num_workers
-int batch_size
-int steps
-int eval_freq
-string log_freq
-string save_freq
+uint32 seed
+uint8 num_workers
+uint16 batch_size
+uint32 steps
+uint32 eval_freq
+uint32 log_freq
+uint32 save_freq

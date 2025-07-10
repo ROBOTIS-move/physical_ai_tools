@@ -25,18 +25,34 @@ const initialState = {
   selectedDataset: undefined,
   policyList: [],
   deviceList: [],
-  selectedPolicy: undefined,
-  selectedDevice: undefined,
-  outputFolderName: '',
   modelWeightList: [],
   selectedModelWeight: undefined,
-  trainingMode: 'new', // 'new' or 'continue'
+  trainingMode: 'new', // 'new' or 'resume'
+  isTraining: false, // training 진행 상태
+
+  trainingInfo: {
+    datasetRepoId: undefined,
+    policyType: undefined,
+    policyDevice: undefined,
+    outputFolderName: undefined,
+    resume: false,
+    seed: 0,
+    numWorkers: 0,
+    batchSize: 0,
+    steps: 0,
+    evalFreq: 0,
+    logFreq: '',
+    saveFreq: '',
+  },
 };
 
 const trainingSlice = createSlice({
   name: 'training',
   initialState,
   reducers: {
+    setTrainingInfo: (state, action) => {
+      state.trainingInfo = action.payload;
+    },
     setUserList: (state, action) => {
       state.userList = action.payload;
     },
@@ -49,20 +65,23 @@ const trainingSlice = createSlice({
     setSelectedDataset: (state, action) => {
       state.selectedDataset = action.payload;
     },
+    setDatasetRepoId: (state, action) => {
+      state.trainingInfo.datasetRepoId = action.payload;
+    },
     setPolicyList: (state, action) => {
       state.policyList = action.payload;
     },
     setDeviceList: (state, action) => {
       state.deviceList = action.payload;
     },
-    setSelectedPolicy: (state, action) => {
-      state.selectedPolicy = action.payload;
+    selectPolicyType: (state, action) => {
+      state.trainingInfo.policyType = action.payload;
     },
-    setSelectedDevice: (state, action) => {
-      state.selectedDevice = action.payload;
+    selectPolicyDevice: (state, action) => {
+      state.trainingInfo.policyDevice = action.payload;
     },
     setOutputFolderName: (state, action) => {
-      state.outputFolderName = action.payload;
+      state.trainingInfo.outputFolderName = action.payload;
     },
     setModelWeightList: (state, action) => {
       state.modelWeightList = action.payload;
@@ -73,22 +92,28 @@ const trainingSlice = createSlice({
     setTrainingMode: (state, action) => {
       state.trainingMode = action.payload;
     },
+    setIsTraining: (state, action) => {
+      state.isTraining = action.payload;
+    },
   },
 });
 
 export const {
+  setTrainingInfo,
   setUserList,
   setDatasetList,
   setSelectedUser,
   setSelectedDataset,
+  setDatasetRepoId,
   setPolicyList,
   setDeviceList,
-  setSelectedPolicy,
-  setSelectedDevice,
+  selectPolicyType,
+  selectPolicyDevice,
   setOutputFolderName,
   setModelWeightList,
   setSelectedModelWeight,
   setTrainingMode,
+  setIsTraining,
 } = trainingSlice.actions;
 
 export default trainingSlice.reducer;

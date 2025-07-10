@@ -31,7 +31,7 @@ export default function TrainingOutputFolderInput() {
   const [isOutputFolderAvailable, setIsOutputFolderAvailable] = useState(false);
   const [tempOutputFolderName, setTempOutputFolderName] = useState('');
 
-  const outputFolderName = useSelector((state) => state.training.outputFolderName);
+  const outputFolderName = useSelector((state) => state.training.trainingInfo.outputFolderName);
 
   const classCard = clsx(
     'bg-white',
@@ -77,26 +77,32 @@ export default function TrainingOutputFolderInput() {
   const handleCheckDuplicate = async () => {
     setCheckingDuplicate(true);
     console.log('check duplicate');
-    const result = await getModelWeightList();
 
-    if (result && result.model_weight_list) {
-      dispatch(setModelWeightList(result.model_weight_list));
-      console.log('result:', result);
-      toast.success('Model weight list loaded successfully');
-    } else {
-      toast.error('Failed to get model weight list: Invalid response');
-    }
+    try {
+      const result = await getModelWeightList();
 
-    if (result.model_weight_list.includes(outputFolderName)) {
-      toast.error(`Output folder name "${outputFolderName}" already exists`);
-      setIsOutputFolderAvailable(false);
-    } else {
-      toast.success(`Output folder name "${outputFolderName}" is available`);
-      dispatch(setOutputFolderName(outputFolderName));
-      setIsOutputFolderAvailable(true);
+      if (result && result.model_weight_list) {
+        dispatch(setModelWeightList(result.model_weight_list));
+        console.log('result:', result);
+        toast.success('Model weight list loaded successfully');
+      } else {
+        toast.error('Failed to get model weight list: Invalid response');
+      }
+      if (result.model_weight_list.includes(outputFolderName)) {
+        toast.error(`Output folder name "${outputFolderName}" already exists`);
+        setIsOutputFolderAvailable(false);
+      } else {
+        toast.success(`Output folder name "${outputFolderName}" is available`);
+        dispatch(setOutputFolderName(outputFolderName));
+        setIsOutputFolderAvailable(true);
+      }
+      setDuplicateChecked(true);
+    } catch (error) {
+      console.error('Error checking duplicate:', error);
+      toast.error(`Failed to check duplicate: ${error.message}`);
+    } finally {
+      setCheckingDuplicate(false);
     }
-    setDuplicateChecked(true);
-    setCheckingDuplicate(false);
   };
 
   useEffect(() => {

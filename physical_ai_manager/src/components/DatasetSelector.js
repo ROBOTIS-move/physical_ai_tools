@@ -27,7 +27,7 @@ import {
   MdKeyboardArrowDown,
 } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
-import { setUserList } from '../features/training/trainingSlice';
+import { setUserList, setDatasetRepoId } from '../features/training/trainingSlice';
 import { setSelectedUser, setSelectedDataset } from '../features/training/trainingSlice';
 
 export default function DatasetSelector() {
@@ -116,6 +116,7 @@ export default function DatasetSelector() {
     (userId, datasetPath) => {
       dispatch(setSelectedUser(userId));
       dispatch(setSelectedDataset(datasetPath));
+      dispatch(setDatasetRepoId(datasetPath));
       toast.success(`Dataset selected: ${userId}/${datasetPath}`);
     },
     [dispatch]

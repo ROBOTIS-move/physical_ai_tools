@@ -14,17 +14,14 @@
 //
 // Author: Kiwoong Park
 
-// TaskCommand enum-like object for task commands
+// TrainingCommand enum-like object for training commands
 // Use this for better code readability and maintainability
 
-const TaskCommand = {
+const TrainingCommand = {
   NONE: 0,
-  START_RECORD: 1,
-  START_INFERENCE: 2,
-  STOP: 3,
-  NEXT: 4,
-  RERECORD: 5,
-  FINISH: 6,
+  START: 1,
+  RESUME: 2,
+  FINISH: 3,
 };
 
-export default TaskCommand;
+export default TrainingCommand;

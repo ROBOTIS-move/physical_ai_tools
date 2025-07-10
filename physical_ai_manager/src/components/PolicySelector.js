@@ -14,13 +14,13 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
 import { MdRefresh } from 'react-icons/md';
 import { useSelector, useDispatch } from 'react-redux';
 import {
-  setSelectedPolicy,
-  setSelectedDevice,
+  selectPolicyType,
+  selectPolicyDevice,
   setPolicyList,
   setDeviceList,
 } from '../features/training/trainingSlice';
@@ -30,8 +30,8 @@ import toast from 'react-hot-toast';
 export default function PolicySelector() {
   const dispatch = useDispatch();
 
-  const selectedPolicy = useSelector((state) => state.training.selectedPolicy);
-  const selectedDevice = useSelector((state) => state.training.selectedDevice);
+  const selectedPolicy = useSelector((state) => state.training.trainingInfo.policyType);
+  const selectedDevice = useSelector((state) => state.training.trainingInfo.policyDevice);
   const policyList = useSelector((state) => state.training.policyList);
   const deviceList = useSelector((state) => state.training.deviceList);
 
@@ -42,7 +42,7 @@ export default function PolicySelector() {
 
   const { getPolicyList } = useRosServiceCaller();
 
-  const fetchItemList = async () => {
+  const fetchItemList = useCallback(async () => {
     setFetching(true);
     try {
       const result = await getPolicyList();
@@ -59,7 +59,7 @@ export default function PolicySelector() {
     } finally {
       setFetching(false);
     }
-  };
+  }, [getPolicyList, dispatch]);
 
   const classCard = clsx(
     'bg-white',
@@ -105,7 +105,7 @@ export default function PolicySelector() {
 
   useEffect(() => {
     fetchItemList();
-  }, []);
+  }, [fetchItemList]);
 
   return (
     <div className={classCard}>
@@ -115,7 +115,7 @@ export default function PolicySelector() {
       <select
         className={classSelect}
         value={selectedPolicy || ''}
-        onChange={(e) => dispatch(setSelectedPolicy(e.target.value))}
+        onChange={(e) => dispatch(selectPolicyType(e.target.value))}
         disabled={fetching || loading}
       >
         <option value="" disabled>
@@ -132,7 +132,7 @@ export default function PolicySelector() {
       <select
         className={classSelect}
         value={selectedDevice || ''}
-        onChange={(e) => dispatch(setSelectedDevice(e.target.value))}
+        onChange={(e) => dispatch(selectPolicyDevice(e.target.value))}
         disabled={fetching || loading}
       >
         <option value="" disabled>

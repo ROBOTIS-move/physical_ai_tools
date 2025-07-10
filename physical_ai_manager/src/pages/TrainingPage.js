@@ -23,11 +23,13 @@ import DatasetSelector from '../components/DatasetSelector';
 import PolicySelector from '../components/PolicySelector';
 import TrainingOutputFolderInput from '../components/TrainingOutputFolderInput';
 import ModelWeightSelector from '../components/ModelWeightSelector';
+import TrainingControlButtons from '../components/TrainingControlButtons';
 import { setTrainingMode } from '../features/training/trainingSlice';
 
 export default function TrainingPage() {
   const dispatch = useDispatch();
   const trainingMode = useSelector((state) => state.training.trainingMode);
+  const isTraining = useSelector((state) => state.training.isTraining);
 
   const classContainer = clsx(
     'w-full',
@@ -75,7 +77,7 @@ export default function TrainingPage() {
     'p-10',
     'gap-8',
     'items-start',
-    'justify-start'
+    'justify-center'
   );
 
   // Toast limit implementation using useToasterStore
@@ -117,39 +119,46 @@ export default function TrainingPage() {
       <div className={classModeSelector}>
         <h3 className="text-xl font-bold text-gray-800 mr-4">Training Mode</h3>
 
-        <div className={classRadioGroup}>
-          <input
-            type="radio"
-            id="new-training"
-            name="trainingMode"
-            value="new"
-            checked={trainingMode === 'new'}
-            onChange={() => handleModeChange('new')}
-            className={classRadioInput}
-          />
-          <label htmlFor="new-training" className={classRadioLabel}>
-            New Training
-          </label>
-        </div>
+        <div className="flex flex-col items-start gap-2">
+          <div className={classRadioGroup}>
+            <input
+              type="radio"
+              id="new-training"
+              name="trainingMode"
+              value="new"
+              checked={trainingMode === 'new'}
+              onChange={() => handleModeChange('new')}
+              className={classRadioInput}
+              disabled={isTraining}
+            />
+            <label htmlFor="new-training" className={classRadioLabel}>
+              New Training
+            </label>
+          </div>
 
-        <div className={classRadioGroup}>
-          <input
-            type="radio"
-            id="resume-training"
-            name="trainingMode"
-            value="resume"
-            checked={trainingMode === 'resume'}
-            onChange={() => handleModeChange('resume')}
-            className={classRadioInput}
-          />
-          <label htmlFor="resume-training" className={classRadioLabel}>
-            Resume Training
-          </label>
+          <div className={classRadioGroup}>
+            <input
+              type="radio"
+              id="resume-training"
+              name="trainingMode"
+              value="resume"
+              checked={trainingMode === 'resume'}
+              onChange={() => handleModeChange('resume')}
+              className={classRadioInput}
+              disabled={isTraining}
+            />
+            <label htmlFor="resume-training" className={classRadioLabel}>
+              Resume Training
+            </label>
+          </div>
         </div>
       </div>
 
       {/* Components based on selected mode */}
       <div className={classComponentsContainer}>{renderTrainingComponents()}</div>
+
+      {/* Training Control Buttons */}
+      <TrainingControlButtons />
     </div>
   );
 }

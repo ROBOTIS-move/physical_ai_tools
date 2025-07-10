@@ -287,4 +287,3 @@ class LerobotTrainer(Trainer):
         train_metrics.lr = optimizer.param_groups[0]["lr"]
         train_metrics.update_s = time.perf_counter() - start_time
         return train_metrics, output_dict
-

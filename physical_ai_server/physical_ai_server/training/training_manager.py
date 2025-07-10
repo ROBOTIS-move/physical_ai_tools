@@ -42,5 +42,5 @@ class TrainingManager:
         else:
             raise ValueError(f"Unknown framework: {self.framework}")
 
-    def train(self):
-        self.trainer.train()
+    def train(self, training_info):
+        self.trainer.train(training_info)

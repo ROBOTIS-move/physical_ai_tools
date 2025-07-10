@@ -32,6 +32,7 @@ from physical_ai_interfaces.srv import (
     SendCommand,
     SetHFUser,
     SetRobotType,
+    SendTrainingCommand,
 )
 
 from physical_ai_server.communication.communicator import Communicator
@@ -85,6 +86,7 @@ class PhysicalAIServer(Node):
         self.get_logger().info('Initializing ROS services...')
         service_definitions = [
             ('/task/command', SendCommand, self.user_interaction_callback),
+            ('/training/command', SendTrainingCommand, self.user_training_interaction_callback),
             ('/get_robot_types', GetRobotTypeList, self.get_robot_types_callback),
             ('/set_robot_type', SetRobotType, self.set_robot_type_callback),
             ('/register_hf_user', SetHFUser, self.set_hf_user_callback),
@@ -386,6 +388,22 @@ class PhysicalAIServer(Node):
             self.timer_manager.stop(timer_name=self.operation_mode)
             return
 
+    def user_training_interaction_callback(self, request, response):
+        try:
+            if request.command == SendCommand.Request.START:
+                self.training_manager.train(request.training_info)
+            else:
+                if request.command == SendCommand.Request.RESUME:
+                    pass
+                elif request.command == SendCommand.Request.FINISH:
+                    pass
+        except Exception as e:
+            self.get_logger().error(f'Error in user_training_interaction: {str(e)}')
+            response.success = False
+            response.message = f'Error in user_training_interaction: {str(e)}'
+            return response
+        return response
+
     def user_interaction_callback(self, request, response):
         try:
             if request.command == SendCommand.Request.START_RECORD:
@@ -432,9 +450,6 @@ class PhysicalAIServer(Node):
                 self.start_recording_time = time.perf_counter()
                 response.success = True
                 response.message = 'Inference started'
-
-            elif request.command == SendCommand.Request.START_TRAINING:
-                self.training_manager.train()
 
             else:
                 if not self.on_recording and not self.on_inference:

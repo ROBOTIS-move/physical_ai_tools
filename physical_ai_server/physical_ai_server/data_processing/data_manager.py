@@ -135,7 +135,7 @@ class DataManager:
                         self._on_saving = False
                         self._episode_reset()
                         self._record_episode_count += 1
-                        self._current_task += 1
+                        self._current_task = 0
                         self._stop_save_completed = True
                 else:
                     self.save()

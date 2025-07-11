@@ -201,7 +201,7 @@ export default function ControlPanel() {
           return taskStatus.running;
         case 'Retry':
           if (isRecordTaskType && useMultiTaskMode) {
-            return !taskStatus.running;
+            return taskStatus.running;
           }
 
           if (isInferenceTaskType) {
@@ -211,7 +211,7 @@ export default function ControlPanel() {
           return !isReadyState(taskStatus.phase);
         case 'Next':
           if (isRecordTaskType && useMultiTaskMode) {
-            return !taskStatus.running;
+            return taskStatus.running;
           }
 
           if (isInferenceTaskType) {
@@ -221,7 +221,7 @@ export default function ControlPanel() {
           return !isReadyState(taskStatus.phase);
         case 'Skip\nTask':
           if (page === PageType.RECORD) {
-            return !isReadyState(taskStatus.phase) && !taskStatus.running;
+            return !isReadyState(taskStatus.phase) && taskStatus.running;
           }
           return false;
         case 'Finish':

@@ -95,14 +95,7 @@ class DataManager:
 
         elif self._status == 'save':
             if self._on_saving:
-                if self._lerobot_dataset.check_video_encoding_completed():
-                    self._episode_reset()
-                    self._record_episode_count += 1
-                    self._current_task += 1
-                    self._status = 'reset'
-                    self._start_time_s = 0
-                    self._on_saving = False
-                elif (
+                if self._lerobot_dataset.check_video_encoding_completed() or (
                     not self._single_task
                     and self._lerobot_dataset.check_append_buffer_completed()
                 ):
@@ -135,7 +128,7 @@ class DataManager:
                         self._on_saving = False
                         self._episode_reset()
                         self._record_episode_count += 1
-                        self._current_task = 0
+                        self._current_task += 1
                         self._stop_save_completed = True
                 else:
                     self.save()
@@ -144,6 +137,7 @@ class DataManager:
             return self.RECORDING
 
         elif self._status == 'finish':
+            self._current_task = 0
             if self._on_saving:
                 if self._lerobot_dataset.check_video_encoding_completed():
                     self._on_saving = False

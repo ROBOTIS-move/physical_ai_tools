@@ -65,6 +65,7 @@ const initialState = {
   heartbeatStatus: 'disconnected',
   lastHeartbeatTime: 0,
   useMultiTaskMode: false,
+  multiTaskIndex: undefined,
 };
 
 const taskSlice = createSlice({
@@ -115,6 +116,9 @@ const taskSlice = createSlice({
     setUseMultiTaskMode: (state, action) => {
       state.useMultiTaskMode = action.payload;
     },
+    setMultiTaskIndex: (state, action) => {
+      state.multiTaskIndex = action.payload;
+    },
   },
 });
 
@@ -133,6 +137,7 @@ export const {
   setHeartbeatStatus,
   setLastHeartbeatTime,
   setUseMultiTaskMode,
+  setMultiTaskIndex,
 } = taskSlice.actions;
 
 export default taskSlice.reducer;

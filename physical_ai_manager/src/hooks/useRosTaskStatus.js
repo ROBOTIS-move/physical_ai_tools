@@ -25,6 +25,7 @@ import {
   setHeartbeatStatus,
   setLastHeartbeatTime,
   setUseMultiTaskMode,
+  setMultiTaskIndex,
 } from '../features/tasks/taskSlice';
 import rosConnectionManager from '../utils/rosConnectionManager';
 
@@ -144,6 +145,12 @@ export function useRosTaskStatus() {
               privateMode: msg.task_info.private_mode || false,
               useOptimizedSave: msg.task_info.use_optimized_save_mode || false,
             })
+          );
+        }
+
+        if (msg.task_info.task_instruction.includes(msg.current_task_instruction)) {
+          dispatch(
+            setMultiTaskIndex(msg.task_info.task_instruction.indexOf(msg.current_task_instruction))
           );
         }
 

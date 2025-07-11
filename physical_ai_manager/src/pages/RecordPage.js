@@ -219,6 +219,11 @@ export default function RecordPage({ isActive = true }) {
                 <div className="flex flex-col">
                   <div className="flex flex-row">
                     <MdTask className={classTaskIcon} />
+                    {taskStatus.multiTaskIndex !== undefined && (
+                      <span className={classTaskLabel}>
+                        {`[${taskStatus.multiTaskIndex + 1} / ${taskInfo.taskInstruction.length}]`}
+                      </span>
+                    )}
                     <span className={classTaskLabel}>Current Task</span>
                   </div>
                   <span className={classTaskValue}>{taskStatus.currentTaskInstruction}</span>

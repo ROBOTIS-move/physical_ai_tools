@@ -280,9 +280,6 @@ class DataManager:
         next_task_index = (self._current_task + 1) % task_count
         if next_task_index == 0:
             self._current_scenario_number += 1
-        from rclpy.logging import get_logger
-        logger = get_logger('your_node_name')
-        logger.info(f"Current scenario number: {self._current_scenario_number}")
 
     def _get_encoding_progress(self):
         min_encoding_percentage = 100

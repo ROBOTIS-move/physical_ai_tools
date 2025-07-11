@@ -47,6 +47,7 @@ const initialState = {
     totalTime: 0,
     proceedTime: 0,
     currentEpisodeNumber: 0,
+    currentScenarioNumber: 0,
     currentTaskInstruction: '',
     userId: '',
     usedStorageSize: 0,

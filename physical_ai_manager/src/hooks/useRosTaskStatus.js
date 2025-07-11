@@ -110,6 +110,7 @@ export function useRosTaskStatus() {
             totalTime: msg.total_time || 0,
             proceedTime: msg.proceed_time || 0,
             currentEpisodeNumber: msg.current_episode_number || 0,
+            currentScenarioNumber: msg.current_scenario_number || 0,
             currentTaskInstruction: msg.current_task_instruction || '',
             userId: msg.task_info?.user_id || '',
             usedStorageSize: msg.used_storage_size || 0,

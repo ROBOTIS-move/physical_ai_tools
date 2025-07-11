@@ -27,6 +27,7 @@ import SystemStatus from './SystemStatus';
 import Tooltip from './Tooltip';
 import PageType from '../constants/pageType';
 import TaskPhase from '../constants/taskPhases';
+import FullTaskStatus from './FullTaskStatus';
 
 const buttons = [
   {
@@ -649,8 +650,15 @@ export default function ControlPanel() {
           </>
         )}
       </div>
-      <div className="flex justify-end flex-[0.4] min-w-30 h-full p-1">
-        <EpisodeStatus />
+      <div className="flex justify-end flex-[0.4] min-w-30 h-full p-1 gap-2">
+        {useMultiTaskMode ? (
+          <div className="flex flex-col gap-2">
+            <FullTaskStatus />
+            <EpisodeStatus />
+          </div>
+        ) : (
+          <EpisodeStatus />
+        )}
       </div>
       <div className="flex flex-col gap-2">
         {expandedSystemIndex !== null ? (

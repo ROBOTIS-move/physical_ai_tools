@@ -80,13 +80,18 @@ class DataManager:
             self._start_time_s = time.perf_counter()
 
         if self._status == 'warmup':
+            self._current_task = 0
+            self._current_scenario_number = 0
             if not self._check_time(self._task_info.warmup_time_s, 'run'):
                 return self.RECORDING
 
         elif self._status == 'run':
             if not self._check_time(self._task_info.episode_time_s, 'save'):
                 if RAMChecker.get_free_ram_gb() < self.RAM_LIMIT_GB:
-                    self.record_early_save()
+                    if not self._single_task:
+                        self._status = 'finish'
+                    else:
+                        self.record_early_save()
                     return self.RECORDING
                 frame = self.create_frame(images, state, action)
                 if self._task_info.use_optimized_save_mode:
@@ -96,7 +101,8 @@ class DataManager:
 
         elif self._status == 'save':
             if self._on_saving:
-                if self._lerobot_dataset.check_video_encoding_completed() or (
+                if self._lerobot_dataset.check_video_encoding_completed() \
+                or (
                     not self._single_task
                     and self._lerobot_dataset.check_append_buffer_completed()
                 ):
@@ -140,8 +146,6 @@ class DataManager:
             return self.RECORDING
 
         elif self._status == 'finish':
-            self._current_task = 0
-            self._current_scenario_number = 0
             if self._on_saving:
                 if self._lerobot_dataset.check_video_encoding_completed():
                     self._on_saving = False

@@ -44,6 +44,13 @@ const buttons = [
     shortcut: 'Space',
   },
   {
+    label: 'Skip\nTask',
+    icon: MdNavigateNext,
+    color: '#388e3c',
+    description: 'Skip current task',
+    shortcut: 'Ctrl+Shift+N',
+  },
+  {
     label: 'Retry',
     icon: MdReplay,
     color: '#fbc02d',
@@ -63,13 +70,6 @@ const buttons = [
     color: '#388e3c',
     description: 'Finish and save task',
     shortcut: 'Ctrl+Shift+X',
-  },
-  {
-    label: 'Change\nTask',
-    icon: MdNavigateNext,
-    color: '#388e3c',
-    description: 'Change task',
-    shortcut: 'Ctrl+Shift+N',
   },
 ];
 
@@ -133,7 +133,7 @@ export default function ControlPanel() {
     Retry: true,
     Next: true,
     Finish: true,
-    'Change\nTask': useMultiTaskMode,
+    'Skip\nTask': useMultiTaskMode && page === PageType.RECORD,
   };
 
   const { sendRecordCommand } = useRosServiceCaller();
@@ -185,6 +185,7 @@ export default function ControlPanel() {
         return false;
       }
 
+      const isRecordTaskType = taskInfo?.taskType === 'record';
       const isInferenceTaskType = taskInfo?.taskType === 'inference';
 
       switch (label) {
@@ -192,26 +193,34 @@ export default function ControlPanel() {
           // Start button disabled when task is running or when running flag is true
           return !taskStatus.running;
         case 'Stop':
-          // Stop button enabled only when task is running
           if (isInferenceTaskType) {
             return taskStatus.running && taskInfo.recordInferenceMode;
           }
+          // Stop button enabled only when task is running
           return taskStatus.running;
         case 'Retry':
-          // Retry button enabled only when task is stopped
+          if (isRecordTaskType && useMultiTaskMode) {
+            return !taskStatus.running;
+          }
+
           if (isInferenceTaskType) {
             return !isReadyState(taskStatus.phase) && taskInfo.recordInferenceMode;
           }
+          // Retry button enabled only when task is stopped
           return !isReadyState(taskStatus.phase);
         case 'Next':
-          // Next button enabled only when task is stopped
+          if (isRecordTaskType && useMultiTaskMode) {
+            return !taskStatus.running;
+          }
+
           if (isInferenceTaskType) {
             return !isReadyState(taskStatus.phase) && taskInfo.recordInferenceMode;
           }
+          // Next button enabled only when task is stopped
           return !isReadyState(taskStatus.phase);
-        case 'Change\nTask':
+        case 'Skip\nTask':
           if (page === PageType.RECORD) {
-            return !isReadyState(taskStatus.phase);
+            return !isReadyState(taskStatus.phase) && !taskStatus.running;
           }
           return false;
         case 'Finish':
@@ -221,7 +230,14 @@ export default function ControlPanel() {
           return false;
       }
     },
-    [taskStatus.phase, taskStatus.running, taskInfo.recordInferenceMode, taskInfo.taskType, page]
+    [
+      taskStatus.phase,
+      taskStatus.running,
+      taskInfo.recordInferenceMode,
+      taskInfo.taskType,
+      page,
+      useMultiTaskMode,
+    ]
   );
 
   const validateTaskInfo = useCallback(() => {
@@ -293,8 +309,8 @@ export default function ControlPanel() {
           result = await sendRecordCommand('rerecord');
         } else if (cmd === 'Next') {
           result = await sendRecordCommand('next');
-        } else if (cmd === 'Change\nTask') {
-          result = await sendRecordCommand('change_task');
+        } else if (cmd === 'Skip\nTask') {
+          result = await sendRecordCommand('skip_task');
         } else if (cmd === 'Finish') {
           result = await sendRecordCommand('finish');
         } else {

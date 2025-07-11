@@ -20,8 +20,6 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
-        ('share/' + package_name + '/config/robot_config', glob('config/robot_config/*.yaml')),
-        ('share/' + package_name + '/config/control_config', glob('config/control_config/*.yaml')),
         ('share/' + package_name + '/config', glob('config/*.yaml')),
     ],
     install_requires=['setuptools', 'physical_ai_interfaces'],

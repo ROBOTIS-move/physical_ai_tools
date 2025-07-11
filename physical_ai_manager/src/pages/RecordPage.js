@@ -32,6 +32,7 @@ export default function RecordPage({ isActive = true }) {
   const taskInfo = useSelector((state) => state.tasks.taskInfo);
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
   const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
+  const multiTaskIndex = useSelector((state) => state.tasks.multiTaskIndex);
 
   // Toast limit implementation using useToasterStore
   const { toasts } = useToasterStore();
@@ -219,9 +220,9 @@ export default function RecordPage({ isActive = true }) {
                 <div className="flex flex-col">
                   <div className="flex flex-row">
                     <MdTask className={classTaskIcon} />
-                    {taskStatus.multiTaskIndex !== undefined && (
+                    {multiTaskIndex !== undefined && (
                       <span className={classTaskLabel}>
-                        {`[${taskStatus.multiTaskIndex + 1} / ${taskInfo.taskInstruction.length}]`}
+                        {`[${multiTaskIndex + 1} / ${taskInfo.taskInstruction.length}]`}
                       </span>
                     )}
                     <span className={classTaskLabel}>Current Task</span>

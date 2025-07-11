@@ -148,10 +148,14 @@ export function useRosTaskStatus() {
           );
         }
 
-        if (msg.task_info.task_instruction.includes(msg.current_task_instruction)) {
-          dispatch(
-            setMultiTaskIndex(msg.task_info.task_instruction.indexOf(msg.current_task_instruction))
-          );
+        // Set multi-task index safely with null checks and optimized search
+        if (msg.task_info?.task_instruction && msg.current_task_instruction) {
+          const taskIndex = msg.task_info.task_instruction.indexOf(msg.current_task_instruction);
+          if (taskIndex !== -1) {
+            dispatch(setMultiTaskIndex(taskIndex));
+          } else {
+            dispatch(setMultiTaskIndex(undefined));
+          }
         }
 
         if (msg.task_info?.task_instruction.length > 1) {

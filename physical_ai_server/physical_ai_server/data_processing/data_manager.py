@@ -68,6 +68,7 @@ class DataManager:
         self.current_instruction = ''
         self._current_task = 0
         self._init_task_limits()
+        self._current_scenario_number = 0
 
     def record(
             self,
@@ -101,6 +102,7 @@ class DataManager:
                 ):
                     self._episode_reset()
                     self._record_episode_count += 1
+                    self._get_current_scenario_number()
                     self._current_task += 1
                     self._status = 'reset'
                     self._start_time_s = 0
@@ -128,6 +130,7 @@ class DataManager:
                         self._on_saving = False
                         self._episode_reset()
                         self._record_episode_count += 1
+                        self._get_current_scenario_number()
                         self._current_task += 1
                         self._stop_save_completed = True
                 else:
@@ -138,6 +141,7 @@ class DataManager:
 
         elif self._status == 'finish':
             self._current_task = 0
+            self._current_scenario_number = 0
             if self._on_saving:
                 if self._lerobot_dataset.check_video_encoding_completed():
                     self._on_saving = False
@@ -214,6 +218,7 @@ class DataManager:
         self._stop_save_completed = False
         self._episode_reset()
         self._status = 'change_task'
+        self._get_current_scenario_number()
         self._current_task += 1
 
     def record_next_episode(self):
@@ -263,8 +268,21 @@ class DataManager:
         ram_total, ram_used = RAMChecker.get_ram_gb()
         current_status.used_ram_size = float(ram_used)
         current_status.total_ram_size = float(ram_total)
+        if not self._single_task:
+            current_status.current_scenario_number = self._current_scenario_number
 
         return current_status
+
+    def _get_current_scenario_number(self):
+        task_count = len(self._task_info.task_instruction)
+        if task_count == 0:
+            return
+        next_task_index = (self._current_task + 1) % task_count
+        if next_task_index == 0:
+            self._current_scenario_number += 1
+        from rclpy.logging import get_logger
+        logger = get_logger('your_node_name')
+        logger.info(f"Current scenario number: {self._current_scenario_number}")
 
     def _get_encoding_progress(self):
         min_encoding_percentage = 100

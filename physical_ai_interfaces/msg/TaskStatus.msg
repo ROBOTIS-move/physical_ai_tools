@@ -16,6 +16,7 @@ uint8 phase                     # (0: READY, 1: WARMING_UP, 2: RESETTING 3: RECO
 uint16 total_time               # [s]
 uint16 proceed_time             # [s]
 uint16 current_episode_number
+uint16 current_scenario_number
 string current_task_instruction
 float32 encoding_progress       # [%]
 float32 used_storage_size       # [GB]

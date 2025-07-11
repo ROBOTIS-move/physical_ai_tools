@@ -464,11 +464,11 @@ class PhysicalAIServer(Node):
                         response.success = True
                         response.message = 'All operations terminated'
 
-                    elif request.command == SendCommand.Request.CHANGE_TASK:
-                        self.get_logger().info('Changing task')
-                        self.data_manager.record_change_task()
+                    elif request.command == SendCommand.Request.SKIP_TASK:
+                        self.get_logger().info('Skipping task')
+                        self.data_manager.record_skip_task()
                         response.success = True
-                        response.message = 'Task changed successfully'
+                        response.message = 'Task skipped successfully'
 
         except Exception as e:
             self.get_logger().error(f'Error in user interaction: {str(e)}')

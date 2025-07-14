@@ -41,13 +41,22 @@ export default function TrainingPage() {
 
   const classHeartbeatStatus = clsx('absolute', 'top-5', 'left-35', 'z-10');
 
-  const classComponentsContainer = clsx(
+  const classComponentsContainerCenter = clsx(
     'w-full',
     'flex',
     'p-10',
     'gap-8',
     'items-start',
     'justify-center'
+  );
+
+  const classComponentsContainerLeft = clsx(
+    'w-full',
+    'flex',
+    'p-10',
+    'gap-8',
+    'items-start',
+    'justify-start'
   );
 
   // Toast limit implementation using useToasterStore
@@ -63,15 +72,19 @@ export default function TrainingPage() {
 
   const renderTrainingComponents = () => {
     if (trainingMode === 'resume') {
-      return <ModelWeightSelector />;
+      return (
+        <div className={classComponentsContainerLeft}>
+          <ModelWeightSelector />
+        </div>
+      );
     } else {
       return (
-        <>
+        <div className={classComponentsContainerCenter}>
           <DatasetSelector />
           <PolicySelector />
           <TrainingOutputFolderInput />
           <TrainingOptionInput />
-        </>
+        </div>
       );
     }
   };
@@ -84,7 +97,7 @@ export default function TrainingPage() {
 
       {/* Components based on selected mode */}
       <div className="overflow-scroll h-full w-full">
-        <div className={classComponentsContainer}>{renderTrainingComponents()}</div>
+        <div>{renderTrainingComponents()}</div>
       </div>
 
       {/* Training Control Buttons */}

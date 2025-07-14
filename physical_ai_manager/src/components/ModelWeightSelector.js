@@ -27,6 +27,7 @@ export default function ModelWeightSelector() {
 
   const modelWeightList = useSelector((state) => state.training.modelWeightList);
   const selectedModelWeight = useSelector((state) => state.training.selectedModelWeight);
+  const isTraining = useSelector((state) => state.training.isTraining);
 
   const { getModelWeightList } = useRosServiceCaller();
 
@@ -160,7 +161,11 @@ export default function ModelWeightSelector() {
           </div>
         )}
 
-        <button onClick={fetchModelWeights} disabled={loading} className={classRefreshButton}>
+        <button
+          onClick={fetchModelWeights}
+          disabled={loading || isTraining}
+          className={classRefreshButton}
+        >
           <MdRefresh className={clsx('w-4', 'h-4', { 'animate-spin': loading })} />
           {loading ? 'Loading...' : 'Refresh Model Weights'}
         </button>
@@ -173,7 +178,7 @@ export default function ModelWeightSelector() {
               return (
                 <div
                   key={index}
-                  onClick={() => handleModelWeightSelection(modelWeightPath)}
+                  onClick={() => !isTraining && handleModelWeightSelection(modelWeightPath)}
                   className={classModelWeightItem(isSelected)}
                 >
                   <MdFolder className={classModelWeightIcon(isSelected)} />

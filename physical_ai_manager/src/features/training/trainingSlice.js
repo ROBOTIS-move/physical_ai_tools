@@ -28,7 +28,8 @@ const initialState = {
   modelWeightList: [],
   selectedModelWeight: undefined,
   trainingMode: 'new', // 'new' or 'resume'
-  isTraining: false, // training 진행 상태
+  isTraining: false,
+  topicReceived: false,
 
   trainingInfo: {
     datasetRepoId: undefined,
@@ -52,6 +53,9 @@ const trainingSlice = createSlice({
   reducers: {
     setTrainingInfo: (state, action) => {
       state.trainingInfo = action.payload;
+    },
+    setTopicReceived: (state, action) => {
+      state.topicReceived = action.payload;
     },
     setUserList: (state, action) => {
       state.userList = action.payload;
@@ -135,6 +139,7 @@ const trainingSlice = createSlice({
 
 export const {
   setTrainingInfo,
+  setTopicReceived,
   setUserList,
   setDatasetList,
   setSelectedUser,

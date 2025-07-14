@@ -36,6 +36,7 @@ function App() {
   const dispatch = useDispatch();
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
   const taskInfo = useSelector((state) => state.tasks.taskInfo);
+  const trainingTopicReceived = useSelector((state) => state.training.topicReceived);
 
   const defaultRosHost = window.location.hostname;
   dispatch(setRosHost(defaultRosHost));
@@ -64,8 +65,11 @@ function App() {
         dispatch(moveToPage(PageType.INFERENCE));
       }
       isFirstLoad.current = false;
+    } else if (isFirstLoad.current && page === PageType.HOME && trainingTopicReceived) {
+      dispatch(moveToPage(PageType.TRAINING));
+      isFirstLoad.current = false;
     }
-  }, [page, taskInfo?.taskType, taskStatus.topicReceived, dispatch]);
+  }, [page, taskInfo?.taskType, taskStatus.topicReceived, trainingTopicReceived, dispatch]);
 
   const handleHomePageNavigation = () => {
     isFirstLoad.current = false;

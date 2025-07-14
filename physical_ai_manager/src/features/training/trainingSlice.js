@@ -36,13 +36,13 @@ const initialState = {
     policyDevice: undefined,
     outputFolderName: undefined,
     resume: false,
-    seed: 0,
-    numWorkers: 0,
-    batchSize: 0,
-    steps: 0,
-    evalFreq: 0,
-    logFreq: '',
-    saveFreq: '',
+    seed: 1000,
+    numWorkers: 4,
+    batchSize: 8,
+    steps: 100000,
+    evalFreq: 20000,
+    logFreq: 200,
+    saveFreq: 20000,
   },
 };
 
@@ -93,7 +93,42 @@ const trainingSlice = createSlice({
       state.trainingMode = action.payload;
     },
     setIsTraining: (state, action) => {
+      console.log('setIsTraining', action.payload);
       state.isTraining = action.payload;
+    },
+    setSeed: (state, action) => {
+      state.trainingInfo.seed = action.payload;
+    },
+    setNumWorkers: (state, action) => {
+      state.trainingInfo.numWorkers = action.payload;
+    },
+    setBatchSize: (state, action) => {
+      state.trainingInfo.batchSize = action.payload;
+    },
+    setSteps: (state, action) => {
+      state.trainingInfo.steps = action.payload;
+    },
+    setEvalFreq: (state, action) => {
+      state.trainingInfo.evalFreq = action.payload;
+    },
+    setLogFreq: (state, action) => {
+      state.trainingInfo.logFreq = action.payload;
+    },
+    setSaveFreq: (state, action) => {
+      state.trainingInfo.saveFreq = action.payload;
+    },
+
+    setDefaultTrainingInfo: (state) => {
+      state.trainingInfo = {
+        ...state.trainingInfo,
+        seed: 1000,
+        numWorkers: 4,
+        batchSize: 8,
+        steps: 100000,
+        evalFreq: 20000,
+        logFreq: 200,
+        saveFreq: 20000,
+      };
     },
   },
 });
@@ -114,6 +149,14 @@ export const {
   setSelectedModelWeight,
   setTrainingMode,
   setIsTraining,
+  setSeed,
+  setNumWorkers,
+  setBatchSize,
+  setSteps,
+  setEvalFreq,
+  setLogFreq,
+  setSaveFreq,
+  setDefaultTrainingInfo,
 } = trainingSlice.actions;
 
 export default trainingSlice.reducer;

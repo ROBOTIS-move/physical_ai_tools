@@ -345,7 +345,7 @@ export function useRosServiceCaller() {
           {
             command: command_enum,
             training_info: {
-              dataset_repo_id: trainingInfo.datasetRepoId,
+              dataset: trainingInfo.datasetRepoId,
               policy_type: trainingInfo.policyType,
               policy_device: trainingInfo.policyDevice,
               output_folder_name: trainingInfo.outputFolderName,

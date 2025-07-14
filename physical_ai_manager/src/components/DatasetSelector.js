@@ -36,6 +36,7 @@ export default function DatasetSelector() {
   const userList = useSelector((state) => state.training.userList);
   const selectedUser = useSelector((state) => state.training.selectedUser);
   const selectedDataset = useSelector((state) => state.training.selectedDataset);
+  const isTraining = useSelector((state) => state.training.isTraining);
 
   const { getUserList, getDatasetList } = useRosServiceCaller();
 
@@ -142,12 +143,12 @@ export default function DatasetSelector() {
     'border-gray-200',
     'rounded-2xl',
     'shadow-lg',
-    'p-8',
+    'p-6',
     'w-full',
     'max-w-lg'
   );
 
-  const classTitle = clsx('text-2xl', 'font-bold', 'text-gray-800', 'mb-6', 'text-center');
+  const classTitle = clsx('text-xl', 'font-bold', 'text-gray-800', 'mb-6', 'text-left');
 
   const classRefreshButton = clsx(
     'w-full',
@@ -244,13 +245,18 @@ export default function DatasetSelector() {
       {selectedUser && selectedDataset && (
         <div className={classCurrentSelection}>
           <div>
-            <strong>Selected:</strong> {selectedUser}/{selectedDataset}
+            <strong>Selected:</strong> <span className="text-blue-500">{selectedUser}/</span>
+            <span className="text-blue-500">{selectedDataset}</span>
           </div>
         </div>
       )}
 
       {/* Refresh Button */}
-      <button className={classRefreshButton} onClick={fetchUsers} disabled={loadingUsers}>
+      <button
+        className={classRefreshButton}
+        onClick={fetchUsers}
+        disabled={loadingUsers || isTraining}
+      >
         <MdRefresh className={loadingUsers ? 'animate-spin' : ''} />
         {loadingUsers ? 'Loading...' : 'Refresh Users'}
       </button>
@@ -314,7 +320,7 @@ export default function DatasetSelector() {
                   ) : expandedUsers[user] ? (
                     <button
                       className={classRefreshIcon}
-                      onClick={(e) => refreshUserDatasets(user, e)}
+                      onClick={(e) => !isTraining && refreshUserDatasets(user, e)}
                       title="Refresh datasets"
                     >
                       <MdRefresh className="text-gray-500" size={16} />
@@ -338,7 +344,7 @@ export default function DatasetSelector() {
                                 selectedDataset === dataset &&
                                 classSelectedDataset
                             )}
-                            onClick={() => handleDatasetSelection(user, dataset)}
+                            onClick={() => !isTraining && handleDatasetSelection(user, dataset)}
                           >
                             <div className="mr-2">
                               <MdDataset className="text-green-600" />

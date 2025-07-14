@@ -34,6 +34,7 @@ export default function PolicySelector() {
   const selectedDevice = useSelector((state) => state.training.trainingInfo.policyDevice);
   const policyList = useSelector((state) => state.training.policyList);
   const deviceList = useSelector((state) => state.training.deviceList);
+  const isTraining = useSelector((state) => state.training.isTraining);
 
   const title = 'Policy Selection';
 
@@ -67,7 +68,7 @@ export default function PolicySelector() {
     'border-gray-200',
     'rounded-2xl',
     'shadow-lg',
-    'p-8',
+    'p-6',
     'w-full',
     'max-w-md'
   );
@@ -100,7 +101,7 @@ export default function PolicySelector() {
     'disabled:cursor-not-allowed'
   );
 
-  const classTitle = clsx('text-2xl', 'font-bold', 'text-gray-800', 'mb-6', 'text-center');
+  const classTitle = clsx('text-xl', 'font-bold', 'text-gray-800', 'mb-6', 'text-left');
   const classLabel = clsx('text-sm', 'font-medium', 'text-gray-700', 'mb-2', 'block');
 
   useEffect(() => {
@@ -144,7 +145,11 @@ export default function PolicySelector() {
           </option>
         ))}
       </select>
-      <button className={classRefreshButton} onClick={fetchItemList} disabled={fetching || loading}>
+      <button
+        className={classRefreshButton}
+        onClick={fetchItemList}
+        disabled={fetching || loading || isTraining}
+      >
         <div className="flex items-center justify-center gap-2">
           <MdRefresh size={16} className={fetching ? 'animate-spin' : ''} />
           {fetching ? 'Loading...' : `Refresh`}

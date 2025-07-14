@@ -39,7 +39,7 @@ export default function TrainingOutputFolderInput() {
     'border-gray-200',
     'rounded-2xl',
     'shadow-lg',
-    'p-8',
+    'p-6',
     'w-full',
     'max-w-md'
   );
@@ -72,7 +72,7 @@ export default function TrainingOutputFolderInput() {
     'disabled:cursor-not-allowed'
   );
 
-  const classTitle = clsx('text-2xl', 'font-bold', 'text-gray-800', 'mb-6', 'text-center');
+  const classTitle = clsx('text-xl', 'font-bold', 'text-gray-800', 'mb-6', 'text-left');
 
   const handleCheckDuplicate = async () => {
     setCheckingDuplicate(true);
@@ -88,12 +88,12 @@ export default function TrainingOutputFolderInput() {
       } else {
         toast.error('Failed to get model weight list: Invalid response');
       }
-      if (result.model_weight_list.includes(outputFolderName)) {
-        toast.error(`Output folder name "${outputFolderName}" already exists`);
+      if (result.model_weight_list.includes(tempOutputFolderName)) {
+        toast.error(`Output folder name "${tempOutputFolderName}" already exists`);
         setIsOutputFolderAvailable(false);
       } else {
-        toast.success(`Output folder name "${outputFolderName}" is available`);
-        dispatch(setOutputFolderName(outputFolderName));
+        toast.success(`Output folder name "${tempOutputFolderName}" is available`);
+        dispatch(setOutputFolderName(tempOutputFolderName));
         setIsOutputFolderAvailable(true);
       }
       setDuplicateChecked(true);
@@ -132,6 +132,7 @@ export default function TrainingOutputFolderInput() {
         value={tempOutputFolderName}
         onChange={(e) => {
           setTempOutputFolderName(e.target.value);
+          dispatch(setOutputFolderName(undefined));
           setDuplicateChecked(false);
         }}
       />

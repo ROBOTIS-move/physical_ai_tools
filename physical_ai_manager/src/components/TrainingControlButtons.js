@@ -18,7 +18,7 @@ import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { setIsTraining } from '../features/training/trainingSlice';
+import { setIsTraining, setTrainingMode } from '../features/training/trainingSlice';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 
 export default function TrainingControlButtons() {
@@ -33,12 +33,13 @@ export default function TrainingControlButtons() {
 
   const { sendTrainingCommand } = useRosServiceCaller();
 
-  const classButtonContainer = clsx('w-full', 'flex', 'justify-center', 'mt-8', 'px-10');
+  const classContainer = clsx('flex', 'items-center', 'justify-center', 'p-4', 'gap-6', 'm-2');
 
   const classButton = clsx(
+    'h-full',
     'px-8',
     'py-3',
-    'rounded-xl',
+    'rounded-2xl',
     'font-semibold',
     'text-lg',
     'transition-all',
@@ -72,7 +73,27 @@ export default function TrainingControlButtons() {
     'disabled:hover:shadow-lg'
   );
 
+  const classModeSelector = clsx('flex', 'items-center', 'gap-6', 'p-4');
+
+  const classRadioGroup = clsx('flex', 'items-center', 'gap-2');
+
+  const classRadioInput = clsx(
+    'w-4',
+    'h-4',
+    'text-blue-600',
+    'bg-gray-100',
+    'border-gray-300',
+    'focus:ring-blue-500',
+    'focus:ring-2'
+  );
+
+  const classRadioLabel = clsx('text-lg', 'font-medium', 'text-gray-700', 'cursor-pointer');
+
   const handleStartTraining = async () => {
+    if (!checkRequiredFields()) {
+      return;
+    }
+
     try {
       let command;
 
@@ -141,21 +162,80 @@ export default function TrainingControlButtons() {
     return 'Start Training';
   };
 
-  const isStartDisabled = () => {
-    if (isTraining) return true;
-
+  const checkRequiredFields = () => {
     if (trainingMode === 'resume') {
-      return !selectedModelWeight;
+      if (!selectedModelWeight) {
+        toast.error('Please select a model weight to resume training');
+        return false;
+      }
+      return true;
     } else {
-      return !datasetRepoId || !selectedPolicy || !selectedDevice || !outputFolderName;
+      if (!datasetRepoId) {
+        toast.error('Please select a dataset repository');
+        return false;
+      }
+      if (!selectedPolicy) {
+        toast.error('Please select a policy');
+        return false;
+      }
+      if (!selectedDevice) {
+        toast.error('Please select a device');
+        return false;
+      }
+      if (!outputFolderName) {
+        toast.error('Please select an output folder and check if it is not duplicated');
+        return false;
+      }
+      return true;
     }
   };
 
+  const handleModeChange = (mode) => {
+    dispatch(setTrainingMode(mode));
+  };
+
   return (
-    <div className={classButtonContainer}>
+    <div className={classContainer}>
+      {/* Training Mode Selector */}
+      <div className={classModeSelector}>
+        <h3 className="text-xl font-bold text-gray-800 mr-4">Training Mode</h3>
+
+        <div className="flex flex-col items-start gap-2">
+          <div className={classRadioGroup}>
+            <input
+              type="radio"
+              id="new-training"
+              name="trainingMode"
+              value="new"
+              checked={trainingMode === 'new'}
+              onChange={() => handleModeChange('new')}
+              className={classRadioInput}
+              disabled={isTraining}
+            />
+            <label htmlFor="new-training" className={classRadioLabel}>
+              New Training
+            </label>
+          </div>
+
+          <div className={classRadioGroup}>
+            <input
+              type="radio"
+              id="resume-training"
+              name="trainingMode"
+              value="resume"
+              checked={trainingMode === 'resume'}
+              onChange={() => handleModeChange('resume')}
+              className={classRadioInput}
+              disabled={isTraining}
+            />
+            <label htmlFor="resume-training" className={classRadioLabel}>
+              Resume Training
+            </label>
+          </div>
+        </div>
+      </div>
       <button
         onClick={handleStartTraining}
-        disabled={isStartDisabled()}
         className={classStartButton}
         style={{ display: isTraining ? 'none' : 'block' }}
       >

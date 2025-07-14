@@ -7,7 +7,7 @@ uint8 START = 1
 uint8 RESUME = 2
 uint8 FINISH = 3
 
-
+uint8 command
 TrainingInfo training_info
 ---
 bool success

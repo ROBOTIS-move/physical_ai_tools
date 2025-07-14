@@ -18,6 +18,7 @@
 
 import draccus
 from lerobot.configs.train import TrainPipelineConfig
+from physical_ai_interfaces.msg import TrainingStatus
 from physical_ai_server.training.trainers.lerobot.lerobot_trainer import LerobotTrainer
 # TODO: Uncomment when training metrics is implemented
 # from physical_ai_server.training.trainers.gr00tn1.gr00tn1_trainer import Gr00tN1Trainer
@@ -42,6 +43,7 @@ class TrainingManager:
         self.training_info = None
         self.trainer = None
         self.cfg = None
+        self.current_step = 0
         
     @staticmethod
     def get_abvailable_devices() -> list[str]:
@@ -92,6 +94,11 @@ class TrainingManager:
     # def get_training_metrics(self):
     #     metrics = self.trainer.send_training_metrics()
     #     return metrics
+
+    def get_current_training_status(self):
+        current_status = TrainingStatus()
+        current_status.training_info = self.training_info
+        current_status.current_step = self.trainer.get_current_step()
 
     def train(self):
         self._get_trainer()

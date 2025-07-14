@@ -252,8 +252,7 @@ class EvaluationManager:
             # Plot MSE distribution
             self.visualization_manager.plot_episode_mse_distribution(
                 episode_mses=episode_mses,
-                save_path=mse_distribution_path,
-                bins=20
+                save_path=mse_distribution_path
             )
 
         return results

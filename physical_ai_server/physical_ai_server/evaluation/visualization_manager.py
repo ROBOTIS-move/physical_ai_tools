@@ -17,10 +17,10 @@
 # Author: Dongyun Kim
 
 import os
+from typing import List
 
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import List
 
 
 class VisualizationManager:
@@ -178,7 +178,7 @@ class VisualizationManager:
                 stats_text,
                 transform=ax.transAxes,
                 verticalalignment='top',
-                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
+                bbox={'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8}
             )
 
         # Create legend

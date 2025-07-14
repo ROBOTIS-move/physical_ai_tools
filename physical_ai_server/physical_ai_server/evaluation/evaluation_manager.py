@@ -16,6 +16,7 @@
 #
 # Author: Dongyun Kim
 
+import argparse
 import os
 from typing import Dict, List, Tuple
 
@@ -259,15 +260,29 @@ class EvaluationManager:
 
 
 def main():
-    '''
-    Main function demonstrating the usage of EvaluationManager and VisualizationManager.
-    '''
+    parser = argparse.ArgumentParser(
+        description='Evaluate a policy on a dataset.'
+    )
+    parser.add_argument(
+        '--repo_id',
+        type=str,
+        required=True,
+        help='The repository ID of the dataset on the Hugging Face Hub.'
+    )
+    parser.add_argument(
+        '--policy_path',
+        type=str,
+        required=True,
+        help='The path to the policy file to be evaluated.'
+    )
+    args = parser.parse_args()
+
     # Initialize managers
     evaluation_manager = EvaluationManager()
 
     # Configuration
-    repo_id = ''
-    policy_path = ''
+    repo_id = args.repo_id
+    policy_path = args.policy_path
 
     # Load dataset
     dataset = evaluation_manager.load_dataset(repo_id)
@@ -277,13 +292,12 @@ def main():
     success, message = inference_manager.validate_policy(policy_path)
 
     if success:
-        policy_loaded = inference_manager.load_policy()
+        policy_loaded = inference_manager.load_policy(policy_path)
         if policy_loaded:
             # Evaluate policy on entire dataset
             results = evaluation_manager.evaluate_policy_on_dataset(
                 inference_manager=inference_manager,
                 dataset=dataset,
-                sample_episodes=[1, 3, 5],
                 plot_episodes=True,
                 plot_summary=True,
                 save_plot_dir='./plots'

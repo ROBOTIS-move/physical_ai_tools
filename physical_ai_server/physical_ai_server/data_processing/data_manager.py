@@ -101,10 +101,12 @@ class DataManager:
 
         elif self._status == 'save':
             if self._on_saving:
-                if self._lerobot_dataset.check_video_encoding_completed() \
-                or (
-                    not self._single_task
-                    and self._lerobot_dataset.check_append_buffer_completed()
+                if (
+                    self._lerobot_dataset.check_video_encoding_completed()
+                    or (
+                        not self._single_task
+                        and self._lerobot_dataset.check_append_buffer_completed()
+                    )
                 ):
                     self._episode_reset()
                     self._record_episode_count += 1

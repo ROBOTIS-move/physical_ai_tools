@@ -31,6 +31,9 @@ const initialState = {
   isTraining: false,
   topicReceived: false,
 
+  // Training progress
+  currentStep: 0,
+
   trainingInfo: {
     datasetRepoId: undefined,
     policyType: undefined,
@@ -135,6 +138,17 @@ const trainingSlice = createSlice({
         saveFreq: 20000,
       };
     },
+    setCurrentStep: (state, action) => {
+      state.currentStep = action.payload;
+    },
+    setTrainingProgress: (state, action) => {
+      state.currentStep = action.payload.currentStep;
+      state.totalSteps = action.payload.totalSteps;
+    },
+    resetTrainingProgress: (state) => {
+      state.currentStep = 0;
+      state.totalSteps = 0;
+    },
   },
 });
 
@@ -163,6 +177,9 @@ export const {
   setLogFreq,
   setSaveFreq,
   setDefaultTrainingInfo,
+  setCurrentStep,
+  setTrainingProgress,
+  resetTrainingProgress,
 } = trainingSlice.actions;
 
 export default trainingSlice.reducer;

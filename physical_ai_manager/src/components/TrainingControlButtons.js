@@ -18,7 +18,11 @@ import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { setIsTraining, setTrainingMode } from '../features/training/trainingSlice';
+import {
+  setIsTraining,
+  setTrainingMode,
+  resetTrainingProgress,
+} from '../features/training/trainingSlice';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 
 export default function TrainingControlButtons() {
@@ -30,10 +34,11 @@ export default function TrainingControlButtons() {
   const selectedDevice = useSelector((state) => state.training.trainingInfo.policyDevice);
   const outputFolderName = useSelector((state) => state.training.trainingInfo.outputFolderName);
   const selectedModelWeight = useSelector((state) => state.training.selectedModelWeight);
+  const trainingSteps = useSelector((state) => state.training.trainingInfo.steps);
 
   const { sendTrainingCommand } = useRosServiceCaller();
 
-  const classContainer = clsx('flex', 'items-center', 'justify-center', 'p-4', 'gap-6', 'm-2');
+  const classContainer = clsx('flex', 'items-center', 'justify-center', 'p-2', 'gap-6', 'm-2');
 
   const classButton = clsx(
     'h-full',
@@ -73,7 +78,7 @@ export default function TrainingControlButtons() {
     'disabled:hover:shadow-lg'
   );
 
-  const classModeSelector = clsx('flex', 'items-center', 'gap-6', 'p-4');
+  const classModeSelector = clsx('flex', 'items-center', 'gap-4', 'p-1');
 
   const classRadioGroup = clsx('flex', 'items-center', 'gap-2');
 
@@ -96,6 +101,9 @@ export default function TrainingControlButtons() {
 
     try {
       let command;
+
+      // 트레이닝 진행률 초기화
+      dispatch(resetTrainingProgress());
 
       if (trainingMode === 'resume') {
         // Resume training
@@ -139,6 +147,7 @@ export default function TrainingControlButtons() {
   const handleFinishTraining = async () => {
     try {
       dispatch(setIsTraining(false));
+      dispatch(resetTrainingProgress()); // 진행률 리셋
       const result = await sendTrainingCommand('finish'); // FINISH command
 
       if (result.success) {

@@ -25,6 +25,7 @@ import TrainingOutputFolderInput from '../components/TrainingOutputFolderInput';
 import ModelWeightSelector from '../components/ModelWeightSelector';
 import TrainingControlButtons from '../components/TrainingControlButtons';
 import TrainingOptionInput from '../components/TrainingOptionInput';
+import TrainingProgressBar from '../components/TrainingProgressBar';
 
 export default function TrainingPage() {
   const trainingMode = useSelector((state) => state.training.trainingMode);
@@ -101,8 +102,10 @@ export default function TrainingPage() {
       </div>
 
       {/* Training Control Buttons */}
-      <div className="w-full flex justify-center items-center bg-gray-100">
+      <div className="w-full flex justify-between items-center bg-gray-100">
         <TrainingControlButtons />
+        {/* Training Progress Bar */}
+        {/* <TrainingProgressBar /> */}
       </div>
     </div>
   );

@@ -95,6 +95,7 @@ const trainingSlice = createSlice({
     },
     setTrainingMode: (state, action) => {
       state.trainingMode = action.payload;
+      state.trainingInfo.resume = action.payload === 'resume';
     },
     setIsTraining: (state, action) => {
       console.log('setIsTraining', action.payload);

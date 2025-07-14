@@ -21,10 +21,7 @@ from typing import Dict, Any
 
 
 class Trainer(ABC):
-    
-    def __init__(self, config):
-        self.config = config
-    
+
     # TODO: Uncomment when training metrics is implemented
     # @abstractmethod
     # def send_training_metrics(self) -> Dict[str, Any]:

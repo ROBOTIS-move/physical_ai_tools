@@ -165,11 +165,11 @@ class LerobotTrainer(Trainer):
                     batch[key] = batch[key].to(device, non_blocking=True)
 
             train_tracker, output_dict = self._update_policy(
-                train_tracker,
-                policy,
-                batch,
-                optimizer,
-                cfg.optimizer.grad_clip_norm,
+                train_metrics=train_tracker,
+                policy=policy,
+                batch=batch,
+                optimizer=optimizer,
+                grad_clip_norm=cfg.optimizer.grad_clip_norm,
                 grad_scaler=grad_scaler,
                 lr_scheduler=lr_scheduler,
                 use_amp=cfg.policy.use_amp,
@@ -239,6 +239,7 @@ class LerobotTrainer(Trainer):
 
 
     def _update_policy(
+        self,
         train_metrics: MetricsTracker,
         policy: PreTrainedPolicy,
         batch: Any,

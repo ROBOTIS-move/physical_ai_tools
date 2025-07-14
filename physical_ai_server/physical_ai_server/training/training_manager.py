@@ -23,6 +23,7 @@ from lerobot.configs.policies import PreTrainedConfig
 # TODO: Uncomment when training metrics is implemented
 # from physical_ai_server.training.trainers.gr00tn1.gr00tn1_trainer import Gr00tN1Trainer
 # from physical_ai_server.training.trainers.openvla.openvla_trainer import OpenVLATrainer
+import draccus
 
 class TrainingManager:
     
@@ -49,27 +50,28 @@ class TrainingManager:
         if not trainer_class:
             raise ValueError(
                 f"Unknown policy type: '{policy_type}'."
-            )
-        cfg = TrainPipelineConfig(
-        dataset=DatasetConfig(repo_id=self.training_info.dataset),
-        policy=PreTrainedConfig(type=policy_type, device=self.training_info.policy_device),
-        output_dir=self.training_info.output_folder_name,
-        resume=self.training_info.resume,
-        seed=self.training_info.seed if self.training_info.seed != 0 else None,
-        num_workers=self.training_info.num_workers or 4,
-        batch_size=self.training_info.batch_size or 8,
-        steps=self.training_info.steps or 100_000,
-        eval_freq=self.training_info.eval_freq or 20_000,
-        log_freq=self.training_info.log_freq or 200,
-        save_freq=self.training_info.save_freq or 20_000,
-    )
-
-        return trainer_class(config=cfg)
+        )            
+        args = [
+            f"--policy.type={self.training_info.policy_type}",
+            f"--policy.device={self.training_info.policy_device}",
+            f"--dataset.repo_id={self.training_info.dataset}",
+            f"--output_dir={self.training_info.output_folder_name}",
+            f"--resume={'true' if self.training_info.resume else 'false'}",
+            f"--seed={self.training_info.seed or 1000}",
+            f"--num_workers={self.training_info.num_workers or 4}",
+            f"--batch_size={self.training_info.batch_size or 8}",
+            f"--steps={self.training_info.steps or 100000}",
+            f"--eval_freq={self.training_info.eval_freq or 20000}",
+            f"--log_freq={self.training_info.log_freq or 200}",
+            f"--save_freq={self.training_info.save_freq or 1000}",
+        ]
+        cfg = draccus.parse(TrainPipelineConfig, None, args=args)
+        return trainer_class(), cfg
     # TODO: Uncomment when training metrics is implemented
     # def get_training_metrics(self):
     #     metrics = self.trainer.send_training_metrics()
     #     return metrics
 
     def train(self):
-        self.trainer = self._get_trainer()
-        self.trainer.train(config=self.training_info)
+        self.trainer, cfg = self._get_trainer()
+        self.trainer.train(cfg)

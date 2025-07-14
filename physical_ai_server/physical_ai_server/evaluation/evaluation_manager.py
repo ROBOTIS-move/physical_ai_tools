@@ -292,12 +292,13 @@ def main():
     success, message = inference_manager.validate_policy(policy_path)
 
     if success:
-        policy_loaded = inference_manager.load_policy(policy_path)
+        policy_loaded = inference_manager.load_policy()
         if policy_loaded:
             # Evaluate policy on entire dataset
             results = evaluation_manager.evaluate_policy_on_dataset(
                 inference_manager=inference_manager,
                 dataset=dataset,
+                sample_episodes=[1, 3, 5],
                 plot_episodes=True,
                 plot_summary=True,
                 save_plot_dir='./plots'

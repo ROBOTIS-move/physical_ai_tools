@@ -17,16 +17,13 @@
 # Author: Dongyun Kim
 
 import os
-import torch
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.configs.default import DatasetConfig
-from physical_ai_server.inference.inference_manager import InferenceManager
+import numpy as np
 from physical_ai_server.evaluation.visualization_manager import VisualizationManager
+from physical_ai_server.inference.inference_manager import InferenceManager
 
 
 class EvaluationManager:
@@ -64,10 +61,10 @@ class EvaluationManager:
     ) -> Tuple[int, int, int]:
         if episode_idx >= dataset.num_episodes:
             raise ValueError(
-                f"Episode index {episode_idx} exceeds available episodes {dataset.num_episodes}")
+                f'Episode index {episode_idx} exceeds available episodes {dataset.num_episodes}')
 
-        episode_start = int(dataset.episode_data_index["from"][episode_idx])
-        episode_end = int(dataset.episode_data_index["to"][episode_idx])
+        episode_start = int(dataset.episode_data_index['from'][episode_idx])
+        episode_end = int(dataset.episode_data_index['to'][episode_idx])
         episode_length = episode_end - episode_start
         return episode_start, episode_end, episode_length
 
@@ -137,7 +134,8 @@ class EvaluationManager:
             frame_data = dataset[frame_idx]
 
             # Extract frame components
-            gt_state, gt_action, images, task_instruction = self.extract_frame_components(frame_data)
+            gt_state, gt_action, images, task_instruction = self.extract_frame_components(
+                frame_data)
 
             # Store ground truth data
             state_across_time.append(gt_state)
@@ -192,7 +190,8 @@ class EvaluationManager:
                 # Determine save path for this episode
                 episode_save_path = None
                 if plot_episodes and save_plot_dir:
-                    episode_save_path = os.path.join(save_plot_dir, f"episode_{episode_idx}_evaluation.png")
+                    episode_save_path = os.path.join(
+                        save_plot_dir, f'episode_{episode_idx}_evaluation.png')
 
                 # Evaluate episode
                 mse = self.evaluate_policy_on_episode(
@@ -204,10 +203,10 @@ class EvaluationManager:
                 )
 
                 episode_mses.append(mse)
-                print(f"Episode {episode_idx}: MSE = {mse:.6f}")
+                print(f'Episode {episode_idx}: MSE = {mse:.6f}')
 
             except Exception as e:
-                print(f"Failed to evaluate episode {episode_idx}: {e}")
+                print(f'Failed to evaluate episode {episode_idx}: {e}')
                 continue
 
         # Calculate aggregate metrics
@@ -240,13 +239,13 @@ class EvaluationManager:
             mse_distribution_path = None
 
             if save_plot_dir:
-                mse_comparison_path = os.path.join(save_plot_dir, "overall_mse_comparison.png")
-                mse_distribution_path = os.path.join(save_plot_dir, "overall_mse_distribution.png")
+                mse_comparison_path = os.path.join(save_plot_dir, 'overall_mse_comparison.png')
+                mse_distribution_path = os.path.join(save_plot_dir, 'overall_mse_distribution.png')
 
             self.visualization_manager.plot_episode_mse_comparison(
                 episode_mses=episode_mses,
                 save_path=mse_comparison_path,
-                title="Overall Episode MSE Comparison"
+                title='Overall Episode MSE Comparison'
             )
 
             # Plot MSE distribution
@@ -260,15 +259,15 @@ class EvaluationManager:
 
 
 def main():
-    """
+    '''
     Main function demonstrating the usage of EvaluationManager and VisualizationManager.
-    """
+    '''
     # Initialize managers
     evaluation_manager = EvaluationManager()
 
     # Configuration
-    repo_id = "ROBOTIS/omy_f3m_Stack_cup"
-    policy_path = '/root/.cache/huggingface/hub/models--ROBOTIS--omy_stack_cup_60k/snapshots/9744b906b355d6c82bfb39da5e34cc8866f47ad6'
+    repo_id = ''
+    policy_path = ''
 
     # Load dataset
     dataset = evaluation_manager.load_dataset(repo_id)
@@ -287,36 +286,17 @@ def main():
                 sample_episodes=[1, 3, 5],
                 plot_episodes=True,
                 plot_summary=True,
-                save_plot_dir="./plots"
+                save_plot_dir='./plots'
             )
-
-            print(f"\nEvaluation Results:")
-            print(f"Mean MSE: {results['mean_mse']:.6f}")
-            print(f"Std MSE: {results['std_mse']:.6f}")
-            print(f"Min MSE: {results['min_mse']:.6f} (Episode {results['best_episode_idx']})")
-            print(f"Max MSE: {results['max_mse']:.6f} (Episode {results['worst_episode_idx']})")
-            print(f"Total Episodes: {results['total_episodes']}")
-            print(f"\nBest performing episode: {results['best_episode_idx']}")
-            print(f"Worst performing episode: {results['worst_episode_idx']}")
-
-            # Display episode MSE summary
-            if results['episode_mses']:
-                print(f"\nEpisode MSE Summary:")
-                for i, mse in enumerate(results['episode_mses']):
-                    status = ""
-                    if i == results['best_episode_idx']:
-                        status = " (BEST)"
-                    elif i == results['worst_episode_idx']:
-                        status = " (WORST)"
-                    print(f"  Episode {i}: {mse:.6f}{status}")
+            print(f'Evaluation results: {results}')
 
         else:
-            print("Failed to load policy")
+            print('Failed to load policy')
     else:
-        print(f"Policy validation failed: {message}")
+        print(f'Policy validation failed: {message}')
 
-    print("\nDataset evaluation completed!")
+    print('\nDataset evaluation completed!')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

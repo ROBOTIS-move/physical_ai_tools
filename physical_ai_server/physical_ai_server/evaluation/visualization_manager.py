@@ -22,9 +22,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import List
 
+
 class VisualizationManager:
 
-    def __init__(self, default_save_dir: str = "/root/.cache"):
+    def __init__(self, default_save_dir: str = '/root/.cache'):
         self.default_save_dir = default_save_dir
         os.makedirs(self.default_save_dir, exist_ok=True)
 
@@ -40,15 +41,16 @@ class VisualizationManager:
 
         action_dim = gt_action_across_time.shape[1]
 
-        fig, axes = plt.subplots(nrows=action_dim, ncols=1, figsize=(12, 3 * action_dim))
+        fig, axes = plt.subplots(
+            nrows=action_dim, ncols=1, figsize=(12, 3 * action_dim))
         if action_dim == 1:
             axes = [axes]
 
         # Add global title with MSE information
-        title = f"Episode {episode_idx} - Action Prediction Evaluation"
+        title = f'Episode {episode_idx} - Action Prediction Evaluation'
         if mse is not None:
-            title += f" (MSE: {mse:.6f})"
-        fig.suptitle(title, fontsize=14, color="blue")
+            title += f' (MSE: {mse:.6f})'
+        fig.suptitle(title, fontsize=14, color='blue')
 
         # Plot each action dimension
         for i, ax in enumerate(axes):
@@ -68,7 +70,7 @@ class VisualizationManager:
         else:
             # Auto-generate path if not provided
             auto_path = os.path.join(
-                self.default_save_dir, f"episode_{episode_idx}_action_comparison.png")
+                self.default_save_dir, f'episode_{episode_idx}_action_comparison.png')
             self._save_plot(auto_path)
 
     def _plot_single_action_dimension(
@@ -82,41 +84,41 @@ class VisualizationManager:
 
         if state_across_time.shape[1] == gt_action_across_time.shape[1]:
             ax.plot(
-                state_across_time[:, dim_idx], label="Current State", alpha=0.7, linestyle='--')
+                state_across_time[:, dim_idx], label='Current State', alpha=0.7, linestyle='--')
 
         # Plot ground truth and predicted actions
         ax.plot(
             gt_action_across_time[:, dim_idx],
-            label="Ground Truth Action",
+            label='Ground Truth Action',
             color='green',
             linewidth=2)
         ax.plot(
             pred_action_across_time[:, dim_idx],
-            label="Predicted Action",
+            label='Predicted Action',
             color='red',
             linewidth=2)
 
         # Configure plot appearance
-        ax.set_title(f"Action Dimension {dim_idx}")
-        ax.set_xlabel("Time Step")
-        ax.set_ylabel("Action Value")
+        ax.set_title(f'Action Dimension {dim_idx}')
+        ax.set_xlabel('Time Step')
+        ax.set_ylabel('Action Value')
         ax.legend()
         ax.grid(True, alpha=0.3)
 
     def _save_plot(self, save_path: str) -> None:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Plot saved to: {save_path}")
+        print(f'Plot saved to: {save_path}')
 
     def plot_episode_mse_comparison(
         self,
         episode_mses: List[float],
         save_path: str = None,
-        title: str = "Episode MSE Comparison"
+        title: str = 'Episode MSE Comparison'
     ) -> None:
 
         if not episode_mses:
-            print("No episode MSE data to plot")
+            print('No episode MSE data to plot')
             return
 
         # Create figure and axis
@@ -146,25 +148,38 @@ class VisualizationManager:
             bars[min_mse_idx].set_alpha(0.8)
 
         # Configure plot appearance
-        ax.set_xlabel("Episode Index")
-        ax.set_ylabel("MSE Value")
+        ax.set_xlabel('Episode Index')
+        ax.set_ylabel('MSE Value')
         ax.set_title(title)
         ax.grid(True, alpha=0.3, axis='y')
 
         # Add value labels on bars
         for i, mse in enumerate(episode_mses):
-            ax.text(i, mse + max(episode_mses) * 0.01, f'{mse:.4f}', 
-                   ha='center', va='bottom', fontsize=8, rotation=45)
+            ax.text(
+                i,
+                mse + max(episode_mses) * 0.01,
+                f'{mse:.4f}',
+                ha='center',
+                va='bottom',
+                fontsize=8,
+                rotation=45
+            )
 
         # Add statistics text
         if episode_mses:
-            stats_text = f"Mean: {np.mean(episode_mses):.4f}\n"
-            stats_text += f"Std: {np.std(episode_mses):.4f}\n"
-            stats_text += f"Min: {np.min(episode_mses):.4f} (Episode {np.argmin(episode_mses)})\n"
-            stats_text += f"Max: {np.max(episode_mses):.4f} (Episode {np.argmax(episode_mses)})"
-            
-            ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
-                   verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+            stats_text = f'Mean: {np.mean(episode_mses):.4f}\n'
+            stats_text += f'Std: {np.std(episode_mses):.4f}\n'
+            stats_text += f'Min: {np.min(episode_mses):.4f} (Episode {np.argmin(episode_mses)})\n'
+            stats_text += f'Max: {np.max(episode_mses):.4f} (Episode {np.argmax(episode_mses)})'
+
+            ax.text(
+                0.02,
+                0.98,
+                stats_text,
+                transform=ax.transAxes,
+                verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
+            )
 
         # Create legend
         from matplotlib.patches import Patch
@@ -182,50 +197,63 @@ class VisualizationManager:
             self._save_plot(save_path)
         else:
             # Auto-generate path if not provided
-            auto_path = os.path.join(self.default_save_dir, "episode_mse_comparison.png")
+            auto_path = os.path.join(self.default_save_dir, 'episode_mse_comparison.png')
             self._save_plot(auto_path)
 
     def plot_episode_mse_distribution(
-        self,
-        episode_mses: List[float],
-        save_path: str = None,
-        bins: int = 10
-    ) -> None:
+            self,
+            episode_mses: List[float],
+            save_path: str = None) -> None:
 
         if not episode_mses:
-            print("No episode MSE data to plot")
+            print('No episode MSE data to plot')
             return
 
         # Create figure and axis
         _, ax = plt.subplots(figsize=(10, 6))
 
-        # Create histogram
-        n, bins_edges, patches = ax.hist(episode_mses, bins=bins, alpha=0.7, color='lightblue', edgecolor='black')
-
         # Add vertical lines for mean and median
         mean_mse = np.mean(episode_mses)
         median_mse = np.median(episode_mses)
 
-        ax.axvline(mean_mse, color='red', linestyle='--', linewidth=2, label=f'Mean: {mean_mse:.4f}')
-        ax.axvline(median_mse, color='green', linestyle='--', linewidth=2, label=f'Median: {median_mse:.4f}')
+        ax.axvline(
+            mean_mse,
+            color='red',
+            linestyle='--',
+            linewidth=2,
+            label=f'Mean: {mean_mse:.4f}'
+        )
+        ax.axvline(
+            median_mse,
+            color='green',
+            linestyle='--',
+            linewidth=2,
+            label=f'Median: {median_mse:.4f}'
+        )
 
         # Configure plot appearance
-        ax.set_xlabel("MSE Value")
-        ax.set_ylabel("Frequency")
-        ax.set_title("Distribution of MSE Values Across Episodes")
+        ax.set_xlabel('MSE Value')
+        ax.set_ylabel('Frequency')
+        ax.set_title('Distribution of MSE Values Across Episodes')
         ax.legend()
         ax.grid(True, alpha=0.3)
 
         # Add statistics text
-        stats_text = f"Episodes: {len(episode_mses)}\n"
-        stats_text += f"Mean: {mean_mse:.4f}\n"
-        stats_text += f"Std: {np.std(episode_mses):.4f}\n"
-        stats_text += f"Min: {np.min(episode_mses):.4f}\n"
-        stats_text += f"Max: {np.max(episode_mses):.4f}"
+        stats_text = f'Episodes: {len(episode_mses)}\n'
+        stats_text += f'Mean: {mean_mse:.4f}\n'
+        stats_text += f'Std: {np.std(episode_mses):.4f}\n'
+        stats_text += f'Min: {np.min(episode_mses):.4f}\n'
+        stats_text += f'Max: {np.max(episode_mses):.4f}'
 
-        ax.text(0.98, 0.98, stats_text, transform=ax.transAxes, 
-               verticalalignment='top', horizontalalignment='right',
-               bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+        ax.text(
+            0.98,
+            0.98,
+            stats_text,
+            transform=ax.transAxes,
+            verticalalignment='top',
+            horizontalalignment='right',
+            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
+        )
 
         plt.tight_layout()
 
@@ -234,6 +262,5 @@ class VisualizationManager:
             self._save_plot(save_path)
         else:
             # Auto-generate path if not provided
-            auto_path = os.path.join(self.default_save_dir, "episode_mse_distribution.png")
+            auto_path = os.path.join(self.default_save_dir, 'episode_mse_distribution.png')
             self._save_plot(auto_path)
-

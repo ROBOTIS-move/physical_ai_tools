@@ -53,9 +53,14 @@ from lerobot.common.utils.wandb_utils import WandBLogger
 from lerobot.configs.train import TrainPipelineConfig
 from lerobot.scripts.eval import eval_policy
 from physical_ai_server.training.trainers.trainer import Trainer
+from rclpy.logging import get_logger
 
 
 class LerobotTrainer(Trainer):
+    
+    def __init__(self):
+        super().__init__()
+        self.logger = get_logger("LerobotTrainer")
 
     # TODO: Uncomment when training metrics is implemented
     # def send_training_metrics(self):
@@ -79,7 +84,7 @@ class LerobotTrainer(Trainer):
         torch.backends.cudnn.benchmark = True
         torch.backends.cuda.matmul.allow_tf32 = True
 
-        logging.info("Creating dataset")
+        self.logger.info("Creating dataset")
         dataset = make_dataset(cfg)
 
         # Create environment used for evaluating checkpoints during training on simulation data.
@@ -87,16 +92,16 @@ class LerobotTrainer(Trainer):
         # using the eval.py instead, with gym_dora environment and dora-rs.
         eval_env = None
         if cfg.eval_freq > 0 and cfg.env is not None:
-            logging.info("Creating env")
+            self.logger.info("Creating env")
             eval_env = make_env(cfg.env, n_envs=cfg.eval.batch_size, use_async_envs=cfg.eval.use_async_envs)
 
-        logging.info("Creating policy")
+        self.logger.info("Creating policy")
         policy = make_policy(
             cfg=cfg.policy,
             ds_meta=dataset.meta,
         )
 
-        logging.info("Creating optimizer and scheduler")
+        self.logger.info("Creating optimizer and scheduler")
         optimizer, lr_scheduler = make_optimizer_and_scheduler(cfg, policy)
         grad_scaler = GradScaler(device.type, enabled=cfg.policy.use_amp)
 
@@ -108,14 +113,14 @@ class LerobotTrainer(Trainer):
         num_learnable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
         num_total_params = sum(p.numel() for p in policy.parameters())
 
-        logging.info(colored("Output dir:", "yellow", attrs=["bold"]) + f" {cfg.output_dir}")
+        self.logger.info(colored("Output dir:", "yellow", attrs=["bold"]) + f" {cfg.output_dir}")
         if cfg.env is not None:
-            logging.info(f"{cfg.env.task=}")
-        logging.info(f"{cfg.steps=} ({format_big_number(cfg.steps)})")
-        logging.info(f"{dataset.num_frames=} ({format_big_number(dataset.num_frames)})")
-        logging.info(f"{dataset.num_episodes=}")
-        logging.info(f"{num_learnable_params=} ({format_big_number(num_learnable_params)})")
-        logging.info(f"{num_total_params=} ({format_big_number(num_total_params)})")
+            self.logger.info(f"{cfg.env.task=}")
+        self.logger.info(f"{cfg.steps=} ({format_big_number(cfg.steps)})")
+        self.logger.info(f"{dataset.num_frames=} ({format_big_number(dataset.num_frames)})")
+        self.logger.info(f"{dataset.num_episodes=}")
+        self.logger.info(f"{num_learnable_params=} ({format_big_number(num_learnable_params)})")
+        self.logger.info(f"{num_total_params=} ({format_big_number(num_total_params)})")
 
         # create dataloader for offline training
         if hasattr(cfg.policy, "drop_n_last_frames"):
@@ -154,7 +159,7 @@ class LerobotTrainer(Trainer):
             cfg.batch_size, dataset.num_frames, dataset.num_episodes, train_metrics, initial_step=step
         )
 
-        logging.info("Start offline training on a fixed dataset")
+        self.logger.info("Start offline training on a fixed dataset")
         for _ in range(step, cfg.steps):
             start_time = time.perf_counter()
             batch = next(dl_iter)
@@ -165,11 +170,11 @@ class LerobotTrainer(Trainer):
                     batch[key] = batch[key].to(device, non_blocking=True)
 
             train_tracker, output_dict = self._update_policy(
-                train_metrics=train_tracker,
-                policy=policy,
-                batch=batch,
-                optimizer=optimizer,
-                grad_clip_norm=cfg.optimizer.grad_clip_norm,
+                train_tracker,
+                policy,
+                batch,
+                optimizer,
+                cfg.optimizer.grad_clip_norm,
                 grad_scaler=grad_scaler,
                 lr_scheduler=lr_scheduler,
                 use_amp=cfg.policy.use_amp,
@@ -184,7 +189,7 @@ class LerobotTrainer(Trainer):
             is_eval_step = cfg.eval_freq > 0 and step % cfg.eval_freq == 0
 
             if is_log_step:
-                logging.info(train_tracker)
+                self.logger.info(str(train_tracker))
                 if wandb_logger:
                     wandb_log_dict = train_tracker.to_dict()
                     if output_dict:
@@ -193,7 +198,7 @@ class LerobotTrainer(Trainer):
                 train_tracker.reset_averages()
 
             if cfg.save_checkpoint and is_saving_step:
-                logging.info(f"Checkpoint policy after step {step}")
+                self.logger.info(f"Checkpoint policy after step {step}")
                 checkpoint_dir = get_step_checkpoint_dir(cfg.output_dir, cfg.steps, step)
                 save_checkpoint(checkpoint_dir, step, cfg, policy, optimizer, lr_scheduler)
                 update_last_checkpoint(checkpoint_dir)
@@ -202,7 +207,7 @@ class LerobotTrainer(Trainer):
 
             if cfg.env and is_eval_step:
                 step_id = get_step_identifier(step, cfg.steps)
-                logging.info(f"Eval policy at step {step}")
+                self.logger.info(f"Eval policy at step {step}")
                 with (
                     torch.no_grad(),
                     torch.autocast(device_type=device.type) if cfg.policy.use_amp else nullcontext(),
@@ -227,7 +232,7 @@ class LerobotTrainer(Trainer):
                 eval_tracker.eval_s = eval_info["aggregated"].pop("eval_s")
                 eval_tracker.avg_sum_reward = eval_info["aggregated"].pop("avg_sum_reward")
                 eval_tracker.pc_success = eval_info["aggregated"].pop("pc_success")
-                logging.info(eval_tracker)
+                self.logger.info(str(eval_tracker))
                 if wandb_logger:
                     wandb_log_dict = {**eval_tracker.to_dict(), **eval_info}
                     wandb_logger.log_dict(wandb_log_dict, step, mode="eval")
@@ -235,7 +240,7 @@ class LerobotTrainer(Trainer):
 
         if eval_env:
             eval_env.close()
-        logging.info("End of training")
+        self.logger.info("End of training")
 
 
     def _update_policy(

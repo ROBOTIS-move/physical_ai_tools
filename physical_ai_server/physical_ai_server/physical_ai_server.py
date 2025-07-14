@@ -389,13 +389,15 @@ class PhysicalAIServer(Node):
             return
 
     def user_training_interaction_callback(self, request, response):
+        self.training_manager = TrainingManager()
         try:
-            if request.command == SendCommand.Request.START:
-                self.training_manager.train(request.training_info)
+            if request.command == SendTrainingCommand.Request.START:
+                self.training_manager.training_info = request.training_info
+                self.training_manager.train()
             else:
-                if request.command == SendCommand.Request.RESUME:
+                if request.command == SendTrainingCommand.Request.RESUME:
                     pass
-                elif request.command == SendCommand.Request.FINISH:
+                elif request.command == SendTrainingCommand.Request.FINISH:
                     pass
         except Exception as e:
             self.get_logger().error(f'Error in user_training_interaction: {str(e)}')

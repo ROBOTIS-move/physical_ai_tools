@@ -24,10 +24,11 @@ class Trainer(ABC):
     
     def __init__(self, config):
         self.config = config
-        
-    @abstractmethod
-    def send_training_metrics(self) -> Dict[str, Any]:
-        pass
+    
+    # TODO: Uncomment when training metrics is implemented
+    # @abstractmethod
+    # def send_training_metrics(self) -> Dict[str, Any]:
+    #     pass
 
     @abstractmethod
     def train(self):

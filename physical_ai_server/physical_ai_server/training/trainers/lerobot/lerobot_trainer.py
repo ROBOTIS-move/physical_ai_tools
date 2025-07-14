@@ -52,13 +52,14 @@ from lerobot.common.utils.utils import (
 from lerobot.common.utils.wandb_utils import WandBLogger
 from lerobot.configs.train import TrainPipelineConfig
 from lerobot.scripts.eval import eval_policy
-from training.trainers.trainer import Trainer
+from physical_ai_server.training.trainers.trainer import Trainer
 
 
 class LerobotTrainer(Trainer):
-    
-    def send_training_metrics(self):
-        pass
+
+    # TODO: Uncomment when training metrics is implemented
+    # def send_training_metrics(self):
+    #     pass
     
     def train(self, cfg: TrainPipelineConfig):
         cfg.validate()

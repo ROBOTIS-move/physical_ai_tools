@@ -93,6 +93,7 @@ class PhysicalAIServer(Node):
             ('/get_registered_hf_user', GetHFUser, self.get_hf_user_callback),
             ('/get_policy_list', GetPolicyList, self.get_policy_list_callback),
             ('/get_saved_policies', GetSavedPolicyList, self.get_saved_policies_callback),
+            ('/training/get_available_policy', GetPolicyList, self.get_available_list_callback),
         ]
 
         for service_name, service_type, callback in service_definitions:
@@ -515,6 +516,41 @@ class PhysicalAIServer(Node):
             response.success = True
             response.message = 'Policy list retrieved successfully'
         response.policy_list = policy_list
+        return response
+    
+    def get_available_list_callback(self, request, response):
+        try:
+            policy_list = TrainingManager.get_available_policies()
+            device_list = TrainingManager.get_abvailable_devices()
+
+            if not policy_list and not device_list:
+                self.get_logger().warning('No policies or devices available')
+                response.success = False
+                response.message = 'No policies or devices available'
+            elif not policy_list:
+                self.get_logger().warning('No policies available')
+                response.success = False
+                response.message = 'No policies available'
+            elif not device_list:
+                self.get_logger().warning('No devices available')
+                response.success = False
+                response.message = 'No devices available'
+            else:
+                self.get_logger().info(f'Available policies: {policy_list}')
+                self.get_logger().info(f'Available devices: {device_list}')
+                response.success = True
+                response.message = 'Policy and device lists retrieved successfully'
+
+            response.policy_list = policy_list or []
+            response.device_list = device_list or []
+
+        except Exception as e:
+            self.get_logger().error(f'Error in get_available_list_callback: {str(e)}')
+            response.success = False
+            response.message = f'Internal error: {str(e)}'
+            response.policy_list = []
+            response.device_list = []
+
         return response
 
     def get_saved_policies_callback(self, request, response):

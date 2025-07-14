@@ -42,6 +42,24 @@ class TrainingManager:
         self.training_info = None
         self.trainer = None
         self.cfg = None
+        
+    @staticmethod
+    def get_abvailable_devices() -> list[str]:
+        return [
+            'cuda',
+            'cpu',
+        ]
+    
+    @staticmethod
+    def get_available_policies() -> list[str]:
+        return [
+            'tdmpc',
+            'diffusion',
+            'act',
+            'vqbet',
+            'pi0',
+            'pi0fast',
+        ]
 
     def _get_training_config(self):
         if isinstance(self.trainer, LerobotTrainer):

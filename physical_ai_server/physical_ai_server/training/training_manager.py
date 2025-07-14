@@ -16,17 +16,16 @@
 #
 # Author: Seongwoo Kim
 
-from physical_ai_server.training.trainers.lerobot.lerobot_trainer import LerobotTrainer
+import draccus
 from lerobot.configs.train import TrainPipelineConfig
-from lerobot.configs.default import DatasetConfig
-from lerobot.configs.policies import PreTrainedConfig
+from physical_ai_server.training.trainers.lerobot.lerobot_trainer import LerobotTrainer
 # TODO: Uncomment when training metrics is implemented
 # from physical_ai_server.training.trainers.gr00tn1.gr00tn1_trainer import Gr00tN1Trainer
 # from physical_ai_server.training.trainers.openvla.openvla_trainer import OpenVLATrainer
-import draccus
+
 
 class TrainingManager:
-    
+
     TRAINER_MAPPING = {
         'pi0fast': LerobotTrainer,
         'pi0': LerobotTrainer,
@@ -38,7 +37,7 @@ class TrainingManager:
         # 'gr00tn1': Gr00tN1Trainer,
         # 'openvla': OpenVLATrainer,
     }
-    
+
     def __init__(self):
         self.training_info = None
         self.trainer = None
@@ -51,7 +50,7 @@ class TrainingManager:
                 f'--policy.device={self.training_info.policy_device}',
                 f'--dataset.repo_id={self.training_info.dataset}',
                 f'--output_dir={self.training_info.output_folder_name}',
-                f'--resume={'true' if self.training_info.resume else 'false'}',
+                f"--resume={'true' if self.training_info.resume else 'false'}",
                 f'--seed={self.training_info.seed or 1000}',
                 f'--num_workers={self.training_info.num_workers or 4}',
                 f'--batch_size={self.training_info.batch_size or 8}',
@@ -68,7 +67,7 @@ class TrainingManager:
         if not trainer_class:
             raise ValueError(
                 f"Unknown policy type: '{policy_type}'."
-        )
+            )
         self.trainer = trainer_class()
 
     # TODO: Uncomment when training metrics is implemented

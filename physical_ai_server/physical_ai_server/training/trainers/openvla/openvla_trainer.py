@@ -20,10 +20,10 @@ from physical_ai_server.training.trainers.trainer import Trainer
 
 
 class OpenVLATrainer(Trainer):
-    
+
     # TODO: Uncomment when training metrics is implemented
     # def send_training_metrics(self):
     #     pass
-    
+
     def train(self):
         pass

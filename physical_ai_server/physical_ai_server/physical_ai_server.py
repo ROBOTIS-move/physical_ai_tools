@@ -30,16 +30,16 @@ from physical_ai_interfaces.srv import (
     GetRobotTypeList,
     GetSavedPolicyList,
     SendCommand,
+    SendTrainingCommand,
     SetHFUser,
     SetRobotType,
-    SendTrainingCommand,
 )
 
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.inference.inference_manager import InferenceManager
-from physical_ai_server.training.training_manager import TrainingManager
 from physical_ai_server.timer.timer_manager import TimerManager
+from physical_ai_server.training.training_manager import TrainingManager
 from physical_ai_server.utils.parameter_utils import (
     declare_parameters,
     load_parameters,

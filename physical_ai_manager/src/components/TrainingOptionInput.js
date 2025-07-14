@@ -52,6 +52,7 @@ const TrainingOptionInput = () => {
     'p-6',
     'w-full',
     'max-w-[350px]',
+    'min-w-[250px]',
     'relative',
     'overflow-y-auto',
     'scrollbar-thin'

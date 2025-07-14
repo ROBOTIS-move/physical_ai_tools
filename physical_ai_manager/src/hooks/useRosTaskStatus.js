@@ -25,6 +25,11 @@ import {
   setHeartbeatStatus,
   setLastHeartbeatTime,
 } from '../features/tasks/taskSlice';
+import {
+  setIsTraining,
+  setTopicReceived,
+  setTrainingInfo,
+} from '../features/training/trainingSlice';
 import rosConnectionManager from '../utils/rosConnectionManager';
 
 export function useRosTaskStatus() {
@@ -222,11 +227,66 @@ export function useRosTaskStatus() {
     }));
   }, []);
 
+  const subscribeToTrainingStatus = useCallback(async () => {
+    try {
+      const ros = await rosConnectionManager.getConnection(rosbridgeUrl);
+      if (!ros) return;
+
+      // Skip if already subscribed
+      if (taskStatusTopicRef.current) {
+        console.log('Task status already subscribed, skipping...');
+        return;
+      }
+
+      setConnected(true);
+      taskStatusTopicRef.current = new ROSLIB.Topic({
+        ros,
+        name: '/training/status',
+        messageType: 'physical_ai_interfaces/msg/TrainingStatus',
+      });
+
+      taskStatusTopicRef.current.subscribe((msg) => {
+        console.log('Received training status:', msg);
+
+        if (msg.error !== '') {
+          console.log('error:', msg.error);
+          toast.error(msg.error);
+          return;
+        }
+
+        dispatch(setIsTraining(true));
+
+        // ROS message to React state
+        dispatch(
+          setTrainingInfo({
+            dataset: msg.training_info.dataset || '',
+            policyType: msg.training_info.policy_type || '',
+            policyDevice: msg.training_info.policy_device || '',
+            outputFolderName: msg.training_info.output_folder_name || '',
+            resume: msg.training_info.resume || false,
+            seed: msg.training_info.seed || 0,
+            numWorkers: msg.training_info.num_workers || 0,
+            batchSize: msg.training_info.batch_size || 0,
+            steps: msg.training_info.steps || 0,
+            evalFreq: msg.training_info.eval_freq || 0,
+            logFreq: msg.training_info.log_freq || 0,
+            saveFreq: msg.training_info.save_freq || 0,
+          })
+        );
+
+        dispatch(setTopicReceived(true));
+      });
+    } catch (error) {
+      console.error('Failed to subscribe to task status topic:', error);
+    }
+  }, [dispatch, rosbridgeUrl]);
+
   return {
     connected,
     subscribeToTaskStatus,
     cleanup,
     getPhaseName,
     resetTaskToIdle,
+    subscribeToTrainingStatus,
   };
 }

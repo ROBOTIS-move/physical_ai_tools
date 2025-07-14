@@ -193,6 +193,7 @@ export function useRosTaskStatus() {
       try {
         await subscribeToTaskStatus();
         await subscribeToHeartbeat();
+        await subscribeToTrainingStatus();
       } catch (error) {
         console.error('Failed to initialize ROS subscriptions:', error);
       }

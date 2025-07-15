@@ -5,7 +5,6 @@ string output_folder_name
 string policy_device
 
 # Options
-bool resume
 uint32 seed
 uint8 num_workers
 uint16 batch_size

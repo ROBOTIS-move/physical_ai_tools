@@ -66,15 +66,15 @@ class LerobotTrainer(Trainer):
     # def send_training_metrics(self):
     #     pass
 
-    def train(self, cfg: TrainPipelineConfig):
+    def train(self, cfg: TrainPipelineConfig, stop_event=None):
         cfg.validate()
-        logging.info(pformat(cfg.to_dict()))
+        self.logger.info(pformat(cfg.to_dict()))
 
         if cfg.wandb.enable and cfg.wandb.project:
             wandb_logger = WandBLogger(cfg)
         else:
             wandb_logger = None
-            logging.info(colored('Logs will be saved locally.', 'yellow', attrs=['bold']))
+            self.logger.info(colored('Logs will be saved locally.', 'yellow', attrs=['bold']))
 
         if cfg.seed is not None:
             set_seed(cfg.seed)
@@ -169,6 +169,10 @@ class LerobotTrainer(Trainer):
 
         self.logger.info('Start offline training on a fixed dataset')
         for _ in range(step, cfg.steps):
+            if stop_event and stop_event.is_set():
+                self.logger.info('Training stopped by stop event')
+                break
+            self.current_step = step
             start_time = time.perf_counter()
             batch = next(dl_iter)
             train_tracker.dataloading_s = time.perf_counter() - start_time
@@ -187,7 +191,6 @@ class LerobotTrainer(Trainer):
                 lr_scheduler=lr_scheduler,
                 use_amp=cfg.policy.use_amp,
             )
-            self.current_step = step
             step += 1
             train_tracker.step()
             is_log_step = cfg.log_freq > 0 and step % cfg.log_freq == 0

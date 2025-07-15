@@ -16,6 +16,8 @@
 #
 # Author: Seongwoo Kim
 
+import threading
+
 import draccus
 from lerobot.configs.train import TrainPipelineConfig
 from physical_ai_interfaces.msg import TrainingStatus
@@ -44,6 +46,8 @@ class TrainingManager:
         self.trainer = None
         self.cfg = None
         self.current_step = 0
+        self.stop_event = threading.Event()
+        self.parser = None
         
     @staticmethod
     def get_abvailable_devices() -> list[str]:
@@ -70,7 +74,6 @@ class TrainingManager:
                 f'--policy.device={self.training_info.policy_device}',
                 f'--dataset.repo_id={self.training_info.dataset}',
                 f'--output_dir={self.training_info.output_folder_name}',
-                f"--resume={'true' if self.training_info.resume else 'false'}",
                 f'--seed={self.training_info.seed or 1000}',
                 f'--num_workers={self.training_info.num_workers or 4}',
                 f'--batch_size={self.training_info.batch_size or 8}',
@@ -96,11 +99,12 @@ class TrainingManager:
     #     return metrics
 
     def get_current_training_status(self):
-        current_status = TrainingStatus()
-        current_status.training_info = self.training_info
-        current_status.current_step = self.trainer.get_current_step()
+        current_training_status = TrainingStatus()
+        current_training_status.training_info = self.training_info
+        current_training_status.current_step = self.trainer.get_current_step()
+        return current_training_status
 
     def train(self):
         self._get_trainer()
         self._get_training_config()
-        self.trainer.train(self.cfg)
+        self.trainer.train(self.cfg, stop_event=self.stop_event)

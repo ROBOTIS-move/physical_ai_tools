@@ -19,6 +19,7 @@
 import glob
 import os
 from pathlib import Path
+import threading
 import time
 from typing import Optional
 
@@ -67,6 +68,8 @@ class PhysicalAIServer(Node):
 
         self.robot_type_list = self.get_robot_type_list()
         self.start_recording_time: float = 0.0
+
+        self.training_thread = None
 
         self._init_core_components()
 
@@ -390,15 +393,31 @@ class PhysicalAIServer(Node):
             return
 
     def user_training_interaction_callback(self, request, response):
-        self.training_manager = TrainingManager()
         try:
             if request.command == SendTrainingCommand.Request.START:
+                if self.training_thread and self.training_thread.is_alive():
+                    response.success = False
+                    response.message = 'Training is already in progress'
+                    return response
+                self.training_manager = TrainingManager()
                 self.training_manager.training_info = request.training_info
-                self.training_manager.train()
+                def run_training():
+                    self.training_manager.train()
+                self.training_thread = threading.Thread(target=run_training, daemon=True)
+                self.training_thread.start()
+                response.success = True
+                response.message = 'Training started successfully'
             else:
-                if request.command == SendTrainingCommand.Request.RESUME:
-                    pass
-                elif request.command == SendTrainingCommand.Request.FINISH:
+                if request.command == SendTrainingCommand.Request.FINISH:
+                    if self.training_thread and self.training_thread.is_alive():
+                        self.training_manager.stop_event.set()
+                        self.training_thread.join()
+                        response.success = True
+                        response.message = 'Training stopped successfully'
+                    else:
+                        response.success = False
+                        response.message = 'No training in progress to stop'
+                elif request.command == SendTrainingCommand.Request.RESUME:
                     pass
         except Exception as e:
             self.get_logger().error(f'Error in user_training_interaction: {str(e)}')
@@ -530,7 +549,7 @@ class PhysicalAIServer(Node):
     def get_available_list_callback(self, request, response):
         try:
             policy_list = TrainingManager.get_available_policies()
-            device_list = TrainingManager.get_abvailable_devices()
+            device_list = TrainingManager.get_available_devices()
 
             if not policy_list and not device_list:
                 self.get_logger().warning('No policies or devices available')

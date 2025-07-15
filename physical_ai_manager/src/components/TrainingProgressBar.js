@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import clsx from 'clsx';
 
@@ -23,10 +23,13 @@ export default function TrainingProgressBar() {
   const totalSteps = useSelector((state) => state.training.trainingInfo.steps);
   const isTraining = useSelector((state) => state.training.isTraining);
 
-  // 진행률 계산 (0-100%)
+  const [spinnerIndex, setSpinnerIndex] = useState(0);
+
   const progressPercentage = totalSteps > 0 ? Math.min((currentStep / totalSteps) * 100, 100) : 0;
 
   const classContainer = clsx('w-full', 'rounded-lg', 'p-2');
+
+  const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];
 
   const classProgressContainer = clsx(
     'w-full',
@@ -72,9 +75,13 @@ export default function TrainingProgressBar() {
     return num.toLocaleString();
   };
 
-  //   if (!isTraining && currentStep === 0) {
-  //     return null; // If training is not started, hide the progress bar
-  //   }
+  const updateSpinnerFrame = () => {
+    setSpinnerIndex((prevIndex) => (prevIndex + 1) % spinnerFrames.length);
+  };
+
+  useEffect(() => {
+    updateSpinnerFrame();
+  }, [currentStep]);
 
   return (
     <div className={classContainer}>
@@ -91,7 +98,9 @@ export default function TrainingProgressBar() {
       </div>
 
       {isTraining && (
-        <div className="mt-2 text-sm text-gray-500 text-center">Training in progress...</div>
+        <div className="mt-2 text-sm text-gray-500 text-center">
+          Training in progress... {spinnerFrames[spinnerIndex]}
+        </div>
       )}
     </div>
   );

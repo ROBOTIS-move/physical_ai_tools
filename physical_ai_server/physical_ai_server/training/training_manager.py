@@ -29,6 +29,8 @@ from physical_ai_server.training.trainers.lerobot.lerobot_trainer import Lerobot
 
 class TrainingManager:
 
+    DEFAULT_TRAINING_DIR = 'outputs/train/'
+    
     TRAINER_MAPPING = {
         'pi0fast': LerobotTrainer,
         'pi0': LerobotTrainer,
@@ -48,24 +50,6 @@ class TrainingManager:
         self.current_step = 0
         self.stop_event = threading.Event()
         self.parser = None
-        
-    @staticmethod
-    def get_abvailable_devices() -> list[str]:
-        return [
-            'cuda',
-            'cpu',
-        ]
-    
-    @staticmethod
-    def get_available_policies() -> list[str]:
-        return [
-            'tdmpc',
-            'diffusion',
-            'act',
-            'vqbet',
-            'pi0',
-            'pi0fast',
-        ]
 
     def _get_training_config(self):
         if isinstance(self.trainer, LerobotTrainer):
@@ -73,7 +57,7 @@ class TrainingManager:
                 f'--policy.type={self.training_info.policy_type}',
                 f'--policy.device={self.training_info.policy_device}',
                 f'--dataset.repo_id={self.training_info.dataset}',
-                f'--output_dir={self.training_info.output_folder_name}',
+                f'--output_dir={self.DEFAULT_TRAINING_DIR + self.training_info.output_folder_name}',
                 f'--seed={self.training_info.seed or 1000}',
                 f'--num_workers={self.training_info.num_workers or 4}',
                 f'--batch_size={self.training_info.batch_size or 8}',

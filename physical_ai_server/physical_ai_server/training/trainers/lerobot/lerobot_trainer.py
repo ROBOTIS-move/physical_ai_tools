@@ -17,7 +17,6 @@
 # Author: Seongwoo Kim
 
 from contextlib import nullcontext
-import logging
 from pprint import pformat
 import time
 from typing import Any
@@ -56,7 +55,7 @@ from torch.optim import Optimizer
 
 
 class LerobotTrainer(Trainer):
-
+    
     def __init__(self):
         super().__init__()
         self.logger = get_logger('LerobotTrainer')

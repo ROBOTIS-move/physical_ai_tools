@@ -34,6 +34,9 @@ from physical_ai_interfaces.srv import (
     SendTrainingCommand,
     SetHFUser,
     SetRobotType,
+    GetUserList,
+    GetDatasetList,
+    GetModelWeightList,
 )
 
 from physical_ai_server.communication.communicator import Communicator
@@ -55,6 +58,7 @@ class PhysicalAIServer(Node):
     # Define operation modes (constants taken from Communicator)
 
     DEFAULT_SAVE_ROOT_PATH = Path.home() / '.cache/huggingface/lerobot'
+    DEFAULT_WEIGHT_SAVE_ROOT_PATH = Path.home() / 'aiworker_ws/outputs/train'
     DEFAULT_TOPIC_TIMEOUT = 5.0  # seconds
 
     def __init__(self):
@@ -97,6 +101,9 @@ class PhysicalAIServer(Node):
             ('/get_saved_policies', GetSavedPolicyList, self.get_saved_policies_callback),
             ('/training/command', SendTrainingCommand, self.user_training_interaction_callback),
             ('/training/get_available_policy', GetPolicyList, self.get_available_list_callback),
+            ('/training/get_user_list', GetUserList, self.get_user_list_callback),
+            ('/training/get_dataset_list', GetDatasetList, self.get_dataset_list_callback),
+            ('/training/get_model_weight_list', GetModelWeightList, self.get_model_weight_list_callback),
         ]
 
         for service_name, service_type, callback in service_definitions:
@@ -417,8 +424,9 @@ class PhysicalAIServer(Node):
                     else:
                         response.success = False
                         response.message = 'No training in progress to stop'
-                elif request.command == SendTrainingCommand.Request.RESUME:
-                    pass
+                # TODO: Uncomment when resume is implemented
+                # elif request.command == SendTrainingCommand.Request.RESUME:
+                #     pass
         except Exception as e:
             self.get_logger().error(f'Error in user_training_interaction: {str(e)}')
             response.success = False
@@ -548,36 +556,121 @@ class PhysicalAIServer(Node):
     
     def get_available_list_callback(self, request, response):
         try:
-            policy_list = TrainingManager.get_available_policies()
-            device_list = TrainingManager.get_available_devices()
+            policy_list = [
+                'tdmpc',
+                'diffusion',
+                'act',
+                'vqbet',
+                'pi0',
+                'pi0fast',
+            ]
 
-            if not policy_list and not device_list:
-                self.get_logger().warning('No policies or devices available')
+            device_list = [
+                'cuda',
+                'cpu',
+            ]
+
+            missing_items = []
+            if not policy_list:
+                missing_items.append("policies")
+            if not device_list:
+                missing_items.append("devices")
+
+            if missing_items:
+                missing_str = " and ".join(missing_items)
+                self.get_logger().warning(f"No {missing_str} available")
                 response.success = False
-                response.message = 'No policies or devices available'
-            elif not policy_list:
-                self.get_logger().warning('No policies available')
-                response.success = False
-                response.message = 'No policies available'
-            elif not device_list:
-                self.get_logger().warning('No devices available')
-                response.success = False
-                response.message = 'No devices available'
+                response.message = f"No {missing_str} available"
             else:
-                self.get_logger().info(f'Available policies: {policy_list}')
-                self.get_logger().info(f'Available devices: {device_list}')
+                self.get_logger().info(f"Available policies: {policy_list}")
+                self.get_logger().info(f"Available devices: {device_list}")
                 response.success = True
-                response.message = 'Policy and device lists retrieved successfully'
+                response.message = "Policy and device lists retrieved successfully"
 
-            response.policy_list = policy_list or []
-            response.device_list = device_list or []
+            response.policy_list = policy_list
+            response.device_list = device_list
 
         except Exception as e:
-            self.get_logger().error(f'Error in get_available_list_callback: {str(e)}')
+            self.get_logger().error(f"Error in get_available_list_callback: {str(e)}")
             response.success = False
-            response.message = f'Internal error: {str(e)}'
+            response.message = f"Internal error: {str(e)}"
             response.policy_list = []
             response.device_list = []
+
+        return response
+    
+    def get_user_list_callback(self, request, response):
+        try:
+            if not self.DEFAULT_SAVE_ROOT_PATH.exists():
+                response.user_list = []
+                response.success = False
+                response.message = f'Path {self.DEFAULT_SAVE_ROOT_PATH} does not exist.'
+                return response
+
+            folder_names = [
+                name for name in os.listdir(self.DEFAULT_SAVE_ROOT_PATH)
+                if (self.DEFAULT_SAVE_ROOT_PATH / name).is_dir()
+            ]
+
+            response.user_list = folder_names
+            response.success = True
+            response.message = f'Found {len(folder_names)} user(s).'
+        
+        except Exception as e:
+            response.user_list = []
+            response.success = False
+            response.message = f'Error: {str(e)}'
+        
+        return response
+    
+    def get_dataset_list_callback(self, request, response):
+        user_id = request.user_id
+        user_path = self.DEFAULT_SAVE_ROOT_PATH / user_id
+
+        try:
+            if not user_path.exists() or not user_path.is_dir():
+                response.dataset_list = []
+                response.success = False
+                response.message = f"User ID '{user_id}' does not exist at path: {user_path}"
+                return response
+
+            dataset_names = [
+                name for name in os.listdir(user_path)
+                if (user_path / name).is_dir()
+            ]
+
+            response.dataset_list = dataset_names
+            response.success = True
+            response.message = f"Found {len(dataset_names)} dataset(s) for user '{user_id}'."
+
+        except Exception as e:
+            response.dataset_list = []
+            response.success = False
+            response.message = f"Error: {str(e)}"
+        
+        return response
+
+    def get_model_weight_list_callback(self, request, response):
+        try:
+            if not self.DEFAULT_WEIGHT_SAVE_ROOT_PATH.exists():
+                response.success = False
+                response.message = f"Path does not exist: {self.DEFAULT_WEIGHT_SAVE_ROOT_PATH}"
+                response.model_weight_list = []
+                return response
+
+            model_folders = [
+                f.name for f in self.DEFAULT_WEIGHT_SAVE_ROOT_PATH.iterdir()
+                if f.is_dir()
+            ]
+
+            response.success = True
+            response.message = f"Found {len(model_folders)} model weights"
+            response.model_weight_list = model_folders
+
+        except Exception as e:
+            response.success = False
+            response.message = f"Error: {str(e)}"
+            response.model_weight_list = []
 
         return response
 

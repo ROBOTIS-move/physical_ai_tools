@@ -224,12 +224,12 @@ export default function TrainingControlPanel() {
               name="trainingMode"
               value="resume"
               checked={trainingMode === 'resume'}
-              onChange={() => handleModeChange('resume')}
+              onChange={() => false && handleModeChange('resume')}
               className={classRadioInput}
-              disabled={isTraining}
+              disabled={false}
             />
-            <label htmlFor="resume-training" className={classRadioLabel}>
-              Resume Training
+            <label htmlFor="resume-training" className={(classRadioLabel, 'text-gray-500')}>
+              Resume Training (Coming soon)
             </label>
           </div>
         </div>

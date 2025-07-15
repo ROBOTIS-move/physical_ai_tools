@@ -102,10 +102,14 @@ export default function TrainingPage() {
       </div>
 
       {/* Training Control Buttons */}
-      <div className="w-full flex justify-between items-center bg-gray-100">
-        <TrainingControlButtons />
+      <div className="w-full flex items-center justify-around gap-2 bg-gray-100 p-2">
+        <div className="flex-shrink-0">
+          <TrainingControlButtons />
+        </div>
         {/* Training Progress Bar */}
-        {/* <TrainingProgressBar /> */}
+        <div className="flex-1 min-w-0 max-w-xl flex justify-center items-center">
+          <TrainingProgressBar />
+        </div>
       </div>
     </div>
   );

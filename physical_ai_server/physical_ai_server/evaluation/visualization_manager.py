@@ -25,7 +25,7 @@ import numpy as np
 
 class VisualizationManager:
 
-    def __init__(self, default_save_dir: str = '/root/.cache'):
+    def __init__(self, default_save_dir: str = os.path.expanduser('~/.cache')):
         self.default_save_dir = default_save_dir
         os.makedirs(self.default_save_dir, exist_ok=True)
 
@@ -211,6 +211,15 @@ class VisualizationManager:
 
         # Create figure and axis
         _, ax = plt.subplots(figsize=(10, 6))
+
+        # Plot histogram of MSE values
+        ax.hist(
+            episode_mses,
+            bins=20,
+            color='blue',
+            alpha=0.7,
+            edgecolor='black',
+            label='MSE Distribution')
 
         # Add vertical lines for mean and median
         mean_mse = np.mean(episode_mses)

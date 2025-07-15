@@ -274,6 +274,19 @@ def main():
         required=True,
         help='The path to the policy file to be evaluated.'
     )
+    parser.add_argument(
+        '--sample_episodes',
+        type=int,
+        nargs='+',
+        default=None,
+        help='A list of episode indices to evaluate. If not provided, all episodes are evaluated.'
+    )
+    parser.add_argument(
+        '--save_plot_dir',
+        type=str,
+        default='./plots',
+        help='The directory to save evaluation plots.'
+    )
     args = parser.parse_args()
 
     # Initialize managers
@@ -297,10 +310,10 @@ def main():
             results = evaluation_manager.evaluate_policy_on_dataset(
                 inference_manager=inference_manager,
                 dataset=dataset,
-                sample_episodes=[1, 3, 5],
+                sample_episodes=args.sample_episodes,
                 plot_episodes=True,
                 plot_summary=True,
-                save_plot_dir='./plots'
+                save_plot_dir=args.save_plot_dir
             )
             print(f'Evaluation results: {results}')
 

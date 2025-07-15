@@ -2,7 +2,7 @@
 Changelog for package physical_ai_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.5.10 (2025-07-08)
+0.5.10 (2025-07-15)
 ------------------
 * Added multi-tasking data recording support to the Physical AI Server
 * Contributors: Seongwoo Kim

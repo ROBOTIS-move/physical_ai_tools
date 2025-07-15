@@ -189,8 +189,9 @@ function App() {
 
   return (
     <div className="flex min-h-screen w-screen">
-      <aside className="w-30 bg-gray-100 min-h-screen flex flex-col items-center pt-10 gap-4 shadow-[inset_0_0_2px_rgba(0,0,0,0.1)]">
-        <div className="w-full h-screen flex flex-col items-center overflow-scroll">
+      <aside className="w-30 bg-gray-100 min-h-screen flex flex-col items-center gap-4 shadow-[inset_0_0_2px_rgba(0,0,0,0.1)]">
+        <div className="w-full h-screen flex flex-col gap-2 items-center overflow-y-auto scrollbar-thin">
+          <div className="w-full h-8"></div>
           <button
             className={clsx(
               'flex',

@@ -38,6 +38,7 @@ import rosConnectionManager from '../utils/rosConnectionManager';
 export function useRosTaskStatus() {
   const taskStatusTopicRef = useRef(null);
   const heartbeatTopicRef = useRef(null);
+  const trainingStatusTopicRef = useRef(null);
 
   const dispatch = useDispatch();
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
@@ -55,6 +56,11 @@ export function useRosTaskStatus() {
       heartbeatTopicRef.current.unsubscribe();
       heartbeatTopicRef.current = null;
       console.log('Heartbeat topic unsubscribed');
+    }
+    if (trainingStatusTopicRef.current) {
+      trainingStatusTopicRef.current.unsubscribe();
+      trainingStatusTopicRef.current = null;
+      console.log('Training status topic unsubscribed');
     }
     setConnected(false);
     dispatch(setHeartbeatStatus('disconnected'));
@@ -255,19 +261,19 @@ export function useRosTaskStatus() {
       if (!ros) return;
 
       // Skip if already subscribed
-      if (taskStatusTopicRef.current) {
-        console.log('Task status already subscribed, skipping...');
+      if (trainingStatusTopicRef.current) {
+        console.log('Training status already subscribed, skipping...');
         return;
       }
 
       setConnected(true);
-      taskStatusTopicRef.current = new ROSLIB.Topic({
+      trainingStatusTopicRef.current = new ROSLIB.Topic({
         ros,
         name: '/training/status',
         messageType: 'physical_ai_interfaces/msg/TrainingStatus',
       });
 
-      taskStatusTopicRef.current.subscribe((msg) => {
+      trainingStatusTopicRef.current.subscribe((msg) => {
         console.log('Received training status:', msg);
 
         if (msg.error !== '') {

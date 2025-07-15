@@ -19,8 +19,8 @@
 import os
 from typing import List
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class VisualizationManager:
@@ -245,6 +245,7 @@ class VisualizationManager:
         stats_text += f'Min: {np.min(episode_mses):.4f}\n'
         stats_text += f'Max: {np.max(episode_mses):.4f}'
 
+        bbox = {'boxstyle': 'round', 'facecolor': 'white', 'alpha': 0.8}
         ax.text(
             0.98,
             0.98,
@@ -252,7 +253,7 @@ class VisualizationManager:
             transform=ax.transAxes,
             verticalalignment='top',
             horizontalalignment='right',
-            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
+            bbox=bbox
         )
 
         plt.tight_layout()

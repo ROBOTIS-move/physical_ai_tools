@@ -141,14 +141,6 @@ const trainingSlice = createSlice({
     setCurrentStep: (state, action) => {
       state.currentStep = action.payload;
     },
-    setTrainingProgress: (state, action) => {
-      state.currentStep = action.payload.currentStep;
-      state.totalSteps = action.payload.totalSteps;
-    },
-    resetTrainingProgress: (state) => {
-      state.currentStep = 0;
-      state.totalSteps = 0;
-    },
   },
 });
 
@@ -178,8 +170,6 @@ export const {
   setSaveFreq,
   setDefaultTrainingInfo,
   setCurrentStep,
-  setTrainingProgress,
-  resetTrainingProgress,
 } = trainingSlice.actions;
 
 export default trainingSlice.reducer;

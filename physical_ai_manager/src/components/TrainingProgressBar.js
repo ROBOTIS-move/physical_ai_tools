@@ -24,7 +24,7 @@ export default function TrainingProgressBar() {
   const isTraining = useSelector((state) => state.training.isTraining);
 
   // 진행률 계산 (0-100%)
-  const progressPercentage = 20; // totalSteps > 0 ? Math.min((currentStep / totalSteps) * 100, 100) : 0;
+  const progressPercentage = totalSteps > 0 ? Math.min((currentStep / totalSteps) * 100, 100) : 0;
 
   const classContainer = clsx('w-full', 'rounded-lg', 'p-2');
 

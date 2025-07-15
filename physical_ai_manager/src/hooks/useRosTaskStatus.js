@@ -31,6 +31,7 @@ import {
   setIsTraining,
   setTopicReceived,
   setTrainingInfo,
+  setCurrentStep,
 } from '../features/training/trainingSlice';
 import rosConnectionManager from '../utils/rosConnectionManager';
 
@@ -295,6 +296,7 @@ export function useRosTaskStatus() {
           })
         );
 
+        dispatch(setCurrentStep(msg.current_step || 0));
         dispatch(setTopicReceived(true));
       });
     } catch (error) {

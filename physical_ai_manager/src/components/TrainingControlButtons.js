@@ -18,11 +18,7 @@ import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import {
-  setIsTraining,
-  setTrainingMode,
-  resetTrainingProgress,
-} from '../features/training/trainingSlice';
+import { setIsTraining, setTrainingMode } from '../features/training/trainingSlice';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 
 export default function TrainingControlButtons() {
@@ -34,7 +30,6 @@ export default function TrainingControlButtons() {
   const selectedDevice = useSelector((state) => state.training.trainingInfo.policyDevice);
   const outputFolderName = useSelector((state) => state.training.trainingInfo.outputFolderName);
   const selectedModelWeight = useSelector((state) => state.training.selectedModelWeight);
-  const trainingSteps = useSelector((state) => state.training.trainingInfo.steps);
 
   const { sendTrainingCommand } = useRosServiceCaller();
 
@@ -102,9 +97,6 @@ export default function TrainingControlButtons() {
     try {
       let command;
 
-      // 트레이닝 진행률 초기화
-      dispatch(resetTrainingProgress());
-
       if (trainingMode === 'resume') {
         // Resume training
         if (!selectedModelWeight) {
@@ -147,7 +139,6 @@ export default function TrainingControlButtons() {
   const handleFinishTraining = async () => {
     try {
       dispatch(setIsTraining(false));
-      dispatch(resetTrainingProgress()); // 진행률 리셋
       const result = await sendTrainingCommand('finish'); // FINISH command
 
       if (result.success) {

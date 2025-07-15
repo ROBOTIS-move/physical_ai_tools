@@ -20,7 +20,7 @@ import threading
 
 import draccus
 from lerobot.configs.train import TrainPipelineConfig
-from physical_ai_interfaces.msg import TrainingStatus
+from physical_ai_interfaces.msg import TrainingStatus, TrainingInfo
 from physical_ai_server.training.trainers.lerobot.lerobot_trainer import LerobotTrainer
 # TODO: Uncomment when training metrics is implemented
 # from physical_ai_server.training.trainers.gr00tn1.gr00tn1_trainer import Gr00tN1Trainer
@@ -44,7 +44,7 @@ class TrainingManager:
     }
 
     def __init__(self):
-        self.training_info = None
+        self.training_info = TrainingInfo()
         self.trainer = None
         self.cfg = None
         self.current_step = 0

@@ -24,7 +24,7 @@ import time
 from typing import Optional
 
 from ament_index_python.packages import get_package_share_directory
-from physical_ai_interfaces.msg import TaskStatus
+from physical_ai_interfaces.msg import TaskStatus, TrainingStatus, TrainingInfo
 from physical_ai_interfaces.srv import (
     GetHFUser,
     GetPolicyList,
@@ -74,6 +74,8 @@ class PhysicalAIServer(Node):
         self.start_recording_time: float = 0.0
 
         self.training_thread = None
+        self.training_status_pub = self.create_publisher(TrainingStatus, '/training/status', 10)
+        self.create_timer(1.0, self.publish_training_status)
 
         self._init_core_components()
 
@@ -185,6 +187,28 @@ class PhysicalAIServer(Node):
         self.inference_manager = InferenceManager()
         self.get_logger().info(
             f'ROS parameters initialized successfully for robot type: {robot_type}')
+
+    def publish_training_status(self):
+        msg = TrainingStatus()
+        if self.training_manager is None:
+            self.get_logger().warning("Training manager not initialized; skipping status publish.")
+            return
+        try:
+            current_status = self.training_manager.get_current_training_status()
+            training_info = current_status.training_info
+            current_step = current_status.current_step
+            msg.training_info = training_info
+            msg.current_step = current_step
+            msg.error = ''
+            # self.get_logger().info(f"Publishing Training Status - current_step: {msg.current_step}")
+            # self.get_logger().info(f"Training Info:\n{msg.training_info}")
+        except Exception as e:
+            msg.training_info = None
+            msg.current_step = 0
+            msg.error = str(e)
+            self.get_logger().error(f'Error publishing training status: {msg.error}')
+        
+        self.training_status_pub.publish(msg)
 
     def init_robot_control_parameters_from_user_task(
             self,

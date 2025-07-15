@@ -358,7 +358,6 @@ export function useRosServiceCaller() {
               policy_type: trainingInfo.policyType,
               policy_device: trainingInfo.policyDevice,
               output_folder_name: trainingInfo.outputFolderName,
-              resume: trainingInfo.resume,
               seed: trainingInfo.seed,
               num_workers: trainingInfo.numWorkers,
               batch_size: trainingInfo.batchSize,

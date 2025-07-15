@@ -20,8 +20,7 @@
 const TrainingCommand = {
   NONE: 0,
   START: 1,
-  RESUME: 2,
-  FINISH: 3,
+  FINISH: 2,
 };
 
 export default TrainingCommand;

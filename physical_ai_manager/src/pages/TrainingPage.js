@@ -23,7 +23,7 @@ import DatasetSelector from '../components/DatasetSelector';
 import PolicySelector from '../components/PolicySelector';
 import TrainingOutputFolderInput from '../components/TrainingOutputFolderInput';
 import ModelWeightSelector from '../components/ModelWeightSelector';
-import TrainingControlButtons from '../components/TrainingControlButtons';
+import TrainingControlPanel from '../components/TrainingControlPanel';
 import TrainingOptionInput from '../components/TrainingOptionInput';
 import TrainingProgressBar from '../components/TrainingProgressBar';
 
@@ -104,7 +104,7 @@ export default function TrainingPage() {
       {/* Training Control Buttons */}
       <div className="w-full flex items-center justify-around gap-2 bg-gray-100 p-2">
         <div className="flex-shrink-0">
-          <TrainingControlButtons />
+          <TrainingControlPanel />
         </div>
         {/* Training Progress Bar */}
         <div className="flex-1 min-w-0 max-w-xl flex justify-center items-center">

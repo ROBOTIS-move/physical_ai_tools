@@ -21,7 +21,7 @@ import toast from 'react-hot-toast';
 import { setIsTraining, setTrainingMode } from '../features/training/trainingSlice';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 
-export default function TrainingControlButtons() {
+export default function TrainingControlPanel() {
   const dispatch = useDispatch();
   const trainingMode = useSelector((state) => state.training.trainingMode);
   const isTraining = useSelector((state) => state.training.isTraining);

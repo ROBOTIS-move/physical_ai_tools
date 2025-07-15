@@ -117,7 +117,7 @@ export default function DatasetSelector() {
     (userId, datasetPath) => {
       dispatch(setSelectedUser(userId));
       dispatch(setSelectedDataset(datasetPath));
-      dispatch(setDatasetRepoId(datasetPath));
+      dispatch(setDatasetRepoId(`${userId}/${datasetPath}`));
       toast.success(`Dataset selected: ${userId}/${datasetPath}`);
     },
     [dispatch]

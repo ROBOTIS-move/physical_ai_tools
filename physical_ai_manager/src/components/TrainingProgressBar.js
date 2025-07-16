@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import clsx from 'clsx';
 
@@ -75,13 +75,13 @@ export default function TrainingProgressBar() {
     return num.toLocaleString();
   };
 
-  const updateSpinnerFrame = () => {
+  const updateSpinnerFrame = useCallback(() => {
     setSpinnerIndex((prevIndex) => (prevIndex + 1) % spinnerFrames.length);
-  };
+  }, [spinnerFrames.length]);
 
   useEffect(() => {
     updateSpinnerFrame();
-  }, [currentStep]);
+  }, [currentStep, updateSpinnerFrame]);
 
   return (
     <div className={classContainer}>

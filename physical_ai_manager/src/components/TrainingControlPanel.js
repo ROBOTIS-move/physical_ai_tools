@@ -18,7 +18,7 @@ import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { setIsTraining, setTrainingMode } from '../features/training/trainingSlice';
+import { setIsTraining, setTrainingMode, setLastUpdate } from '../features/training/trainingSlice';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 
 export default function TrainingControlPanel() {
@@ -90,19 +90,19 @@ export default function TrainingControlPanel() {
 
   const classRadioLabel = clsx('text-lg', 'font-medium', 'text-gray-700', 'cursor-pointer');
 
-  // Check if task status updates are paused (considered paused if no updates for 1 second)
+  // Check if task status updates are paused (considered paused if no updates for 3 seconds)
   useEffect(() => {
     const UPDATE_PAUSE_THRESHOLD = 3000;
     const timer = setInterval(() => {
       const timeSinceLastUpdate = Date.now() - lastUpdate;
       const isPaused = timeSinceLastUpdate >= UPDATE_PAUSE_THRESHOLD;
-      if (isPaused !== isTraining) {
+      if (isPaused) {
         dispatch(setIsTraining(false));
       }
     }, 3000);
 
     return () => clearInterval(timer);
-  }, [lastUpdate, isTraining, dispatch]);
+  }, [lastUpdate, dispatch]);
 
   const handleStartTraining = async () => {
     if (!checkRequiredFields()) {
@@ -128,7 +128,6 @@ export default function TrainingControlPanel() {
         command = 'start'; // START
       }
 
-      dispatch(setIsTraining(true));
       const result = await sendTrainingCommand(command);
 
       if (result.success) {
@@ -137,6 +136,8 @@ export default function TrainingControlPanel() {
             ? 'Training resumed successfully!'
             : 'Training started successfully!'
         );
+        dispatch(setIsTraining(true));
+        dispatch(setLastUpdate(Date.now()));
       } else {
         toast.error(
           `Failed to ${trainingMode === 'resume' ? 'resume' : 'start'} training: ${result.message}`

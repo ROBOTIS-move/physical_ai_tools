@@ -58,8 +58,6 @@ class PhysicalAIServer(Node):
     # Define operation modes (constants taken from Communicator)
 
     DEFAULT_SAVE_ROOT_PATH = Path.home() / '.cache/huggingface/lerobot'
-    WORKER_WEIGHT_SAVE_ROOT_PATH = Path.home() / 'aiworker_ws/outputs/train'
-    MANIPULATOR_WEIGHT_SAVE_ROOT_PATH = Path.home() / 'open_manipulator/outputs/train'
     DEFAULT_TOPIC_TIMEOUT = 5.0  # seconds
     PUB_QOS_SIZE = 10
 
@@ -83,6 +81,9 @@ class PhysicalAIServer(Node):
             TrainingStatus,
             '/training/status',
             self.PUB_QOS_SIZE
+        )
+        self.WEIGHT_SAVE_ROOT_PATH = (
+            Path(__file__).resolve().parent.parent.parent / 'lerobot' / 'outputs' / 'train'
         )
         
         self._init_core_components()
@@ -447,7 +448,7 @@ class PhysicalAIServer(Node):
                     return response
 
                 output_folder_name = request.training_info.output_folder_name
-                output_path = self.save_root_path / output_folder_name
+                output_path = self.WEIGHT_SAVE_ROOT_PATH / output_folder_name
                 if output_path.exists():
                     response.success = False
                     response.message = f'Output folder already exists: {output_path}'
@@ -709,20 +710,17 @@ class PhysicalAIServer(Node):
         return response
 
     def get_model_weight_list_callback(self, request, response):
-        # if 'ffw' in self.robot_type:
-        #     self.save_root_path = self.WORKER_WEIGHT_SAVE_ROOT_PATH
-        # else:
-        #     self.save_root_path = self.MANIPULATOR_WEIGHT_SAVE_ROOT_PATH
-        self.save_root_path = self.WORKER_WEIGHT_SAVE_ROOT_PATH
+        save_root_path = self.WEIGHT_SAVE_ROOT_PATH
+        self.get_logger().info(f'Getting model weight list from: {save_root_path}')
         try:
-            if not self.save_root_path.exists():
+            if not save_root_path.exists():
                 response.success = False
-                response.message = f'Path does not exist: {self.save_root_path}'
+                response.message = f'Path does not exist: {save_root_path}'
                 response.model_weight_list = []
                 return response
 
             model_folders = [
-                f.name for f in self.save_root_path.iterdir()
+                f.name for f in save_root_path.iterdir()
                 if f.is_dir()
             ]
 

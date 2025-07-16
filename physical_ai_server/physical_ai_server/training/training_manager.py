@@ -29,7 +29,7 @@ from physical_ai_server.training.trainers.lerobot.lerobot_trainer import Lerobot
 
 class TrainingManager:
 
-    DEFAULT_TRAINING_DIR = 'outputs/train/'
+    DEFAULT_TRAINING_DIR = 'src/physical_ai_tools/lerobot/outputs/train/'
 
     TRAINER_MAPPING = {
         'pi0fast': LerobotTrainer,

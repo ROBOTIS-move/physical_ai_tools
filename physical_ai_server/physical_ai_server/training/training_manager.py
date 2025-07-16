@@ -47,7 +47,6 @@ class TrainingManager:
         self.training_info = TrainingInfo()
         self.trainer = None
         self.cfg = None
-        self.current_step = 0
         self.stop_event = threading.Event()
         self.parser = None
 
@@ -88,7 +87,10 @@ class TrainingManager:
     def get_current_training_status(self):
         current_training_status = TrainingStatus()
         current_training_status.training_info = self.training_info
-        current_training_status.current_step = self.trainer.get_current_step()
+        if self.trainer:
+            current_training_status.current_step = self.trainer.get_current_step()
+        else:
+            current_training_status.current_step = 0
         return current_training_status
 
     def train(self):

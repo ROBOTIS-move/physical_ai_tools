@@ -214,7 +214,6 @@ class PhysicalAIServer(Node):
             msg.is_training = self.is_training
             msg.error = ''
         except Exception as e:
-            msg.training_info = None
             msg.current_step = 0
             msg.error = str(e)
             self.get_logger().error(f'Error publishing training status: {msg.error}')
@@ -437,7 +436,6 @@ class PhysicalAIServer(Node):
     def user_training_interaction_callback(self, request, response):
         try:
             if request.command == SendTrainingCommand.Request.START:
-                self.is_training = True
                 self.training_status_timer = self.create_timer(
                     self.DEFAULT_TOPIC_TIMEOUT / 20,
                     self.publish_training_status
@@ -463,6 +461,7 @@ class PhysicalAIServer(Node):
 
                 self.training_thread = threading.Thread(target=run_training, daemon=True)
                 self.training_thread.start()
+                self.is_training = True
 
                 response.success = True
                 response.message = 'Training started successfully'

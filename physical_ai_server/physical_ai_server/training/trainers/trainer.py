@@ -27,5 +27,5 @@ class Trainer(ABC):
     #     pass
 
     @abstractmethod
-    def train(self):
+    def train(self, cfg, stop_event=None):
         pass

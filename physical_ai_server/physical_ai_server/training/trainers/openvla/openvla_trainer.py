@@ -25,5 +25,5 @@ class OpenVLATrainer(Trainer):
     # def send_training_metrics(self):
     #     pass
 
-    def train(self):
+    def train(self, cfg, stop_event=None):
         pass

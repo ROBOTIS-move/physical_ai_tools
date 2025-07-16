@@ -32,6 +32,7 @@ import {
   setTopicReceived,
   setTrainingInfo,
   setCurrentStep,
+  setLastUpdate,
 } from '../features/training/trainingSlice';
 import rosConnectionManager from '../utils/rosConnectionManager';
 
@@ -282,8 +283,6 @@ export function useRosTaskStatus() {
           return;
         }
 
-        dispatch(setIsTraining(true));
-
         // ROS message to React state
         dispatch(
           setTrainingInfo({
@@ -302,11 +301,13 @@ export function useRosTaskStatus() {
           })
         );
 
+        dispatch(setIsTraining(msg.is_training));
         dispatch(setCurrentStep(msg.current_step || 0));
         dispatch(setTopicReceived(true));
+        dispatch(setLastUpdate(Date.now()));
       });
     } catch (error) {
-      console.error('Failed to subscribe to task status topic:', error);
+      console.error('Failed to subscribe to training status topic:', error);
     }
   }, [dispatch, rosbridgeUrl]);
 

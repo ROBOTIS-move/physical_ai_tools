@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
@@ -30,6 +30,7 @@ export default function TrainingControlPanel() {
   const selectedDevice = useSelector((state) => state.training.trainingInfo.policyDevice);
   const outputFolderName = useSelector((state) => state.training.trainingInfo.outputFolderName);
   const selectedModelWeight = useSelector((state) => state.training.selectedModelWeight);
+  const lastUpdate = useSelector((state) => state.training.lastUpdate);
 
   const { sendTrainingCommand } = useRosServiceCaller();
 
@@ -88,6 +89,20 @@ export default function TrainingControlPanel() {
   );
 
   const classRadioLabel = clsx('text-lg', 'font-medium', 'text-gray-700', 'cursor-pointer');
+
+  // Check if task status updates are paused (considered paused if no updates for 1 second)
+  useEffect(() => {
+    const UPDATE_PAUSE_THRESHOLD = 3000;
+    const timer = setInterval(() => {
+      const timeSinceLastUpdate = Date.now() - lastUpdate;
+      const isPaused = timeSinceLastUpdate >= UPDATE_PAUSE_THRESHOLD;
+      if (isPaused !== isTraining) {
+        dispatch(setIsTraining(false));
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [lastUpdate, isTraining, dispatch]);
 
   const handleStartTraining = async () => {
     if (!checkRequiredFields()) {

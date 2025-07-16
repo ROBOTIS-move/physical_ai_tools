@@ -30,6 +30,7 @@ const initialState = {
   trainingMode: 'new', // 'new' or 'resume'
   isTraining: false,
   topicReceived: false,
+  lastUpdate: Date.now(),
 
   // Training progress
   currentStep: 0,
@@ -141,6 +142,9 @@ const trainingSlice = createSlice({
     setCurrentStep: (state, action) => {
       state.currentStep = action.payload;
     },
+    setLastUpdate: (state, action) => {
+      state.lastUpdate = action.payload;
+    },
   },
 });
 
@@ -170,6 +174,7 @@ export const {
   setSaveFreq,
   setDefaultTrainingInfo,
   setCurrentStep,
+  setLastUpdate,
 } = trainingSlice.actions;
 
 export default trainingSlice.reducer;

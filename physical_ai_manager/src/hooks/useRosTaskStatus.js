@@ -33,6 +33,8 @@ import {
   setTrainingInfo,
   setCurrentStep,
   setLastUpdate,
+  setSelectedUser,
+  setSelectedDataset,
 } from '../features/training/trainingSlice';
 import rosConnectionManager from '../utils/rosConnectionManager';
 
@@ -300,6 +302,9 @@ export function useRosTaskStatus() {
             saveFreq: msg.training_info.save_freq || 0,
           })
         );
+
+        dispatch(setSelectedUser(msg.training_info.dataset.split('/')[0] || ''));
+        dispatch(setSelectedDataset(msg.training_info.dataset.split('/')[1] || ''));
 
         dispatch(setIsTraining(msg.is_training));
         dispatch(setCurrentStep(msg.current_step || 0));

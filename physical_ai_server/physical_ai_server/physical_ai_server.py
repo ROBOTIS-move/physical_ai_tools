@@ -85,7 +85,7 @@ class PhysicalAIServer(Node):
         self.WEIGHT_SAVE_ROOT_PATH = (
             Path(__file__).resolve().parent.parent.parent / 'lerobot' / 'outputs' / 'train'
         )
-        
+
         self._init_core_components()
 
         self._init_ros_service()

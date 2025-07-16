@@ -6,7 +6,7 @@ Changelog for package physical_ai_tools
 ------------------
 * Added training-related service types and message types
 * Added a new training page for training imitation learning models
-* Implemented a Training Manager to support model training through the Web UI.
+* Implemented a Training Manager to support model training through the Web UI
 * Contributors: Kiwoong Park, Seongwoo Kim
 
 0.5.11 (2025-07-16)

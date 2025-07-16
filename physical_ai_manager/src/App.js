@@ -25,7 +25,7 @@ import HomePage from './pages/HomePage';
 import RecordPage from './pages/RecordPage';
 import InferencePage from './pages/InferencePage';
 import TrainingPage from './pages/TrainingPage';
-import { useRosTaskStatus } from './hooks/useRosTaskStatus';
+import { useRosTopicSubscription } from './hooks/useRosTopicSubscription';
 import rosConnectionManager from './utils/rosConnectionManager';
 import { useDispatch, useSelector } from 'react-redux';
 import { setRosHost } from './features/ros/rosSlice';
@@ -47,7 +47,7 @@ function App() {
   const isFirstLoad = useRef(true);
 
   // Subscribe to task status from ROS topic (always active)
-  useRosTaskStatus();
+  useRosTopicSubscription();
 
   // Disconnect ROS connection when app unmounts
   useEffect(() => {

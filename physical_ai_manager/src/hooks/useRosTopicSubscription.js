@@ -38,7 +38,7 @@ import {
 } from '../features/training/trainingSlice';
 import rosConnectionManager from '../utils/rosConnectionManager';
 
-export function useRosTaskStatus() {
+export function useRosTopicSubscription() {
   const taskStatusTopicRef = useRef(null);
   const heartbeatTopicRef = useRef(null);
   const trainingStatusTopicRef = useRef(null);

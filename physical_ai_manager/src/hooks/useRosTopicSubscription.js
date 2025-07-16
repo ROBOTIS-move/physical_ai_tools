@@ -303,8 +303,9 @@ export function useRosTopicSubscription() {
           })
         );
 
-        dispatch(setSelectedUser(msg.training_info.dataset.split('/')[0] || ''));
-        dispatch(setSelectedDataset(msg.training_info.dataset.split('/')[1] || ''));
+        const datasetParts = msg.training_info.dataset.split('/');
+        dispatch(setSelectedUser(datasetParts[0] || ''));
+        dispatch(setSelectedDataset(datasetParts[1] || ''));
         dispatch(setIsTraining(msg.is_training));
         dispatch(setCurrentStep(msg.current_step || 0));
         dispatch(setTopicReceived(true));

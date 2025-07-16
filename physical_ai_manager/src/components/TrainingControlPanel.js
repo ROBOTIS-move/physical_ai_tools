@@ -242,7 +242,7 @@ export default function TrainingControlPanel() {
               className={classRadioInput}
               disabled={false}
             />
-            <label htmlFor="resume-training" className={(classRadioLabel, 'text-gray-500')}>
+            <label htmlFor="resume-training" className={clsx(classRadioLabel, 'text-gray-500')}>
               Resume Training (Coming soon)
             </label>
           </div>

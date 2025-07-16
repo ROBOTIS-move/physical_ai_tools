@@ -122,7 +122,7 @@ const TrainingOptionInput = () => {
           value={numWorkers || ''}
           onChange={(e) => dispatch(setNumWorkers(Number(e.target.value) || 0))}
           disabled={isTraining}
-          placeholder="Enter Seed"
+          placeholder="Enter Num Workers"
         />
       </div>
 
@@ -137,7 +137,7 @@ const TrainingOptionInput = () => {
           value={batchSize || ''}
           onChange={(e) => dispatch(setBatchSize(Number(e.target.value) || 0))}
           disabled={isTraining}
-          placeholder="Enter Seed"
+          placeholder="Enter Batch Size"
         />
       </div>
 
@@ -152,7 +152,7 @@ const TrainingOptionInput = () => {
           value={steps || ''}
           onChange={(e) => dispatch(setSteps(Number(e.target.value) || 0))}
           disabled={isTraining}
-          placeholder="Enter Seed"
+          placeholder="Enter Steps"
         />
       </div>
 
@@ -167,7 +167,7 @@ const TrainingOptionInput = () => {
           value={evalFreq || ''}
           onChange={(e) => dispatch(setEvalFreq(Number(e.target.value) || 0))}
           disabled={isTraining}
-          placeholder="Enter Seed"
+          placeholder="Enter Eval Frequency"
         />
       </div>
 
@@ -182,7 +182,7 @@ const TrainingOptionInput = () => {
           value={logFreq || ''}
           onChange={(e) => dispatch(setLogFreq(Number(e.target.value) || 0))}
           disabled={isTraining}
-          placeholder="Enter Seed"
+          placeholder="Enter Log Frequency"
         />
       </div>
 
@@ -197,7 +197,7 @@ const TrainingOptionInput = () => {
           value={saveFreq || ''}
           onChange={(e) => dispatch(setSaveFreq(Number(e.target.value) || 0))}
           disabled={isTraining}
-          placeholder="Enter Seed"
+          placeholder="Enter Save Frequency"
         />
       </div>
 

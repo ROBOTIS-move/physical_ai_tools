@@ -55,7 +55,7 @@ from torch.optim import Optimizer
 
 
 class LerobotTrainer(Trainer):
-    
+
     def __init__(self):
         super().__init__()
         self.logger = get_logger('LerobotTrainer')
@@ -253,7 +253,7 @@ class LerobotTrainer(Trainer):
 
         if eval_env:
             eval_env.close()
-        self.logger.info('End of training')        
+        self.logger.info('End of training')
 
     def _update_policy(
         self,
@@ -299,6 +299,6 @@ class LerobotTrainer(Trainer):
         train_metrics.lr = optimizer.param_groups[0]['lr']
         train_metrics.update_s = time.perf_counter() - start_time
         return train_metrics, output_dict
-    
+
     def get_current_step(self):
         return self.current_step

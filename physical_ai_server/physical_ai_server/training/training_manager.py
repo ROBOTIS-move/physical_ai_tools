@@ -20,7 +20,7 @@ import threading
 
 import draccus
 from lerobot.configs.train import TrainPipelineConfig
-from physical_ai_interfaces.msg import TrainingStatus, TrainingInfo
+from physical_ai_interfaces.msg import TrainingInfo, TrainingStatus
 from physical_ai_server.training.trainers.lerobot.lerobot_trainer import LerobotTrainer
 # TODO: Uncomment when training metrics is implemented
 # from physical_ai_server.training.trainers.gr00tn1.gr00tn1_trainer import Gr00tN1Trainer
@@ -30,7 +30,7 @@ from physical_ai_server.training.trainers.lerobot.lerobot_trainer import Lerobot
 class TrainingManager:
 
     DEFAULT_TRAINING_DIR = 'outputs/train/'
-    
+
     TRAINER_MAPPING = {
         'pi0fast': LerobotTrainer,
         'pi0': LerobotTrainer,
@@ -57,7 +57,10 @@ class TrainingManager:
                 f'--policy.type={self.training_info.policy_type}',
                 f'--policy.device={self.training_info.policy_device}',
                 f'--dataset.repo_id={self.training_info.dataset}',
-                f'--output_dir={self.DEFAULT_TRAINING_DIR + self.training_info.output_folder_name}',
+                f'--output_dir={
+                    self.DEFAULT_TRAINING_DIR
+                    + self.training_info.output_folder_name
+                }',
                 f'--seed={self.training_info.seed or 1000}',
                 f'--num_workers={self.training_info.num_workers or 4}',
                 f'--batch_size={self.training_info.batch_size or 8}',

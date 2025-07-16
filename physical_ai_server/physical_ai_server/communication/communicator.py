@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from physical_ai_interfaces.msg import TaskStatus, TrainingStatus
+from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_interfaces.srv import (
     GetImageTopicList
 )

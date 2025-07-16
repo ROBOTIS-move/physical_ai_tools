@@ -24,19 +24,19 @@ import time
 from typing import Optional
 
 from ament_index_python.packages import get_package_share_directory
-from physical_ai_interfaces.msg import TaskStatus, TrainingStatus, TrainingInfo
+from physical_ai_interfaces.msg import TaskStatus, TrainingStatus
 from physical_ai_interfaces.srv import (
+    GetDatasetList,
     GetHFUser,
+    GetModelWeightList,
     GetPolicyList,
     GetRobotTypeList,
     GetSavedPolicyList,
+    GetUserList,
     SendCommand,
     SendTrainingCommand,
     SetHFUser,
     SetRobotType,
-    GetUserList,
-    GetDatasetList,
-    GetModelWeightList,
 )
 
 from physical_ai_server.communication.communicator import Communicator
@@ -78,13 +78,13 @@ class PhysicalAIServer(Node):
         self.training_thread = None
         self.save_root_path = ''
         self.is_training = False
+        self.training_status_timer = None
         self.training_status_pub = self.create_publisher(
             TrainingStatus,
             '/training/status',
             self.PUB_QOS_SIZE
         )
-        self.create_timer(0.5, self.publish_training_status)
-
+        
         self._init_core_components()
 
         self._init_ros_service()
@@ -113,7 +113,11 @@ class PhysicalAIServer(Node):
             ('/training/get_available_policy', GetPolicyList, self.get_available_list_callback),
             ('/training/get_user_list', GetUserList, self.get_user_list_callback),
             ('/training/get_dataset_list', GetDatasetList, self.get_dataset_list_callback),
-            ('/training/get_model_weight_list', GetModelWeightList, self.get_model_weight_list_callback),
+            (
+                '/training/get_model_weight_list',
+                GetModelWeightList,
+                self.get_model_weight_list_callback
+            ),
         ]
 
         for service_name, service_type, callback in service_definitions:
@@ -208,14 +212,12 @@ class PhysicalAIServer(Node):
             msg.current_step = current_step
             msg.is_training = self.is_training
             msg.error = ''
-            # self.get_logger().info(f"Publishing Training Status - current_step: {msg.current_step}")
-            # self.get_logger().info(f"Training Info:\n{msg.training_info}")
         except Exception as e:
             msg.training_info = None
             msg.current_step = 0
             msg.error = str(e)
             self.get_logger().error(f'Error publishing training status: {msg.error}')
-        
+
         self.training_status_pub.publish(msg)
 
     def init_robot_control_parameters_from_user_task(
@@ -435,6 +437,10 @@ class PhysicalAIServer(Node):
         try:
             if request.command == SendTrainingCommand.Request.START:
                 self.is_training = True
+                self.training_status_timer = self.create_timer(
+                    self.DEFAULT_TOPIC_TIMEOUT / 20,
+                    self.publish_training_status
+                )
                 if self.training_thread and self.training_thread.is_alive():
                     response.success = False
                     response.message = 'Training is already in progress'
@@ -463,6 +469,10 @@ class PhysicalAIServer(Node):
             else:
                 if request.command == SendTrainingCommand.Request.FINISH:
                     self.is_training = False
+                    self.publish_training_status()
+                    if self.training_status_timer is not None:
+                        self.training_status_timer.cancel()
+                        self.training_status_timer = None
                     if self.training_thread and self.training_thread.is_alive():
                         self.training_manager.stop_event.set()
                         self.training_thread.join()
@@ -601,7 +611,7 @@ class PhysicalAIServer(Node):
             response.message = 'Policy list retrieved successfully'
         response.policy_list = policy_list
         return response
-    
+
     def get_available_list_callback(self, request, response):
         try:
             policy_list = [
@@ -620,33 +630,33 @@ class PhysicalAIServer(Node):
 
             missing_items = []
             if not policy_list:
-                missing_items.append("policies")
+                missing_items.append('policies')
             if not device_list:
-                missing_items.append("devices")
+                missing_items.append('devices')
 
             if missing_items:
-                missing_str = " and ".join(missing_items)
-                self.get_logger().warning(f"No {missing_str} available")
+                missing_str = ' and '.join(missing_items)
+                self.get_logger().warning(f'No {missing_str} available')
                 response.success = False
-                response.message = f"No {missing_str} available"
+                response.message = f'No {missing_str} available'
             else:
-                self.get_logger().info(f"Available policies: {policy_list}")
-                self.get_logger().info(f"Available devices: {device_list}")
+                self.get_logger().info(f'Available policies: {policy_list}')
+                self.get_logger().info(f'Available devices: {device_list}')
                 response.success = True
-                response.message = "Policy and device lists retrieved successfully"
+                response.message = 'Policy and device lists retrieved successfully'
 
             response.policy_list = policy_list
             response.device_list = device_list
 
         except Exception as e:
-            self.get_logger().error(f"Error in get_available_list_callback: {str(e)}")
+            self.get_logger().error(f'Error in get_available_list_callback: {str(e)}')
             response.success = False
-            response.message = f"Internal error: {str(e)}"
+            response.message = f'Internal error: {str(e)}'
             response.policy_list = []
             response.device_list = []
 
         return response
-    
+
     def get_user_list_callback(self, request, response):
         try:
             if not self.DEFAULT_SAVE_ROOT_PATH.exists():
@@ -663,14 +673,14 @@ class PhysicalAIServer(Node):
             response.user_list = folder_names
             response.success = True
             response.message = f'Found {len(folder_names)} user(s).'
-        
+
         except Exception as e:
             response.user_list = []
             response.success = False
             response.message = f'Error: {str(e)}'
-        
+
         return response
-    
+
     def get_dataset_list_callback(self, request, response):
         user_id = request.user_id
         user_path = self.DEFAULT_SAVE_ROOT_PATH / user_id
@@ -694,8 +704,8 @@ class PhysicalAIServer(Node):
         except Exception as e:
             response.dataset_list = []
             response.success = False
-            response.message = f"Error: {str(e)}"
-        
+            response.message = f'Error: {str(e)}'
+
         return response
 
     def get_model_weight_list_callback(self, request, response):
@@ -707,7 +717,7 @@ class PhysicalAIServer(Node):
         try:
             if not self.save_root_path.exists():
                 response.success = False
-                response.message = f"Path does not exist: {self.save_root_path}"
+                response.message = f'Path does not exist: {self.save_root_path}'
                 response.model_weight_list = []
                 return response
 
@@ -717,12 +727,12 @@ class PhysicalAIServer(Node):
             ]
 
             response.success = True
-            response.message = f"Found {len(model_folders)} model weights"
+            response.message = f'Found {len(model_folders)} model weights'
             response.model_weight_list = model_folders
 
         except Exception as e:
             response.success = False
-            response.message = f"Error: {str(e)}"
+            response.message = f'Error: {str(e)}'
             response.model_weight_list = []
 
         return response

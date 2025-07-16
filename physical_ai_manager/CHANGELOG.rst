@@ -2,6 +2,11 @@
 Changelog for package physical_ai_manager
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.6.0 (2025-07-16)
+------------------
+* Added a new training page for training imitation learning models
+* Contributors: Kiwoong Park
+
 0.5.11 (2025-07-16)
 ------------------
 * None

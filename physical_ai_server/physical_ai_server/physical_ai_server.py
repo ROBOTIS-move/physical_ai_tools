@@ -58,8 +58,10 @@ class PhysicalAIServer(Node):
     # Define operation modes (constants taken from Communicator)
 
     DEFAULT_SAVE_ROOT_PATH = Path.home() / '.cache/huggingface/lerobot'
-    DEFAULT_WEIGHT_SAVE_ROOT_PATH = Path.home() / 'aiworker_ws/outputs/train'
+    WORKER_WEIGHT_SAVE_ROOT_PATH = Path.home() / 'aiworker_ws/outputs/train'
+    MANIPULATOR_WEIGHT_SAVE_ROOT_PATH = Path.home() / 'open_manipulator/outputs/train'
     DEFAULT_TOPIC_TIMEOUT = 5.0  # seconds
+    PUB_QOS_SIZE = 10
 
     def __init__(self):
         super().__init__('physical_ai_server')
@@ -74,8 +76,14 @@ class PhysicalAIServer(Node):
         self.start_recording_time: float = 0.0
 
         self.training_thread = None
-        self.training_status_pub = self.create_publisher(TrainingStatus, '/training/status', 10)
-        self.create_timer(1.0, self.publish_training_status)
+        self.save_root_path = ''
+        self.is_training = False
+        self.training_status_pub = self.create_publisher(
+            TrainingStatus,
+            '/training/status',
+            self.PUB_QOS_SIZE
+        )
+        self.create_timer(0.5, self.publish_training_status)
 
         self._init_core_components()
 
@@ -191,7 +199,6 @@ class PhysicalAIServer(Node):
     def publish_training_status(self):
         msg = TrainingStatus()
         if self.training_manager is None:
-            self.get_logger().warning("Training manager not initialized; skipping status publish.")
             return
         try:
             current_status = self.training_manager.get_current_training_status()
@@ -199,6 +206,7 @@ class PhysicalAIServer(Node):
             current_step = current_status.current_step
             msg.training_info = training_info
             msg.current_step = current_step
+            msg.is_training = self.is_training
             msg.error = ''
             # self.get_logger().info(f"Publishing Training Status - current_step: {msg.current_step}")
             # self.get_logger().info(f"Training Info:\n{msg.training_info}")
@@ -426,20 +434,35 @@ class PhysicalAIServer(Node):
     def user_training_interaction_callback(self, request, response):
         try:
             if request.command == SendTrainingCommand.Request.START:
+                self.is_training = True
                 if self.training_thread and self.training_thread.is_alive():
                     response.success = False
                     response.message = 'Training is already in progress'
                     return response
+
+                output_folder_name = request.training_info.output_folder_name
+                output_path = self.save_root_path / output_folder_name
+                if output_path.exists():
+                    response.success = False
+                    response.message = f'Output folder already exists: {output_path}'
+                    self.is_training = False
+                    return response
+
                 self.training_manager = TrainingManager()
                 self.training_manager.training_info = request.training_info
+
                 def run_training():
                     self.training_manager.train()
+
                 self.training_thread = threading.Thread(target=run_training, daemon=True)
                 self.training_thread.start()
+
                 response.success = True
                 response.message = 'Training started successfully'
+
             else:
                 if request.command == SendTrainingCommand.Request.FINISH:
+                    self.is_training = False
                     if self.training_thread and self.training_thread.is_alive():
                         self.training_manager.stop_event.set()
                         self.training_thread.join()
@@ -451,6 +474,7 @@ class PhysicalAIServer(Node):
                 # TODO: Uncomment when resume is implemented
                 # elif request.command == SendTrainingCommand.Request.RESUME:
                 #     pass
+
         except Exception as e:
             self.get_logger().error(f'Error in user_training_interaction: {str(e)}')
             response.success = False
@@ -675,15 +699,20 @@ class PhysicalAIServer(Node):
         return response
 
     def get_model_weight_list_callback(self, request, response):
+        # if 'ffw' in self.robot_type:
+        #     self.save_root_path = self.WORKER_WEIGHT_SAVE_ROOT_PATH
+        # else:
+        #     self.save_root_path = self.MANIPULATOR_WEIGHT_SAVE_ROOT_PATH
+        self.save_root_path = self.WORKER_WEIGHT_SAVE_ROOT_PATH
         try:
-            if not self.DEFAULT_WEIGHT_SAVE_ROOT_PATH.exists():
+            if not self.save_root_path.exists():
                 response.success = False
-                response.message = f"Path does not exist: {self.DEFAULT_WEIGHT_SAVE_ROOT_PATH}"
+                response.message = f"Path does not exist: {self.save_root_path}"
                 response.model_weight_list = []
                 return response
 
             model_folders = [
-                f.name for f in self.DEFAULT_WEIGHT_SAVE_ROOT_PATH.iterdir()
+                f.name for f in self.save_root_path.iterdir()
                 if f.is_dir()
             ]
 

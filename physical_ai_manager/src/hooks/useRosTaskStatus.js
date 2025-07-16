@@ -288,7 +288,7 @@ export function useRosTaskStatus() {
         // ROS message to React state
         dispatch(
           setTrainingInfo({
-            dataset: msg.training_info.dataset || '',
+            datasetRepoId: msg.training_info.dataset || '',
             policyType: msg.training_info.policy_type || '',
             policyDevice: msg.training_info.policy_device || '',
             outputFolderName: msg.training_info.output_folder_name || '',
@@ -305,7 +305,6 @@ export function useRosTaskStatus() {
 
         dispatch(setSelectedUser(msg.training_info.dataset.split('/')[0] || ''));
         dispatch(setSelectedDataset(msg.training_info.dataset.split('/')[1] || ''));
-
         dispatch(setIsTraining(msg.is_training));
         dispatch(setCurrentStep(msg.current_step || 0));
         dispatch(setTopicReceived(true));

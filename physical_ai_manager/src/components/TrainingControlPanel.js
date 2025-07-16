@@ -153,19 +153,17 @@ export default function TrainingControlPanel() {
 
   const handleFinishTraining = async () => {
     try {
-      dispatch(setIsTraining(false));
-      const result = await sendTrainingCommand('finish'); // FINISH command
+      const result = await sendTrainingCommand('finish');
 
       if (result.success) {
         toast.success('Training finished successfully!');
+        dispatch(setIsTraining(false));
       } else {
         toast.error(`Failed to finish training: ${result.message}`);
-        // Revert state if finish failed
         dispatch(setIsTraining(true));
       }
     } catch (error) {
       toast.error(`Error finishing training: ${error.message}`);
-      // Revert state if finish failed
       dispatch(setIsTraining(true));
     }
   };

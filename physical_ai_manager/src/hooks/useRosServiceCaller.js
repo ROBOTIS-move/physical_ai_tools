@@ -338,9 +338,6 @@ export function useRosServiceCaller() {
           case 'start':
             command_enum = TrainingCommand.START;
             break;
-          case 'resume':
-            command_enum = TrainingCommand.RESUME;
-            break;
           case 'finish':
             command_enum = TrainingCommand.FINISH;
             break;

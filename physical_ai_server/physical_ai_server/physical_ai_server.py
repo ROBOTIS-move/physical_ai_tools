@@ -627,48 +627,23 @@ class PhysicalAIServer(Node):
         return response
 
     def get_available_list_callback(self, request, response):
-        try:
-            policy_list = [
-                'tdmpc',
-                'diffusion',
-                'act',
-                'vqbet',
-                'pi0',
-                'pi0fast',
-            ]
+        policy_list = [
+            'tdmpc',
+            'diffusion',
+            'act',
+            'vqbet',
+            'pi0',
+            'pi0fast',
+        ]
 
-            device_list = [
-                'cuda',
-                'cpu',
-            ]
-
-            missing_items = []
-            if not policy_list:
-                missing_items.append('policies')
-            if not device_list:
-                missing_items.append('devices')
-
-            if missing_items:
-                missing_str = ' and '.join(missing_items)
-                self.get_logger().warning(f'No {missing_str} available')
-                response.success = False
-                response.message = f'No {missing_str} available'
-            else:
-                self.get_logger().info(f'Available policies: {policy_list}')
-                self.get_logger().info(f'Available devices: {device_list}')
-                response.success = True
-                response.message = 'Policy and device lists retrieved successfully'
-
-            response.policy_list = policy_list
-            response.device_list = device_list
-
-        except Exception as e:
-            self.get_logger().error(f'Error in get_available_list_callback: {str(e)}')
-            response.success = False
-            response.message = f'Internal error: {str(e)}'
-            response.policy_list = []
-            response.device_list = []
-
+        device_list = [
+            'cuda',
+            'cpu',
+        ]
+        response.success = True
+        response.message = 'Policy and device lists retrieved successfully'
+        response.policy_list = policy_list
+        response.device_list = device_list
         return response
 
     def get_user_list_callback(self, request, response):

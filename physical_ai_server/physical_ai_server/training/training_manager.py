@@ -83,6 +83,22 @@ class TrainingManager:
     # def get_training_metrics(self):
     #     metrics = self.trainer.send_training_metrics()
     #     return metrics
+    
+    def get_available_list() -> tuple[list[str], list[str]]:
+        policy_list = [
+            'tdmpc',
+            'diffusion',
+            'act',
+            'vqbet',
+            'pi0',
+            'pi0fast',
+        ]
+
+        device_list = [
+            'cuda',
+            'cpu',
+        ]
+        return policy_list, device_list
 
     def get_current_training_status(self):
         current_training_status = TrainingStatus()

@@ -627,23 +627,9 @@ class PhysicalAIServer(Node):
         return response
 
     def get_available_list_callback(self, request, response):
-        policy_list = [
-            'tdmpc',
-            'diffusion',
-            'act',
-            'vqbet',
-            'pi0',
-            'pi0fast',
-        ]
-
-        device_list = [
-            'cuda',
-            'cpu',
-        ]
         response.success = True
         response.message = 'Policy and device lists retrieved successfully'
-        response.policy_list = policy_list
-        response.device_list = device_list
+        response.policy_list, response.device_list = TrainingManager.get_available_list()
         return response
 
     def get_user_list_callback(self, request, response):

@@ -60,6 +60,7 @@ class PhysicalAIServer(Node):
     DEFAULT_SAVE_ROOT_PATH = Path.home() / '.cache/huggingface/lerobot'
     DEFAULT_TOPIC_TIMEOUT = 5.0  # seconds
     PUB_QOS_SIZE = 10
+    TRAINING_STATUS_TIMER_FREQUENCY = 0.5 # seconds
 
     def __init__(self):
         super().__init__('physical_ai_server')
@@ -434,7 +435,7 @@ class PhysicalAIServer(Node):
         try:
             if request.command == SendTrainingCommand.Request.START:
                 self.training_status_timer = self.create_timer(
-                    self.DEFAULT_TOPIC_TIMEOUT / 20,
+                    self.TRAINING_STATUS_TIMER_FREQUENCY,
                     self.publish_training_status
                 )
                 if self.training_thread and self.training_thread.is_alive():

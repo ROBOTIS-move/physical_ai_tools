@@ -16,6 +16,7 @@
 #
 # Author: Seongwoo Kim
 
+from pathlib import Path
 import threading
 
 import draccus
@@ -30,7 +31,6 @@ from physical_ai_server.training.trainers.lerobot.lerobot_trainer import Lerobot
 class TrainingManager:
 
     DEFAULT_TRAINING_DIR = 'src/physical_ai_tools/lerobot/outputs/train/'
-
     TRAINER_MAPPING = {
         'pi0fast': LerobotTrainer,
         'pi0': LerobotTrainer,
@@ -99,6 +99,12 @@ class TrainingManager:
             'cpu',
         ]
         return policy_list, device_list
+    
+    def get_weight_save_root_path():
+        weight_save_root_path = (
+            Path(__file__).resolve().parent.parent.parent / 'lerobot' / 'outputs' / 'train'
+        )
+        return weight_save_root_path
 
     def get_current_training_status(self):
         current_training_status = TrainingStatus()

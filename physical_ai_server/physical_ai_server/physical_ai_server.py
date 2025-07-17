@@ -82,9 +82,6 @@ class PhysicalAIServer(Node):
             '/training/status',
             self.PUB_QOS_SIZE
         )
-        self.WEIGHT_SAVE_ROOT_PATH = (
-            Path(__file__).resolve().parent.parent.parent / 'lerobot' / 'outputs' / 'train'
-        )
 
         self._init_core_components()
 
@@ -446,7 +443,8 @@ class PhysicalAIServer(Node):
                     return response
 
                 output_folder_name = request.training_info.output_folder_name
-                output_path = self.WEIGHT_SAVE_ROOT_PATH / output_folder_name
+                weight_save_root_path = TrainingManager.get_weight_save_root_path()
+                output_path = weight_save_root_path / output_folder_name
                 if output_path.exists():
                     response.success = False
                     response.message = f'Output folder already exists: {output_path}'
@@ -684,7 +682,7 @@ class PhysicalAIServer(Node):
         return response
 
     def get_model_weight_list_callback(self, request, response):
-        save_root_path = self.WEIGHT_SAVE_ROOT_PATH
+        save_root_path = TrainingManager.get_weight_save_root_path()
         self.get_logger().info(f'Getting model weight list from: {save_root_path}')
         try:
             if not save_root_path.exists():

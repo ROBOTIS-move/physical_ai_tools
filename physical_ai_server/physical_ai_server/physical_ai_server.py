@@ -457,7 +457,15 @@ class PhysicalAIServer(Node):
                 self.training_manager.training_info = request.training_info
 
                 def run_training():
-                    self.training_manager.train()
+                    try:
+                        self.training_manager.train()
+                    finally:
+                        self.is_training = False
+                        self.get_logger().info('Training completed.')
+                        self.publish_training_status()
+                        if self.training_status_timer is not None:
+                            self.training_status_timer.cancel()
+                            self.training_status_timer = None
 
                 self.training_thread = threading.Thread(target=run_training, daemon=True)
                 self.training_thread.start()

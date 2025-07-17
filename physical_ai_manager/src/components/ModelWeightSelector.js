@@ -172,12 +172,12 @@ export default function ModelWeightSelector() {
 
         <div className={classListContainer}>
           {modelWeightList && modelWeightList.length > 0 ? (
-            modelWeightList.map((modelWeightPath, index) => {
+            modelWeightList.map((modelWeightPath) => {
               const isSelected = selectedModelWeight === modelWeightPath;
 
               return (
                 <div
-                  key={index}
+                  key={modelWeightPath}
                   onClick={() => !isTraining && handleModelWeightSelection(modelWeightPath)}
                   className={classModelWeightItem(isSelected)}
                 >

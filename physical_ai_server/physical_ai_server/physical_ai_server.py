@@ -78,11 +78,6 @@ class PhysicalAIServer(Node):
         self.save_root_path = ''
         self.is_training = False
         self.training_status_timer = None
-        # self.training_status_pub = self.create_publisher(
-        #     TrainingStatus,
-        #     '/training/status',
-        #     self.PUB_QOS_SIZE
-        # )
 
         self._init_core_components()
 
@@ -462,7 +457,6 @@ class PhysicalAIServer(Node):
                         self.training_status_timer = None
                     return response
 
-                # self.training_manager = TrainingManager()
                 self.training_manager.training_info = request.training_info
 
                 def run_training():

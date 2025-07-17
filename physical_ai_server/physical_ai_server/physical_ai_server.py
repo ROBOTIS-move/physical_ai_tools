@@ -466,6 +466,7 @@ class PhysicalAIServer(Node):
                         if self.training_status_timer is not None:
                             self.training_status_timer.cancel()
                             self.training_status_timer = None
+                        self.training_manager.stop_event.set()
 
                 self.training_thread = threading.Thread(target=run_training, daemon=True)
                 self.training_thread.start()

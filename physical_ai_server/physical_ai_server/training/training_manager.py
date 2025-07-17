@@ -83,7 +83,7 @@ class TrainingManager:
     # def get_training_metrics(self):
     #     metrics = self.trainer.send_training_metrics()
     #     return metrics
-    
+
     def get_available_list() -> tuple[list[str], list[str]]:
         policy_list = [
             'tdmpc',
@@ -99,7 +99,7 @@ class TrainingManager:
             'cpu',
         ]
         return policy_list, device_list
-    
+
     def get_weight_save_root_path():
         weight_save_root_path = (
             Path(__file__).resolve().parent.parent.parent / 'lerobot' / 'outputs' / 'train'

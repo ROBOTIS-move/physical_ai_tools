@@ -177,7 +177,7 @@ class Communicator:
             '/task/status',
             self.PUB_QOS_SIZE
         )
-        
+
         self.training_status_publisher = self.node.create_publisher(
             TrainingStatus,
             '/training/status',
@@ -275,9 +275,6 @@ class Communicator:
     def heartbeat_timer_callback(self):
         heartbeat_msg = Empty()
         self.heartbeat_publisher.publish(heartbeat_msg)
-
-    def publish_status(self, status: TaskStatus):
-        self.status_publisher.publish(status)
 
     def publish_training_status(self, status: TrainingStatus):
         self.training_status_publisher.publish(status)

@@ -60,7 +60,7 @@ class PhysicalAIServer(Node):
     DEFAULT_SAVE_ROOT_PATH = Path.home() / '.cache/huggingface/lerobot'
     DEFAULT_TOPIC_TIMEOUT = 5.0  # seconds
     PUB_QOS_SIZE = 10
-    TRAINING_STATUS_TIMER_FREQUENCY = 0.5 # seconds
+    TRAINING_STATUS_TIMER_FREQUENCY = 0.5  # seconds
 
     def __init__(self):
         super().__init__('physical_ai_server')
@@ -215,7 +215,7 @@ class PhysicalAIServer(Node):
             msg.current_step = 0
             msg.error = str(e)
             self.get_logger().error(f'Error publishing training status: {msg.error}')
-            return 
+            return
         return msg
 
     def init_robot_control_parameters_from_user_task(
@@ -435,7 +435,6 @@ class PhysicalAIServer(Node):
         try:
             if request.command == SendTrainingCommand.Request.START:
                 self.training_manager = TrainingManager()
-                msg = self.get_training_status()
                 self.training_status_timer = self.create_timer(
                     self.TRAINING_STATUS_TIMER_FREQUENCY,
                     lambda: self.communicator.publish_training_status(

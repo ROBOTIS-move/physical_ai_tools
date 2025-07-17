@@ -451,6 +451,11 @@ class PhysicalAIServer(Node):
                     response.success = False
                     response.message = f'Output folder already exists: {output_path}'
                     self.is_training = False
+                    self.publish_training_status()
+                    self.training_manager.stop_event.set()
+                    if self.training_status_timer is not None:
+                        self.training_status_timer.cancel()
+                        self.training_status_timer = None
                     return response
 
                 self.training_manager = TrainingManager()
@@ -463,10 +468,10 @@ class PhysicalAIServer(Node):
                         self.is_training = False
                         self.get_logger().info('Training completed.')
                         self.publish_training_status()
+                        self.training_manager.stop_event.set()
                         if self.training_status_timer is not None:
                             self.training_status_timer.cancel()
                             self.training_status_timer = None
-                        self.training_manager.stop_event.set()
 
                 self.training_thread = threading.Thread(target=run_training, daemon=True)
                 self.training_thread.start()

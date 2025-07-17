@@ -78,11 +78,11 @@ class PhysicalAIServer(Node):
         self.save_root_path = ''
         self.is_training = False
         self.training_status_timer = None
-        self.training_status_pub = self.create_publisher(
-            TrainingStatus,
-            '/training/status',
-            self.PUB_QOS_SIZE
-        )
+        # self.training_status_pub = self.create_publisher(
+        #     TrainingStatus,
+        #     '/training/status',
+        #     self.PUB_QOS_SIZE
+        # )
 
         self._init_core_components()
 
@@ -199,7 +199,7 @@ class PhysicalAIServer(Node):
         self.get_logger().info(
             f'ROS parameters initialized successfully for robot type: {robot_type}')
 
-    def publish_training_status(self):
+    def get_training_status(self):
         msg = TrainingStatus()
         if self.training_manager is None:
             return
@@ -215,8 +215,8 @@ class PhysicalAIServer(Node):
             msg.current_step = 0
             msg.error = str(e)
             self.get_logger().error(f'Error publishing training status: {msg.error}')
-
-        self.training_status_pub.publish(msg)
+            return 
+        return msg
 
     def init_robot_control_parameters_from_user_task(
             self,
@@ -434,9 +434,13 @@ class PhysicalAIServer(Node):
     def user_training_interaction_callback(self, request, response):
         try:
             if request.command == SendTrainingCommand.Request.START:
+                self.training_manager = TrainingManager()
+                msg = self.get_training_status()
                 self.training_status_timer = self.create_timer(
                     self.TRAINING_STATUS_TIMER_FREQUENCY,
-                    self.publish_training_status
+                    lambda: self.communicator.publish_training_status(
+                        self.get_training_status()
+                    ),
                 )
                 if self.training_thread and self.training_thread.is_alive():
                     response.success = False
@@ -450,14 +454,16 @@ class PhysicalAIServer(Node):
                     response.success = False
                     response.message = f'Output folder already exists: {output_path}'
                     self.is_training = False
-                    self.publish_training_status()
+                    self.communicator.publish_training_status(
+                        self.get_training_status()
+                    )
                     self.training_manager.stop_event.set()
                     if self.training_status_timer is not None:
                         self.training_status_timer.cancel()
                         self.training_status_timer = None
                     return response
 
-                self.training_manager = TrainingManager()
+                # self.training_manager = TrainingManager()
                 self.training_manager.training_info = request.training_info
 
                 def run_training():
@@ -466,7 +472,9 @@ class PhysicalAIServer(Node):
                     finally:
                         self.is_training = False
                         self.get_logger().info('Training completed.')
-                        self.publish_training_status()
+                        self.communicator.publish_training_status(
+                            self.get_training_status()
+                        )
                         self.training_manager.stop_event.set()
                         if self.training_status_timer is not None:
                             self.training_status_timer.cancel()
@@ -482,7 +490,9 @@ class PhysicalAIServer(Node):
             else:
                 if request.command == SendTrainingCommand.Request.FINISH:
                     self.is_training = False
-                    self.publish_training_status()
+                    self.communicator.publish_training_status(
+                        self.get_training_status()
+                    )
                     if self.training_status_timer is not None:
                         self.training_status_timer.cancel()
                         self.training_status_timer = None

@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from physical_ai_interfaces.msg import TaskStatus
+from physical_ai_interfaces.msg import TaskStatus, TrainingStatus
 from physical_ai_interfaces.srv import (
     GetImageTopicList
 )
@@ -177,6 +177,12 @@ class Communicator:
             '/task/status',
             self.PUB_QOS_SIZE
         )
+        
+        self.training_status_publisher = self.node.create_publisher(
+            TrainingStatus,
+            '/training/status',
+            self.PUB_QOS_SIZE
+        )
 
         self.heartbeat_publisher = self.node.create_publisher(
             Empty,
@@ -269,3 +275,9 @@ class Communicator:
     def heartbeat_timer_callback(self):
         heartbeat_msg = Empty()
         self.heartbeat_publisher.publish(heartbeat_msg)
+
+    def publish_status(self, status: TaskStatus):
+        self.status_publisher.publish(status)
+
+    def publish_training_status(self, status: TrainingStatus):
+        self.training_status_publisher.publish(status)

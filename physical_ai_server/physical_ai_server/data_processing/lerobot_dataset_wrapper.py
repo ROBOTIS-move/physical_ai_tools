@@ -57,7 +57,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                     video_paths[key] = str(video_path)
                     self._create_video(ep, video_path)
 
-    def _extract_episode_buffer(self, start: int, end: int, episode_index) -> dict:
+    def _extract_episode_buffer(self, start: int, end: int, episode_index: int) -> dict:
         buffer = {}
         for key, value in self.total_frame_buffer.items():
             if isinstance(value, (list, np.ndarray)):

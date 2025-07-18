@@ -75,7 +75,6 @@ class PhysicalAIServer(Node):
         self.start_recording_time: float = 0.0
 
         self.training_thread = None
-        self.save_root_path = ''
         self.is_training = False
         self.training_status_timer = None
 

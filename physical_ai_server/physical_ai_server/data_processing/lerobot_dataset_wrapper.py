@@ -76,11 +76,11 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         if not flat_episode_index_list:
             return []
 
-        result = [flat_episode_index_list[0]]
-        for idx in flat_episode_index_list[1:]:
-            if idx != result[-1]:
-                result.append(idx)
-        return result
+        buffer_idx = []
+        for idx in flat_episode_index_list:
+            if not buffer_idx or idx != buffer_idx[-1]:
+                buffer_idx.append(idx)
+        return buffer_idx
 
     def append_episode_buffer(self, episode_buffer: dict, episode_length) -> None:
         self._append_in_progress = True

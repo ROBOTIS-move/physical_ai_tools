@@ -42,15 +42,45 @@ class LeRobotDatasetWrapper(LeRobotDataset):
         self.episode_ranges = []
         self._append_in_progress = False
 
-    def video_encoding(self):
+    def video_encoding(self) -> None:
         video_paths = {}
+        total_buffer_index = self._extract_episode_indices(
+            self.total_frame_buffer['episode_index']
+        )
         for episode_index, (start, end) in enumerate(self.episode_ranges):
             episode_buffer = self._extract_episode_buffer(start, end, episode_index)
             for key, ep in episode_buffer.items():
                 if 'observation.images' in key:
-                    video_path = self.root / self.meta.get_video_file_path(episode_index, key)
+                    video_path = self.root / self.meta.get_video_file_path(
+                        total_buffer_index[episode_index], key
+                    )
                     video_paths[key] = str(video_path)
                     self._create_video(ep, video_path)
+
+    def _extract_episode_buffer(self, start: int, end: int, episode_index) -> dict:
+        episode_buffer = {}
+        for key, value in self.total_frame_buffer.items():
+            if isinstance(value, (list, np.ndarray)):
+                episode_buffer[key] = value[start:end + 1]
+            else:
+                episode_buffer[key] = value
+
+        episode_length = end - start + 1
+        episode_buffer['size'] = episode_length
+        episode_buffer['index'] = np.arange(start, end + 1)
+        episode_buffer['episode_index'] = np.full((episode_length,), episode_index)
+
+        return episode_buffer
+
+    def _extract_episode_indices(self, flat_episode_index_list: list[int]) -> list[int]:
+        if not flat_episode_index_list:
+            return []
+
+        result = [flat_episode_index_list[0]]
+        for idx in flat_episode_index_list[1:]:
+            if idx != result[-1]:
+                result.append(idx)
+        return result
 
     def append_episode_buffer(self, episode_buffer: dict, episode_length) -> None:
         self._append_in_progress = True
@@ -84,6 +114,20 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                         else:
                             self.total_frame_buffer[key].append(value)
 
+            if (
+                'episode_index' not in self.total_frame_buffer
+                or not isinstance(self.total_frame_buffer['episode_index'], list)
+            ):
+                self.total_frame_buffer['episode_index'] = []
+
+            ep_idx = episode_buffer.get('episode_index', 0)
+            if hasattr(ep_idx, 'tolist'):
+                ep_idx = ep_idx.tolist()
+            if isinstance(ep_idx, list) and len(ep_idx) == episode_length:
+                self.total_frame_buffer['episode_index'].extend(ep_idx)
+            else:
+                self.total_frame_buffer['episode_index'].extend([ep_idx] * episode_length)
+
             if 'frame_index' not in episode_buffer:
                 self.total_frame_buffer['frame_index'].extend(
                     list(range(start_index, start_index + num_new_frames))
@@ -95,24 +139,10 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 )
 
             self.total_frame_buffer['size'] += num_new_frames
+
             self.episode_ranges.append((start_index, end_index))
         finally:
             self._append_in_progress = False
-
-    def _extract_episode_buffer(self, start: int, end: int, episode_index) -> dict:
-        episode_buffer = {}
-        for key, value in self.total_frame_buffer.items():
-            if isinstance(value, (list, np.ndarray)):
-                episode_buffer[key] = value[start:end + 1]
-            else:
-                episode_buffer[key] = value
-
-        episode_length = end - start + 1
-        episode_buffer['size'] = episode_length
-        episode_buffer['index'] = np.arange(start, end + 1)
-        episode_buffer['episode_index'] = np.full((episode_length,), episode_index)
-
-        return episode_buffer
 
     def add_frame_without_write_image(self, frame: dict) -> None:
         validate_frame(frame, self.features)

@@ -121,12 +121,7 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                 self.total_frame_buffer['episode_index'] = []
 
             ep_idx = episode_buffer.get('episode_index', 0)
-            if hasattr(ep_idx, 'tolist'):
-                ep_idx = ep_idx.tolist()
-            if isinstance(ep_idx, list) and len(ep_idx) == episode_length:
-                self.total_frame_buffer['episode_index'].extend(ep_idx)
-            else:
-                self.total_frame_buffer['episode_index'].extend([ep_idx] * episode_length)
+            self.total_frame_buffer['episode_index'].extend(ep_idx)
 
             if 'frame_index' not in episode_buffer:
                 self.total_frame_buffer['frame_index'].extend(

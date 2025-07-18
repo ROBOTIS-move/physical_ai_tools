@@ -89,6 +89,7 @@ class PhysicalAIServer(Node):
         self.data_manager: Optional[DataManager] = None
         self.timer_manager: Optional[TimerManager] = None
         self.heartbeat_timer: Optional[TimerManager] = None
+        self.training_timer: Optional[TimerManager] = None
         self.inference_manager: Optional[InferenceManager] = None
         self.training_manager: Optional[TrainingManager] = None
 
@@ -429,12 +430,16 @@ class PhysicalAIServer(Node):
         try:
             if request.command == SendTrainingCommand.Request.START:
                 self.training_manager = TrainingManager()
-                self.training_status_timer = self.create_timer(
-                    self.TRAINING_STATUS_TIMER_FREQUENCY,
-                    lambda: self.communicator.publish_training_status(
+                self.training_timer = TimerManager(node=self)
+                self.training_timer.set_timer(
+                    timer_name='training_status',
+                    timer_frequency=self.TRAINING_STATUS_TIMER_FREQUENCY,
+                    callback_function=lambda: self.communicator.publish_training_status(
                         self.get_training_status()
-                    ),
+                    )
                 )
+                self.training_timer.start(timer_name='training_status')
+
                 if self.training_thread and self.training_thread.is_alive():
                     response.success = False
                     response.message = 'Training is already in progress'
@@ -450,10 +455,9 @@ class PhysicalAIServer(Node):
                     self.communicator.publish_training_status(
                         self.get_training_status()
                     )
+
                     self.training_manager.stop_event.set()
-                    if self.training_status_timer is not None:
-                        self.training_status_timer.cancel()
-                        self.training_status_timer = None
+                    self.training_timer.stop('training_status')
                     return response
 
                 self.training_manager.training_info = request.training_info
@@ -468,9 +472,7 @@ class PhysicalAIServer(Node):
                             self.get_training_status()
                         )
                         self.training_manager.stop_event.set()
-                        if self.training_status_timer is not None:
-                            self.training_status_timer.cancel()
-                            self.training_status_timer = None
+                        self.training_timer.stop('training_status')
 
                 self.training_thread = threading.Thread(target=run_training, daemon=True)
                 self.training_thread.start()
@@ -485,9 +487,7 @@ class PhysicalAIServer(Node):
                     self.communicator.publish_training_status(
                         self.get_training_status()
                     )
-                    if self.training_status_timer is not None:
-                        self.training_status_timer.cancel()
-                        self.training_status_timer = None
+                    self.training_timer.stop('training_status')
                     if self.training_thread and self.training_thread.is_alive():
                         self.training_manager.stop_event.set()
                         self.training_thread.join()

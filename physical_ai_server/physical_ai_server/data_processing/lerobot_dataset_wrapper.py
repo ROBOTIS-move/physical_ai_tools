@@ -120,7 +120,9 @@ class LeRobotDatasetWrapper(LeRobotDataset):
             ):
                 self.total_frame_buffer['episode_index'] = []
 
-            ep_idx = episode_buffer.get('episode_index', 0)
+            ep_idx = episode_buffer.get('episode_index')
+            if ep_idx is None:
+                ep_idx = list(range(episode_length))
             self.total_frame_buffer['episode_index'].extend(ep_idx)
 
             if 'frame_index' not in episode_buffer:

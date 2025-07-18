@@ -58,19 +58,19 @@ class LeRobotDatasetWrapper(LeRobotDataset):
                     self._create_video(ep, video_path)
 
     def _extract_episode_buffer(self, start: int, end: int, episode_index) -> dict:
-        episode_buffer = {}
+        buffer = {}
         for key, value in self.total_frame_buffer.items():
             if isinstance(value, (list, np.ndarray)):
-                episode_buffer[key] = value[start:end + 1]
+                buffer[key] = value[start:end + 1]
             else:
-                episode_buffer[key] = value
+                buffer[key] = value
 
         episode_length = end - start + 1
-        episode_buffer['size'] = episode_length
-        episode_buffer['index'] = np.arange(start, end + 1)
-        episode_buffer['episode_index'] = np.full((episode_length,), episode_index)
+        buffer['size'] = episode_length
+        buffer['index'] = np.arange(start, end + 1)
+        buffer['episode_index'] = np.full((episode_length,), episode_index)
 
-        return episode_buffer
+        return buffer
 
     def _extract_episode_indices(self, flat_episode_index_list: list[int]) -> list[int]:
         if not flat_episode_index_list:

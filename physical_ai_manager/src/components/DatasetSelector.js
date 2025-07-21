@@ -53,8 +53,12 @@ export default function DatasetSelector() {
       console.log('Users received:', result);
 
       if (result && result.user_list) {
-        dispatch(setUserList(result.user_list));
-        toast.success('User list loaded successfully');
+        if (result.success) {
+          dispatch(setUserList(result.user_list));
+          toast.success('User list loaded successfully');
+        } else {
+          toast.error('Failed to get user list: ' + result.message);
+        }
       } else {
         toast.error('Failed to get user list: Invalid response');
       }
@@ -75,11 +79,15 @@ export default function DatasetSelector() {
         console.log('Datasets received for user', userId, ':', result);
 
         if (result && result.dataset_list) {
-          setUserDatasets((prev) => ({
-            ...prev,
-            [userId]: result.dataset_list,
-          }));
-          toast.success(`Dataset list loaded for user: ${userId}`);
+          if (result.success) {
+            setUserDatasets((prev) => ({
+              ...prev,
+              [userId]: result.dataset_list,
+            }));
+            toast.success(`Dataset list loaded for user: ${userId}`);
+          } else {
+            toast.error('Failed to get dataset list: ' + result.message);
+          }
         } else {
           toast.error('Failed to get dataset list: Invalid response');
         }

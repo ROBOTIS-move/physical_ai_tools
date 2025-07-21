@@ -16,12 +16,14 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
+import { setUpdateCounter } from '../features/training/trainingSlice';
 import clsx from 'clsx';
 
 export default function TrainingProgressBar() {
   const currentStep = useSelector((state) => state.training.currentStep);
   const totalSteps = useSelector((state) => state.training.trainingInfo.steps);
   const isTraining = useSelector((state) => state.training.isTraining);
+  const updateCounter = useSelector((state) => state.training.updateCounter);
 
   const [spinnerIndex, setSpinnerIndex] = useState(0);
 
@@ -81,7 +83,11 @@ export default function TrainingProgressBar() {
 
   useEffect(() => {
     updateSpinnerFrame();
-  }, [currentStep, updateSpinnerFrame]);
+
+    if (updateCounter > 100) {
+      setUpdateCounter(0);
+    }
+  }, [updateCounter, updateSpinnerFrame]);
 
   return (
     <div className={classContainer}>

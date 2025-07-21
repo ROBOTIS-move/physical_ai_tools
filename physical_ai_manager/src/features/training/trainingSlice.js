@@ -34,6 +34,7 @@ const initialState = {
 
   // Training progress
   currentStep: 0,
+  updateCounter: 0,
 
   trainingInfo: {
     datasetRepoId: undefined,
@@ -141,9 +142,13 @@ const trainingSlice = createSlice({
     },
     setCurrentStep: (state, action) => {
       state.currentStep = action.payload;
+      state.updateCounter++;
     },
     setLastUpdate: (state, action) => {
       state.lastUpdate = action.payload;
+    },
+    setUpdateCounter: (state, action) => {
+      state.updateCounter = action.payload;
     },
   },
 });
@@ -175,6 +180,7 @@ export const {
   setDefaultTrainingInfo,
   setCurrentStep,
   setLastUpdate,
+  setUpdateCounter,
 } = trainingSlice.actions;
 
 export default trainingSlice.reducer;

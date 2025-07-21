@@ -4,7 +4,7 @@ Changelog for package physical_ai_tools
 
 0.5.13 (2025-07-21)
 ------------------
-* Updated Docker volume mount paths from `/root` to `${HOME}` for improved portability and compatibility.
+* Updated Docker volume mount paths from `/root` to `${HOME}` for improved portability and compatibility
 * Contributors: Seongwoo Kim
 
 0.5.12 (2025-07-18)

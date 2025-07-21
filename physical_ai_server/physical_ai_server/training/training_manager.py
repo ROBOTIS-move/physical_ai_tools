@@ -101,10 +101,13 @@ class TrainingManager:
         return policy_list, device_list
 
     def get_weight_save_root_path():
-        weight_save_root_path = (
-            Path(__file__).resolve().parent.parent.parent / 'lerobot' / 'outputs' / 'train'
-        )
-        return weight_save_root_path
+        current_path = Path(__file__).resolve()
+        for parent in current_path.parents:
+            if (parent / 'lerobot' / 'outputs' / 'train').exists():
+                weight_save_root_path = parent / 'lerobot' / 'outputs' / 'train'
+                return weight_save_root_path
+        fallback_path = Path(__file__).resolve().parent / 'lerobot' / 'outputs' / 'train'
+        return fallback_path
 
     def get_current_training_status(self):
         current_training_status = TrainingStatus()

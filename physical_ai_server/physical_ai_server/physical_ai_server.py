@@ -46,6 +46,7 @@ from physical_ai_server.utils.parameter_utils import (
 
 import rclpy
 from rclpy.node import Node
+from std_msgs.msg import String
 
 
 class PhysicalAIServer(Node):
@@ -71,6 +72,23 @@ class PhysicalAIServer(Node):
         self._init_ros_service()
 
         self._setup_timer_callbacks()
+
+        self.joystick_trigger_subscriber = self.create_subscription(
+            String,
+            '/leader/joystick_controller/tact_trigger',
+            self.joystick_trigger_callback,
+            10
+        )
+
+    def joystick_trigger_callback(self, msg):
+        if msg.data == 'right_tact_triggered':
+            self.get_logger().info('Right tact triggered detected!')
+            self.data_manager.record_early_save()
+        elif msg.data == 'left_tact_triggered':
+            self.get_logger().info('Left tact triggered detected!')
+            self.data_manager.record_stop()
+        else:
+            self.get_logger().info(f'Received joystick trigger: {msg.data}')
 
     def _init_core_components(self):
         self.communicator: Optional[Communicator] = None

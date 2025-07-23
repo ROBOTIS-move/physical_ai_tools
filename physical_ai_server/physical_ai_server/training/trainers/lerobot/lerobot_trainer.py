@@ -171,7 +171,7 @@ class LerobotTrainer(Trainer):
             if stop_event and stop_event.is_set():
                 self.logger.info('Training stopped by stop event')
                 break
-            self.current_step = step
+            self.current_step = step + 1
             start_time = time.perf_counter()
             batch = next(dl_iter)
             train_tracker.dataloading_s = time.perf_counter() - start_time

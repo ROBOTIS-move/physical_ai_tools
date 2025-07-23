@@ -4,7 +4,7 @@ Changelog for package physical_ai_server
 
 0.6.1 (2025-07-23)
 ------------------
-* Implemented robust error handling during data collection to prevent server crashes due to invalid robot type configuration
+* Implemented robust error handling during data collection to prevent server crashes due to incorrect robot type configuration
 * Contributors: Seongwoo Kim
 
 0.6.0 (2025-07-23)

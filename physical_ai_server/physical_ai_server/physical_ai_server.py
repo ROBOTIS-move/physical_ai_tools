@@ -395,7 +395,7 @@ class PhysicalAIServer(Node):
             action = self.inference_manager.predict(
                 images=camera_data,
                 state=follower_data,
-                task_instruction=self.task_instruction
+                task_instruction=self.task_instruction[0]
             )
 
             self.get_logger().info(

@@ -2,7 +2,7 @@
 Changelog for package physical_ai_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.6.0 (2025-07-21)
+0.6.0 (2025-07-23)
 ------------------
 * Implemented a Training Manager to support model training through the Web UI
 * Contributors: Seongwoo Kim

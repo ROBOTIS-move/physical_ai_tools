@@ -2,7 +2,7 @@
 Changelog for package physical_ai_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.6.0 (2025-07-21)
+0.6.0 (2025-07-23)
 ------------------
 * Added training-related service types and message types
 * Contributors: Kiwoong Park, Seongwoo Kim

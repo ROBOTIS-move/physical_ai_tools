@@ -38,6 +38,7 @@ class TrainingManager:
         'act': LerobotTrainer,
         'tdmpc': LerobotTrainer,
         'vqbet': LerobotTrainer,
+        'smolvla': LerobotTrainer
         # TODO: Uncomment when Gr00t and OpenVLA are implemented
         # 'gr00tn1': Gr00tN1Trainer,
         # 'openvla': OpenVLATrainer,
@@ -93,6 +94,7 @@ class TrainingManager:
             'vqbet',
             'pi0',
             'pi0fast',
+            'smolvla',
         ]
 
         device_list = [

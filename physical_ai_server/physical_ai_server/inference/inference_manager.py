@@ -161,6 +161,9 @@ class InferenceManager:
         elif name == 'pi0fast':
             from lerobot.policies.pi0fast.modeling_pi0fast import PI0FASTPolicy
             return PI0FASTPolicy
+        elif name == 'smolvla':
+            from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
+            return SmolVLAPolicy
         # TODO: Uncomment when GrootN1Policy is implemented
         # elif name == 'groot-n1':
         #     from Isaac.groot_n1.policies.groot_n1 import GrootN1Policy
@@ -178,6 +181,7 @@ class InferenceManager:
             'vqbet',
             'pi0',
             'pi0fast',
+            'smolvla',
         ]
 
     @staticmethod

@@ -20,7 +20,7 @@ import argparse
 import os
 from typing import Dict, List, Tuple
 
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.configs.default import DatasetConfig
 import numpy as np
 from physical_ai_server.evaluation.visualization_manager import VisualizationManager

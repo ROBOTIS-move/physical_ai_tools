@@ -18,11 +18,11 @@
 
 import threading
 
-from lerobot.common.datasets.compute_stats import (
+from lerobot.datasets.compute_stats import (
     get_feature_stats
 )
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.common.datasets.utils import (
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
+from lerobot.datasets.utils import (
     validate_episode_buffer,
     validate_frame,
     write_episode,

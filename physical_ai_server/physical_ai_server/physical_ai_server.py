@@ -73,18 +73,25 @@ class PhysicalAIServer(Node):
 
         self._setup_timer_callbacks()
 
-        self.joystick_trigger_subscriber = self.create_subscription(
-            String,
-            '/leader/joystick_controller/tact_trigger',
-            self.joystick_trigger_callback,
-            10
-        )
-
     def joystick_trigger_callback(self, msg):
+        self.get_logger().info(f'joystick_trigger_callback called with: {msg.data}')
+        
         if msg.data == 'right_tact_triggered':
             self.get_logger().info('Right tact triggered detected!')
-            self.data_manager.record_early_save()
-            self.get_logger().info('record_early_save!')
+            self.get_logger().info(f'data_manager type: {type(self.data_manager)}')
+            self.get_logger().info(f'data_manager is None: {self.data_manager is None}')
+            
+            if hasattr(self, 'data_manager') and self.data_manager is not None:
+                if hasattr(self.data_manager, 'record_early_save'):
+                    self.get_logger().info('record_early_save method exists')
+                    # 메서드 호출 전후로 로그 추가
+                    self.get_logger().info('About to call record_early_save()')
+                    self.data_manager.record_early_save()
+                    self.get_logger().info('record_early_save() call completed')
+                else:
+                    self.get_logger().error('record_early_save method does not exist!')
+            else:
+                self.get_logger().error('data_manager is None or does not exist!')
         elif msg.data == 'left_tact_triggered':
             self.get_logger().info('Left tact triggered detected!')
             self.data_manager.record_stop()
@@ -425,6 +432,14 @@ class PhysicalAIServer(Node):
                 self.on_recording = True
                 response.success = True
                 response.message = 'Recording started'
+
+
+                self.joystick_trigger_subscriber = self.create_subscription(
+                    String,
+                    '/leader/joystick_controller/tact_trigger',
+                    self.joystick_trigger_callback,
+                    10
+                )
 
             elif request.command == SendCommand.Request.START_INFERENCE:
                 self.joint_topic_types = self.communicator.get_publisher_msg_types()

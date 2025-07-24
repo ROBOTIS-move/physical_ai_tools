@@ -74,61 +74,32 @@ class PhysicalAIServer(Node):
         self._setup_timer_callbacks()
 
     def joystick_trigger_callback(self, msg):
-        self.get_logger().info(f'joystick_trigger_callback called with: {msg.data}')
-        
-        # 실제 메시지 값에 맞춰 조건 수정
-        if msg.data == 'right':  # 'right_tact_triggered'가 아니라 'right'
-            self.get_logger().info('Right tact triggered detected!')
-            
-            # data_manager 상태 체크를 안전하게 수행
+        if msg.data == 'right':
+            self.get_logger().info('Right tact triggered - Early save')
+            if self.data_manager is None:
+                self.get_logger().warning('Data manager is not initialized')
+                return
             try:
-                self.get_logger().info('Checking data_manager status...')
-                
-                if not hasattr(self, 'data_manager'):
-                    self.get_logger().error('data_manager attribute does not exist!')
-                    return
-                    
-                if self.data_manager is None:
-                    self.get_logger().error('data_manager is None!')
-                    return
-                    
-                self.get_logger().info(f'data_manager type: {type(self.data_manager)}')
-                
-                if not hasattr(self.data_manager, 'record_early_save'):
-                    self.get_logger().error('record_early_save method does not exist!')
-                    return
-                    
-                self.get_logger().info('About to call record_early_save()')
                 self.data_manager.record_early_save()
-                self.get_logger().info('record_early_save() call completed')
-                
             except Exception as e:
-                self.get_logger().error(f'Exception in right trigger handling: {str(e)}')
-                import traceback
-                self.get_logger().error(f'Traceback: {traceback.format_exc()}')
+                self.get_logger().error(f'Error in record_early_save(): {str(e)}')
                 
-        elif msg.data == 'left':  # 'left_tact_triggered'가 아니라 'left'
-            self.get_logger().info('Left tact triggered detected!')
-            
+        elif msg.data == 'left':
+            if self.data_manager is None:
+                self.get_logger().warning('Data manager is not initialized')
+                return
             try:
-                if not hasattr(self, 'data_manager') or self.data_manager is None:
-                    self.get_logger().error('data_manager is not available!')
-                    return
-                    
-                if not hasattr(self.data_manager, 'record_stop'):
-                    self.get_logger().error('record_stop method does not exist!')
-                    return
-                    
-                self.get_logger().info('About to call record_stop()')
-                self.data_manager.record_stop()
-                self.get_logger().info('record_stop() call completed')
-                
+                # DataManager의 현재 상태 확인
+                if hasattr(self.data_manager, '_current_state') and self.data_manager._current_state == 'stop':
+                    self.get_logger().info('Left tact triggered - Re-record (previous state was stop)')
+                    self.data_manager.re_record()
+                else:
+                    self.get_logger().info('Left tact triggered - Stop recording')
+                    self.data_manager.record_stop()
             except Exception as e:
-                self.get_logger().error(f'Exception in left trigger handling: {str(e)}')
-                import traceback
-                self.get_logger().error(f'Traceback: {traceback.format_exc()}')
+                self.get_logger().error(f'Error in left trigger handling: {str(e)}')
         else:
-            self.get_logger().info(f'Received joystick trigger: {msg.data}')
+            self.get_logger().debug(f'Received joystick trigger: {msg.data}')
 
     def _init_core_components(self):
         self.communicator: Optional[Communicator] = None

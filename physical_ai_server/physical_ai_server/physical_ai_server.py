@@ -699,7 +699,6 @@ class PhysicalAIServer(Node):
 
     def get_model_weight_list_callback(self, request, response):
         save_root_path = TrainingManager.get_weight_save_root_path()
-        self.get_logger().info(f'Getting model weight list from: {save_root_path}')
         try:
             if not save_root_path.exists():
                 response.success = False

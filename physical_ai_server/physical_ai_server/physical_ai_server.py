@@ -73,6 +73,8 @@ class PhysicalAIServer(Node):
 
         self._setup_timer_callbacks()
 
+        self.joystick_left_flage = 'start'
+
     def joystick_trigger_callback(self, msg):
         if msg.data == 'right':
             self.get_logger().info('Right tact triggered - Early save')
@@ -90,12 +92,14 @@ class PhysicalAIServer(Node):
                 return
             try:
                 # DataManager의 현재 상태 확인
-                if hasattr(self.data_manager, '_current_state') and self.data_manager._current_state == 'stop':
+                if self.joystick_left_flage == 'start':
                     self.get_logger().info('Left tact triggered - Re-record (previous state was stop)')
                     self.data_manager.re_record()
+                    self.joystick_left_flage = 'stop'
                 else:
                     self.get_logger().info('Left tact triggered - Stop recording')
                     self.data_manager.record_stop()
+                    self.joystick_left_flage = 'start'
             except Exception as e:
                 self.get_logger().error(f'Error in left trigger handling: {str(e)}')
         else:

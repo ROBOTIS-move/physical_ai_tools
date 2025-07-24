@@ -84,9 +84,11 @@ class PhysicalAIServer(Node):
         if msg.data == 'right_tact_triggered':
             self.get_logger().info('Right tact triggered detected!')
             self.data_manager.record_early_save()
+            self.get_logger().info('record_early_save!')
         elif msg.data == 'left_tact_triggered':
             self.get_logger().info('Left tact triggered detected!')
             self.data_manager.record_stop()
+            self.get_logger().info('record_stop!')
         else:
             self.get_logger().info(f'Received joystick trigger: {msg.data}')
 

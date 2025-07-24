@@ -206,11 +206,15 @@ class DataManager:
         return frame
 
     def record_early_save(self):
+        print("EARLY SAVE")
         if self._lerobot_dataset.episode_buffer is not None:
             self._status = 'save'
+            print("State : ", self._status)
 
     def record_stop(self):
+        print("STOP")
         self._status = 'stop'
+        print("State : ", self._status)
 
     def record_finish(self):
         self._status = 'finish'

@@ -21,6 +21,7 @@ from pprint import pformat
 import time
 from typing import Any
 
+from lerobot.configs.train import TrainPipelineConfig
 from lerobot.datasets.factory import make_dataset
 from lerobot.datasets.sampler import EpisodeAwareSampler
 from lerobot.datasets.utils import cycle
@@ -29,6 +30,7 @@ from lerobot.optim.factory import make_optimizer_and_scheduler
 from lerobot.policies.factory import make_policy
 from lerobot.policies.pretrained import PreTrainedPolicy
 from lerobot.policies.utils import get_device_from_parameters
+from lerobot.scripts.eval import eval_policy
 from lerobot.utils.logging_utils import AverageMeter, MetricsTracker
 from lerobot.utils.random_utils import set_seed
 from lerobot.utils.train_utils import (
@@ -44,8 +46,6 @@ from lerobot.utils.utils import (
     has_method,
 )
 from lerobot.utils.wandb_utils import WandBLogger
-from lerobot.configs.train import TrainPipelineConfig
-from lerobot.scripts.eval import eval_policy
 from physical_ai_server.training.trainers.trainer import Trainer
 from rclpy.logging import get_logger
 from termcolor import colored

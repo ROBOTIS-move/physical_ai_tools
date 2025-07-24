@@ -76,26 +76,57 @@ class PhysicalAIServer(Node):
     def joystick_trigger_callback(self, msg):
         self.get_logger().info(f'joystick_trigger_callback called with: {msg.data}')
         
-        if msg.data == 'right_tact_triggered':
+        # 실제 메시지 값에 맞춰 조건 수정
+        if msg.data == 'right':  # 'right_tact_triggered'가 아니라 'right'
             self.get_logger().info('Right tact triggered detected!')
-            self.get_logger().info(f'data_manager type: {type(self.data_manager)}')
-            self.get_logger().info(f'data_manager is None: {self.data_manager is None}')
             
-            if hasattr(self, 'data_manager') and self.data_manager is not None:
-                if hasattr(self.data_manager, 'record_early_save'):
-                    self.get_logger().info('record_early_save method exists')
-                    # 메서드 호출 전후로 로그 추가
-                    self.get_logger().info('About to call record_early_save()')
-                    self.data_manager.record_early_save()
-                    self.get_logger().info('record_early_save() call completed')
-                else:
+            # data_manager 상태 체크를 안전하게 수행
+            try:
+                self.get_logger().info('Checking data_manager status...')
+                
+                if not hasattr(self, 'data_manager'):
+                    self.get_logger().error('data_manager attribute does not exist!')
+                    return
+                    
+                if self.data_manager is None:
+                    self.get_logger().error('data_manager is None!')
+                    return
+                    
+                self.get_logger().info(f'data_manager type: {type(self.data_manager)}')
+                
+                if not hasattr(self.data_manager, 'record_early_save'):
                     self.get_logger().error('record_early_save method does not exist!')
-            else:
-                self.get_logger().error('data_manager is None or does not exist!')
-        elif msg.data == 'left_tact_triggered':
+                    return
+                    
+                self.get_logger().info('About to call record_early_save()')
+                self.data_manager.record_early_save()
+                self.get_logger().info('record_early_save() call completed')
+                
+            except Exception as e:
+                self.get_logger().error(f'Exception in right trigger handling: {str(e)}')
+                import traceback
+                self.get_logger().error(f'Traceback: {traceback.format_exc()}')
+                
+        elif msg.data == 'left':  # 'left_tact_triggered'가 아니라 'left'
             self.get_logger().info('Left tact triggered detected!')
-            self.data_manager.record_stop()
-            self.get_logger().info('record_stop!')
+            
+            try:
+                if not hasattr(self, 'data_manager') or self.data_manager is None:
+                    self.get_logger().error('data_manager is not available!')
+                    return
+                    
+                if not hasattr(self.data_manager, 'record_stop'):
+                    self.get_logger().error('record_stop method does not exist!')
+                    return
+                    
+                self.get_logger().info('About to call record_stop()')
+                self.data_manager.record_stop()
+                self.get_logger().info('record_stop() call completed')
+                
+            except Exception as e:
+                self.get_logger().error(f'Exception in left trigger handling: {str(e)}')
+                import traceback
+                self.get_logger().error(f'Traceback: {traceback.format_exc()}')
         else:
             self.get_logger().info(f'Received joystick trigger: {msg.data}')
 

@@ -33,7 +33,9 @@ RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
     sed -i '/"torchvision[^\"]*",/d' pyproject.toml && \
     pip install --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple --extra-index-url https://pypi.org/simple --ignore-installed -e .
 
-RUN pip install --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple --extra-index-url https://pypi.org/simple -e ".[smolvla]"
+RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
+    pip install --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple --extra-index-url https://pypi.org/simple -e ".[smolvla]"
+
 RUN pip install --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple --extra-index-url https://pypi.org/simple setuptools==68.1.2
 RUN pip install --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple --extra-index-url https://pypi.org/simple 'numpy<2'
 

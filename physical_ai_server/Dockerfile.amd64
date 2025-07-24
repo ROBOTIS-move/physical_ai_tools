@@ -28,7 +28,9 @@ RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
     sed -i '/"torchvision[^\"]*",/d' pyproject.toml && \
     pip install --ignore-installed -e .
 
-RUN pip install -e ".[smolvla]"
+RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
+    pip install -e ".[smolvla]"
+
 RUN pip install setuptools==68.1.2
 RUN pip install 'numpy<2'
 

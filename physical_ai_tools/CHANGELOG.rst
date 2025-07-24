@@ -2,10 +2,51 @@
 Changelog for package physical_ai_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.5.8 (2025-07-01)
+0.6.1 (2025-07-23)
 ------------------
-* Updated lerobot submodule to the latest version.
+* Implemented robust error handling during data collection to prevent server crashes due to incorrect robot type configuration
+* Contributors: Seongwoo Kim
+
+0.6.0 (2025-07-23)
+------------------
+* Added training-related service types and message types
+* Added a new training page for training imitation learning models
+* Implemented a Training Manager to support model training through the Web UI
+* Contributors: Kiwoong Park, Seongwoo Kim
+
+0.5.13 (2025-07-21)
+------------------
+* Updated Docker volume mount paths from `/root` to `${HOME}` for improved portability and compatibility
+* Contributors: Seongwoo Kim
+
+0.5.12 (2025-07-18)
+------------------
+* Enabled appending video encodings without overwriting existing data in multi-task mode
+* Contributors: Seongwoo Kim
+
+0.5.11 (2025-07-16)
+------------------
+* Added functionality for evaluating trained models
 * Contributors: Dongyun Kim
+
+0.5.10 (2025-07-15)
+------------------
+* Added multi-tasking data recording support to the Physical AI Server
+* Contributors: Kiwoong Park, Seongwoo Kim
+
+0.5.9 (2025-07-07)
+------------------
+* Use global ROS connection instead of multiple instances
+* Add proper cleanup for image streams to prevent accumulation
+* Remove unnecessary scrollbars in Chrome browser
+* Contributors: Kiwoong Park
+
+0.5.8 (2025-07-07)
+------------------
+* Applied Redux Toolkit for better state management
+* Added heartbeat status to the UI
+* Added heartbeat topic publishing to monitor alive status of Physical AI Server
+* Contributors: Kiwoong Park, Dongyun Kim
 
 0.5.7 (2025-06-26)
 ------------------

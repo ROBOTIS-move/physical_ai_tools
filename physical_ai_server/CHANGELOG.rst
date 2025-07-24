@@ -2,9 +2,43 @@
 Changelog for package physical_ai_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.5.8 (2025-07-01)
+0.6.1 (2025-07-23)
+------------------
+* Implemented robust error handling during data collection to prevent server crashes due to incorrect robot type configuration
+* Contributors: Seongwoo Kim
+
+0.6.0 (2025-07-23)
+------------------
+* Implemented a Training Manager to support model training through the Web UI
+* Contributors: Seongwoo Kim
+
+0.5.13 (2025-07-21)
 ------------------
 * None
+
+0.5.12 (2025-07-18)
+------------------
+* Enabled appending video encodings without overwriting existing data in multi-task mode
+* Contributors: Seongwoo Kim
+
+0.5.11 (2025-07-16)
+------------------
+* Added functionality for evaluating trained models
+* Contributors: Dongyun Kim
+
+0.5.10 (2025-07-15)
+------------------
+* Added multi-tasking data recording support to the Physical AI Server
+* Contributors: Seongwoo Kim
+
+0.5.9 (2025-07-07)
+------------------
+* None
+
+0.5.8 (2025-07-07)
+------------------
+* Added heartbeat topic publishing to monitor alive status of Physical AI Server
+* Contributors: Dongyun Kim
 
 0.5.7 (2025-06-26)
 ------------------

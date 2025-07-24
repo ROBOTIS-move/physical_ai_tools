@@ -17,14 +17,9 @@
 import React from 'react';
 import clsx from 'clsx';
 import RobotTypeSelector from '../components/RobotTypeSelector';
+import HeartbeatStatus from '../components/HeartbeatStatus';
 
-export default function HomePage({
-  rosHost,
-  currentRobotType,
-  setCurrentRobotType,
-  taskStatus,
-  updateTaskStatus,
-}) {
+export default function HomePage() {
   const classContainer = clsx(
     'w-full',
     'h-full',
@@ -34,15 +29,14 @@ export default function HomePage({
     'pt-10'
   );
 
+  const classHeartbeatStatus = clsx('absolute', 'top-5', 'left-35', 'z-10');
+
   return (
     <div className={classContainer}>
-      <RobotTypeSelector
-        rosHost={rosHost}
-        currentRobotType={currentRobotType}
-        setCurrentRobotType={setCurrentRobotType}
-        taskStatus={taskStatus}
-        updateTaskStatus={updateTaskStatus}
-      />
+      <div className={classHeartbeatStatus}>
+        <HeartbeatStatus />
+      </div>
+      <RobotTypeSelector />
     </div>
   );
 }

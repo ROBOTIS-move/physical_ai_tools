@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-// TaskPhase enum-like object for task status phases
+// TaskCommand enum-like object for task commands
 // Use this for better code readability and maintainability
 
 const TaskCommand = {
@@ -25,6 +25,7 @@ const TaskCommand = {
   NEXT: 4,
   RERECORD: 5,
   FINISH: 6,
+  SKIP_TASK: 7,
 };
 
 export default TaskCommand;

@@ -17,6 +17,8 @@
 import React from 'react';
 import clsx from 'clsx';
 
+import { useSelector } from 'react-redux';
+
 const classEpisodeStatusBody = clsx(
   'h-full',
   'w-full',
@@ -25,31 +27,52 @@ const classEpisodeStatusBody = clsx(
   'flex',
   'flex-col',
   'items-center',
-  'justify-center',
+  'justify-around',
   'gap-1',
   'rounded-2xl',
   'border',
   'border-gray-200',
-  'py-5',
-  'px-4',
+  'py-2',
+  'px-3',
   'box-border',
   'shadow-md',
   'bg-white'
 );
 
-export default function EpisodeStatus({ episodeStatus }) {
+const MultiTaskFontSizeTitle = 'clamp(1rem, 1.2vw, 1.4rem)';
+const MultiTaskFontSizeNumber = 'clamp(1rem, 1.2vw, 1.4rem)';
+
+const SingleTaskFontSizeTitle = 'clamp(1.5rem, 1.5vw, 2rem)';
+const SingleTaskFontSizeNumber = 'clamp(1.5rem, 1.5vw, 2rem)';
+
+export default function EpisodeStatus() {
+  const currentEpisodeNumber = useSelector((state) => state.tasks.taskStatus.currentEpisodeNumber);
+  const numEpisodes = useSelector((state) => state.tasks.taskInfo.numEpisodes);
+  const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
+
   return (
     <div className={classEpisodeStatusBody}>
-      <div className="mb-1 justify- text-3xl" style={{ fontSize: 'clamp(1.5rem, 1.5vw, 2rem)' }}>
+      <div
+        className="w-full h-full flex justify-center items-center"
+        style={{ fontSize: useMultiTaskMode ? MultiTaskFontSizeTitle : SingleTaskFontSizeTitle }}
+      >
         Episode
       </div>
-      <div className="h-3"></div>
       <div
-        className="w-full bg-gray-200 rounded-lg py-1.5 px-3 font-bold whitespace-nowrap"
-        style={{ fontSize: 'clamp(1rem, 1.5vw, 2rem)' }}
+        className="w-full h-full flex justify-center items-center bg-gray-200 rounded-lg px-3 font-bold whitespace-nowrap"
+        style={{
+          fontSize: useMultiTaskMode ? MultiTaskFontSizeNumber : SingleTaskFontSizeNumber,
+        }}
       >
-        <span className="font-bold">{episodeStatus?.currentEpisodeNumber}</span> /{' '}
-        <span className="text-gray-600">{episodeStatus?.numEpisodes}</span>
+        {useMultiTaskMode ? (
+          <span className="font-bold">{currentEpisodeNumber}</span>
+        ) : (
+          <>
+            <span className="font-bold">{currentEpisodeNumber}</span>
+            <span className="text-gray-600">{' / '}</span>
+            <span className="text-gray-600">{numEpisodes}</span>
+          </>
+        )}
       </div>
     </div>
   );

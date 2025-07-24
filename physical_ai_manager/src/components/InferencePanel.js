@@ -15,13 +15,26 @@
 // Author: Kiwoong Park
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
-import TagInput from './TagInput';
-import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
+import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import TagInput from './TagInput';
+import TaskPhase from '../constants/taskPhases';
+import { setTaskInfo } from '../features/tasks/taskSlice';
 
-const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
+const InferencePanel = () => {
+  const dispatch = useDispatch();
+
+  const info = useSelector((state) => state.tasks.taskInfo);
+  const taskStatus = useSelector((state) => state.tasks.taskStatus);
+
+  const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
+  const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
+
+  // Calculate if the panel should be disabled based on task status
+  const disabled = taskStatus.phase !== TaskPhase.READY || !isTaskStatusPaused;
   const [isEditable, setIsEditable] = useState(!disabled);
 
   // User ID list for dropdown
@@ -36,17 +49,14 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
   // User ID selection states
   const [showUserIdDropdown, setShowUserIdDropdown] = useState(false);
 
-  // ROS service caller
-
-  const rosbridgeUrl = `ws://${rosHost.split(':')[0]}:9090`;
-  const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller(rosbridgeUrl);
+  const { registerHFUser, getRegisteredHFUser } = useRosServiceCaller();
 
   const handleChange = useCallback(
     (field, value) => {
       if (!isEditable) return; // Block changes when not editable
-      onChange({ ...info, [field]: value });
+      dispatch(setTaskInfo({ ...info, [field]: value }));
     },
-    [isEditable, onChange, info]
+    [isEditable, info, dispatch]
   );
 
   const handleTokenSubmit = async () => {
@@ -127,6 +137,28 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
     }
   }, [userIdList, info.userId, handleUserIdSelect]);
 
+  // track task status update
+  useEffect(() => {
+    if (taskStatus) {
+      setLastTaskStatusUpdate(Date.now());
+      setIsTaskStatusPaused(false);
+    }
+  }, [taskStatus]);
+
+  // Check if task status updates are paused (considered paused if no updates for 1 second)
+  useEffect(() => {
+    const UPDATE_PAUSE_THRESHOLD = 1000;
+    const timer = setInterval(() => {
+      const timeSinceLastUpdate = Date.now() - lastTaskStatusUpdate;
+      const isPaused = timeSinceLastUpdate >= UPDATE_PAUSE_THRESHOLD;
+      if (isPaused !== isTaskStatusPaused) {
+        setIsTaskStatusPaused(isPaused);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lastTaskStatusUpdate, isTaskStatusPaused]);
+
   const classLabel = clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium');
 
   const classInfoPanel = clsx(
@@ -138,7 +170,9 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
     'p-4',
     'w-full',
     'max-w-[350px]',
-    'relative'
+    'relative',
+    'overflow-y-auto',
+    'scrollbar-thin'
   );
 
   const classTaskNameTextarea = clsx(
@@ -344,7 +378,7 @@ const InferencePanel = ({ info, onChange, disabled = false, rosHost }) => {
         <textarea
           className={classTaskInstructionTextarea}
           value={info.taskInstruction || ''}
-          onChange={(e) => handleChange('taskInstruction', e.target.value)}
+          onChange={(e) => handleChange('taskInstruction', [e.target.value])}
           disabled={!isEditable}
           placeholder="Enter Task Instruction"
         />

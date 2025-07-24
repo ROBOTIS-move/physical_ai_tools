@@ -14,52 +14,25 @@
 //
 // Author: Kiwoong Park
 
-import { useRef, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import ROSLIB from 'roslib';
+import PageType from '../constants/pageType';
 import TaskCommand from '../constants/taskCommand';
+import TrainingCommand from '../constants/trainingCommand';
+import rosConnectionManager from '../utils/rosConnectionManager';
 
-export function useRosServiceCaller(rosbridgeUrl) {
-  const rosRef = useRef(null);
-
-  const getRosConnection = useCallback(() => {
-    return new Promise((resolve, reject) => {
-      if (rosRef.current && rosRef.current.isConnected === true) {
-        resolve(rosRef.current);
-        return;
-      }
-
-      // Create new ROS connection
-      const ros = new ROSLIB.Ros({ url: rosbridgeUrl });
-      const connectionTimeout = setTimeout(() => {
-        reject(new Error('ROS connection timeout - rosbridge server is not running'));
-      }, 2000); // 2 second timeout for faster feedback
-
-      ros.on('connection', () => {
-        clearTimeout(connectionTimeout);
-        console.log('Connected to ROS bridge');
-        rosRef.current = ros;
-        resolve(ros);
-      });
-
-      ros.on('error', (error) => {
-        clearTimeout(connectionTimeout);
-        console.error('ROS connection error:', error);
-        rosRef.current = null;
-        reject(new Error(`ROS connection failed: ${error.message || error}`));
-      });
-
-      ros.on('close', () => {
-        console.log('ROS connection closed');
-        rosRef.current = null;
-      });
-    });
-  }, [rosbridgeUrl]);
+export function useRosServiceCaller() {
+  const taskInfo = useSelector((state) => state.tasks.taskInfo);
+  const trainingInfo = useSelector((state) => state.training.trainingInfo);
+  const page = useSelector((state) => state.ui.currentPage);
+  const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
 
   const callService = useCallback(
     async (serviceName, serviceType, request) => {
       try {
         console.log(`Attempting to call service: ${serviceName}`);
-        const ros = await getRosConnection();
+        const ros = await rosConnectionManager.getConnection(rosbridgeUrl);
 
         return new Promise((resolve, reject) => {
           const service = new ROSLIB.Service({
@@ -97,11 +70,11 @@ export function useRosServiceCaller(rosbridgeUrl) {
         );
       }
     },
-    [getRosConnection]
+    [rosbridgeUrl]
   );
 
   const sendRecordCommand = useCallback(
-    async (command, task_info) => {
+    async (command) => {
       try {
         let command_enum;
         switch (command) {
@@ -120,6 +93,9 @@ export function useRosServiceCaller(rosbridgeUrl) {
           case 'next':
             command_enum = TaskCommand.NEXT;
             break;
+          case 'skip_task':
+            command_enum = TaskCommand.SKIP_TASK;
+            break;
           case 'rerecord':
             command_enum = TaskCommand.RERECORD;
             break;
@@ -130,31 +106,40 @@ export function useRosServiceCaller(rosbridgeUrl) {
             throw new Error(`Unknown command: ${command}`);
         }
 
-        // Validate required task_info fields
-        if (!task_info) {
-          throw new Error('Task info is required');
+        let taskType = '';
+
+        if (page === PageType.RECORD) {
+          taskType = 'record';
+        } else if (page === PageType.INFERENCE) {
+          taskType = 'inference';
         }
+
+        const task_instruction = taskInfo.taskInstruction.filter(
+          (instruction) => instruction.trim() !== ''
+        );
 
         const request = {
           task_info: {
-            task_name: String(task_info.taskName || ''),
-            task_type: String(task_info.taskType || ''),
-            user_id: String(task_info.userId || ''),
-            task_instruction: String(task_info.taskInstruction || ''),
-            policy_path: String(task_info.policyPath || ''),
-            record_inference_mode: Boolean(task_info.recordInferenceMode),
-            fps: Number(task_info.fps) || 0,
-            tags: task_info.tags || [],
-            warmup_time_s: Number(task_info.warmupTime) || 0,
-            episode_time_s: Number(task_info.episodeTime) || 0,
-            reset_time_s: Number(task_info.resetTime) || 0,
-            num_episodes: Number(task_info.numEpisodes) || 0,
-            push_to_hub: Boolean(task_info.pushToHub),
-            private_mode: Boolean(task_info.privateMode),
-            use_optimized_save_mode: Boolean(task_info.useOptimizedSave),
+            task_name: String(taskInfo.taskName || ''),
+            task_type: String(taskType),
+            user_id: String(taskInfo.userId || ''),
+            task_instruction: task_instruction,
+            policy_path: String(taskInfo.policyPath || ''),
+            record_inference_mode: Boolean(taskInfo.recordInferenceMode),
+            fps: Number(taskInfo.fps) || 0,
+            tags: taskInfo.tags || [],
+            warmup_time_s: Number(taskInfo.warmupTime) || 0,
+            episode_time_s: Number(taskInfo.episodeTime) || 0,
+            reset_time_s: Number(taskInfo.resetTime) || 0,
+            num_episodes: Number(taskInfo.numEpisodes) || 0,
+            push_to_hub: Boolean(taskInfo.pushToHub),
+            private_mode: Boolean(taskInfo.privateMode),
+            use_optimized_save_mode: Boolean(taskInfo.useOptimizedSave),
           },
           command: Number(command_enum),
         };
+
+        console.log('request:', request);
 
         console.log(`Sending command '${command}' (${command_enum}) to service`);
         const result = await callService(
@@ -171,7 +156,7 @@ export function useRosServiceCaller(rosbridgeUrl) {
         throw new Error(`${error.message || error}`);
       }
     },
-    [callService]
+    [callService, taskInfo, page]
   );
 
   const getImageTopicList = useCallback(async () => {
@@ -263,6 +248,134 @@ export function useRosServiceCaller(rosbridgeUrl) {
     }
   }, [callService]);
 
+  const getUserList = useCallback(async () => {
+    try {
+      console.log('Calling service /training/get_user_list with request:', {});
+
+      const result = await callService(
+        '/training/get_user_list',
+        'physical_ai_interfaces/srv/GetUserList',
+        {}
+      );
+
+      console.log('getUserList service response:', result);
+      return result;
+    } catch (error) {
+      console.error('Failed to get user list:', error);
+      throw new Error(`${error.message || error}`);
+    }
+  }, [callService]);
+
+  const getDatasetList = useCallback(
+    async (user_id) => {
+      try {
+        console.log('Calling service /training/get_dataset_list with request:', {
+          user_id: user_id,
+        });
+
+        const result = await callService(
+          '/training/get_dataset_list',
+          'physical_ai_interfaces/srv/GetDatasetList',
+          { user_id: user_id }
+        );
+
+        console.log('getDatasetList service response:', result);
+        return result;
+      } catch (error) {
+        console.error('Failed to get dataset list:', error);
+        throw new Error(`${error.message || error}`);
+      }
+    },
+    [callService]
+  );
+
+  const getPolicyList = useCallback(async () => {
+    try {
+      console.log('Calling service /training/get_policy_list with request:', {});
+
+      const result = await callService(
+        '/training/get_available_policy',
+        'physical_ai_interfaces/srv/GetPolicyList',
+        {}
+      );
+
+      console.log('getPolicyList service response:', result);
+      return result;
+    } catch (error) {
+      console.error('Failed to get policy list:', error);
+      throw new Error(`${error.message || error}`);
+    }
+  }, [callService]);
+
+  const getModelWeightList = useCallback(async () => {
+    try {
+      console.log('Calling service /training/get_model_weight_list with request:', {});
+
+      const result = await callService(
+        '/training/get_model_weight_list',
+        'physical_ai_interfaces/srv/GetModelWeightList',
+        {}
+      );
+
+      console.log('getModelWeightList service response:', result);
+      return result;
+    } catch (error) {
+      console.error('Failed to get model weight list:', error);
+      throw new Error(`${error.message || error}`);
+    }
+  }, [callService]);
+
+  const sendTrainingCommand = useCallback(
+    async (command) => {
+      try {
+        console.log('Calling service /training/send_training_command with request:', {
+          command: command,
+          training_info: trainingInfo,
+        });
+
+        let command_enum;
+        switch (command) {
+          case 'start':
+            command_enum = TrainingCommand.START;
+            break;
+          case 'finish':
+            command_enum = TrainingCommand.FINISH;
+            break;
+          default:
+            throw new Error(`Unknown command: ${command}`);
+        }
+
+        const result = await callService(
+          '/training/command',
+          'physical_ai_interfaces/srv/SendTrainingCommand',
+          {
+            command: command_enum,
+            training_info: {
+              dataset: trainingInfo.datasetRepoId,
+              policy_type: trainingInfo.policyType,
+              policy_device: trainingInfo.policyDevice,
+              output_folder_name: trainingInfo.outputFolderName,
+              seed: trainingInfo.seed,
+              num_workers: trainingInfo.numWorkers,
+              batch_size: trainingInfo.batchSize,
+              steps: trainingInfo.steps,
+              eval_freq: trainingInfo.evalFreq,
+              log_freq: trainingInfo.logFreq,
+              save_freq: trainingInfo.saveFreq,
+            },
+          }
+        );
+
+        console.log('sendTrainingCommand service response:', result);
+        return result;
+      } catch (error) {
+        console.error('Failed to send training command:', error);
+        throw new Error(`${error.message || error}`);
+      }
+    },
+    [callService, trainingInfo]
+  );
+
   return {
     callService,
     sendRecordCommand,
@@ -271,5 +384,10 @@ export function useRosServiceCaller(rosbridgeUrl) {
     setRobotType,
     registerHFUser,
     getRegisteredHFUser,
+    getUserList,
+    getDatasetList,
+    getPolicyList,
+    getModelWeightList,
+    sendTrainingCommand,
   };
 }

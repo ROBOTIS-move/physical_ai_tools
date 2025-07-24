@@ -204,7 +204,6 @@ class DataManager:
         self.current_instruction = self._task_info.task_instruction[
             self._current_task % len(self._task_info.task_instruction)
         ]
-        frame['task'] = self.current_instruction
         return frame
 
     def record_early_save(self):

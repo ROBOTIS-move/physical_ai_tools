@@ -1,4 +1,4 @@
-FROM robotis/ros:jazzy-ros-base-torch2.7.0-cuda12.8.0-amd64 AS physical-ai-tools
+FROM robotis/ros:jazzy-ros-base-torch2.7.0-cuda12.8.0 AS physical-ai-tools
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive

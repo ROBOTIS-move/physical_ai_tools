@@ -110,7 +110,7 @@ class TrainingManager:
                 weight_save_root_path = parent / 'lerobot' / 'outputs' / 'train'
                 return weight_save_root_path
         fallback_path = Path(__file__).resolve().parent / 'lerobot' / 'outputs' / 'train'
-        return fallback_path
+        return fallback_path.resolve()
 
     def get_current_training_status(self):
         current_training_status = TrainingStatus()

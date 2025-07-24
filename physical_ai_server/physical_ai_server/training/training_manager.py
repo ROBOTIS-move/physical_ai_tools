@@ -67,6 +67,7 @@ class TrainingManager:
                 f'--eval_freq={self.training_info.eval_freq or 20000}',
                 f'--log_freq={self.training_info.log_freq or 200}',
                 f'--save_freq={self.training_info.save_freq or 1000}',
+                f'--policy.push_to_hub={False}'
             ]
             self.cfg = draccus.parse(TrainPipelineConfig, None, args=args)
 

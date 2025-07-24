@@ -97,7 +97,7 @@ class DataManager:
                 if self._task_info.use_optimized_save_mode:
                     self._lerobot_dataset.add_frame_without_write_image(
                         frame,
-                        self._task_info.task_instruction)
+                        self.current_instruction)
                 else:
                     self._lerobot_dataset.add_frame(frame)
 

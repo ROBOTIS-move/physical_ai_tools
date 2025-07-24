@@ -57,10 +57,10 @@ class TrainingManager:
                 f'--policy.type={self.training_info.policy_type}',
                 f'--policy.device={self.training_info.policy_device}',
                 f'--dataset.repo_id={self.training_info.dataset}',
-                f'--output_dir={
-                    self.DEFAULT_TRAINING_DIR
+                f"--output_dir={
+                    str(TrainingManager.get_weight_save_root_path()) + '/'
                     + self.training_info.output_folder_name
-                }',
+                }",
                 f'--seed={self.training_info.seed or 1000}',
                 f'--num_workers={self.training_info.num_workers or 4}',
                 f'--batch_size={self.training_info.batch_size or 8}',

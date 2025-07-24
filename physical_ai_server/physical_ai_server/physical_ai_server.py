@@ -456,6 +456,10 @@ class PhysicalAIServer(Node):
 
                 output_folder_name = request.training_info.output_folder_name
                 weight_save_root_path = TrainingManager.get_weight_save_root_path()
+                self.get_logger().info(
+                    f'Weight save root path: {weight_save_root_path}, '
+                    f'Output folder name: {output_folder_name}'
+                )
                 output_path = weight_save_root_path / output_folder_name
                 if output_path.exists():
                     response.success = False

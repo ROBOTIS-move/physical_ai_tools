@@ -297,22 +297,6 @@ class PhysicalAIServer(Node):
         error_msg = ''
         current_status = TaskStatus()
         camera_msgs, follower_msgs, leader_msgs = self.communicator.get_latest_data()
-        try:
-            camera_data, follower_data, leader_data = self.data_manager.convert_msgs_to_raw_datas(
-                camera_msgs,
-                follower_msgs,
-                self.total_joint_order,
-                leader_msgs,
-                self.joint_order)
-        except Exception as e:
-            error_msg = f'Failed to convert messages: {str(e)}, please check the robot type again!'
-            self.on_recording = False
-            current_status.phase = TaskStatus.READY
-            current_status.error = error_msg
-            self.communicator.publish_status(status=current_status)
-            self.timer_manager.stop(timer_name=self.operation_mode)
-            return
-
         if (not camera_data or
                 len(camera_data) != len(self.params['camera_topic_list'])):
             if time.perf_counter() - self.start_recording_time > self.DEFAULT_TOPIC_TIMEOUT:
@@ -338,7 +322,23 @@ class PhysicalAIServer(Node):
                 self.get_logger().info('Waiting for leader data...')
                 return
 
-        elif not self.data_manager.check_lerobot_dataset(
+        try:
+            camera_data, follower_data, leader_data = self.data_manager.convert_msgs_to_raw_datas(
+                camera_msgs,
+                follower_msgs,
+                self.total_joint_order,
+                leader_msgs,
+                self.joint_order)
+        except Exception as e:
+            error_msg = f'Failed to convert messages: {str(e)}, please check the robot type again!'
+            self.on_recording = False
+            current_status.phase = TaskStatus.READY
+            current_status.error = error_msg
+            self.communicator.publish_status(status=current_status)
+            self.timer_manager.stop(timer_name=self.operation_mode)
+            return
+
+        if not self.data_manager.check_lerobot_dataset(
                 camera_data,
                 self.total_joint_order):
             error_msg = 'Invalid repository name, Please change the repository name'
@@ -374,17 +374,26 @@ class PhysicalAIServer(Node):
         error_msg = ''
         current_status = TaskStatus()
         camera_msgs, follower_msgs, _ = self.communicator.get_latest_data()
-        camera_data, follower_data, _ = self.data_manager.convert_msgs_to_raw_datas(
-            camera_msgs,
-            follower_msgs,
-            self.total_joint_order)
-
         if (not camera_data or
                 len(camera_data) != len(self.params['camera_topic_list'])):
             self.get_logger().info('Waiting for camera data...')
             return
         elif not follower_data or len(follower_data) != len(self.total_joint_order):
             self.get_logger().info('Waiting for follower data...')
+            return
+        try:
+            camera_data, follower_data, _ = self.data_manager.convert_msgs_to_raw_datas(
+                camera_msgs,
+                follower_msgs,
+                self.total_joint_order)
+        except Exception as e:
+            error_msg = f'Failed to convert messages: {str(e)}, please check the robot type again!'
+            self.on_inference = False
+            current_status.phase = TaskStatus.READY
+            current_status.error = error_msg
+            self.communicator.publish_status(status=current_status)
+            self.inference_manager.clear_policy()
+            self.timer_manager.stop(timer_name=self.operation_mode)
             return
 
         if self.inference_manager.policy is None:

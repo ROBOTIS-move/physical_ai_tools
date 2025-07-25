@@ -210,16 +210,13 @@ class Communicator:
 
     def get_latest_data(self) -> Optional[Tuple[Dict, Dict, Dict]]:
         if any(msg is None for msg in self.camera_topic_msgs.values()):
-            self.node.get_logger().warn('Camera data not ready yet')
             return None, None, None
         if any(msg is None for msg in self.follower_topic_msgs.values()):
-            self.node.get_logger().warn('Follower data not ready yet')
-            return None, None, None
+            return self.camera_topic_msgs, None, None
 
         if self.operation_mode == self.MODE_COLLECTION:
             if any(msg is None for msg in self.leader_topic_msgs.values()):
-                self.node.get_logger().warn('Leader data not ready yet')
-                return None, None, None
+                return self.camera_topic_msgs, self.follower_topic_msgs, None
             return self.camera_topic_msgs, self.follower_topic_msgs, self.leader_topic_msgs
         elif self.operation_mode == self.MODE_INFERENCE:
             return self.camera_topic_msgs, self.follower_topic_msgs, None

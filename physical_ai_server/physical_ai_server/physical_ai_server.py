@@ -297,8 +297,7 @@ class PhysicalAIServer(Node):
         error_msg = ''
         current_status = TaskStatus()
         camera_msgs, follower_msgs, leader_msgs = self.communicator.get_latest_data()
-        if (not camera_data or
-                len(camera_data) != len(self.params['camera_topic_list'])):
+        if camera_msgs is None:
             if time.perf_counter() - self.start_recording_time > self.DEFAULT_TOPIC_TIMEOUT:
                 error_msg = 'Camera data not received within timeout period'
                 self.get_logger().error(error_msg)
@@ -306,7 +305,7 @@ class PhysicalAIServer(Node):
                 self.get_logger().info('Waiting for camera data...')
                 return
 
-        elif not follower_data or len(follower_data) != len(self.total_joint_order):
+        elif follower_msgs is None:
             if time.perf_counter() - self.start_recording_time > self.DEFAULT_TOPIC_TIMEOUT:
                 error_msg = 'Follower data not received within timeout period'
                 self.get_logger().error(error_msg)
@@ -314,7 +313,7 @@ class PhysicalAIServer(Node):
                 self.get_logger().info('Waiting for follower data...')
                 return
 
-        elif not leader_data or len(leader_data) != len(self.total_joint_order):
+        elif leader_msgs is None:
             if time.perf_counter() - self.start_recording_time > self.DEFAULT_TOPIC_TIMEOUT:
                 error_msg = 'Leader data not received within timeout period'
                 self.get_logger().error(error_msg)
@@ -329,6 +328,7 @@ class PhysicalAIServer(Node):
                 self.total_joint_order,
                 leader_msgs,
                 self.joint_order)
+
         except Exception as e:
             error_msg = f'Failed to convert messages: {str(e)}, please check the robot type again!'
             self.on_recording = False
@@ -374,13 +374,14 @@ class PhysicalAIServer(Node):
         error_msg = ''
         current_status = TaskStatus()
         camera_msgs, follower_msgs, _ = self.communicator.get_latest_data()
-        if (not camera_data or
-                len(camera_data) != len(self.params['camera_topic_list'])):
+        if (camera_msgs is None or
+                len(camera_msgs) != len(self.params['camera_topic_list'])):
             self.get_logger().info('Waiting for camera data...')
             return
-        elif not follower_data or len(follower_data) != len(self.total_joint_order):
+        elif follower_msgs is None:
             self.get_logger().info('Waiting for follower data...')
             return
+
         try:
             camera_data, follower_data, _ = self.data_manager.convert_msgs_to_raw_datas(
                 camera_msgs,

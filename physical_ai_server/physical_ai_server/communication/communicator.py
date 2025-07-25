@@ -211,6 +211,7 @@ class Communicator:
     def get_latest_data(self) -> Optional[Tuple[Dict, Dict, Dict]]:
         if any(msg is None for msg in self.camera_topic_msgs.values()):
             return None, None, None
+
         if any(msg is None for msg in self.follower_topic_msgs.values()):
             return self.camera_topic_msgs, None, None
 
@@ -220,6 +221,9 @@ class Communicator:
             return self.camera_topic_msgs, self.follower_topic_msgs, self.leader_topic_msgs
         elif self.operation_mode == self.MODE_INFERENCE:
             return self.camera_topic_msgs, self.follower_topic_msgs, None
+        else:
+            raise NotImplementedError(
+                f'Operation mode {self.operation_mode} is not supported')
 
     def clear_latest_data(self):
         self.camera_topic_msgs.clear()

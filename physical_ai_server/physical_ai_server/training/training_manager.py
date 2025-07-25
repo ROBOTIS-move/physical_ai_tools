@@ -23,6 +23,7 @@ import draccus
 from lerobot.configs.train import TrainPipelineConfig
 from physical_ai_interfaces.msg import TrainingInfo, TrainingStatus
 from physical_ai_server.training.trainers.lerobot.lerobot_trainer import LerobotTrainer
+import lerobot
 # TODO: Uncomment when training metrics is implemented
 # from physical_ai_server.training.trainers.gr00tn1.gr00tn1_trainer import Gr00tN1Trainer
 # from physical_ai_server.training.trainers.openvla.openvla_trainer import OpenVLATrainer
@@ -104,13 +105,17 @@ class TrainingManager:
         return policy_list, device_list
 
     def get_weight_save_root_path():
-        current_path = Path(__file__).resolve()
-        for parent in current_path.parents:
-            if (parent / 'lerobot' / 'outputs' / 'train').exists():
-                weight_save_root_path = parent / 'lerobot' / 'outputs' / 'train'
-                return weight_save_root_path
-        fallback_path = Path(__file__).resolve().parent / 'lerobot' / 'outputs' / 'train'
-        return fallback_path.resolve()
+        # Extract the base lerobot directory from lerobot.__file__
+        lerobot_file_path = Path(lerobot.__file__).resolve()
+        # Find the outermost 'lerobot' directory in the path and use it as the base
+        lerobot_dirs = [parent for parent in lerobot_file_path.parents if parent.name == 'lerobot']
+        if lerobot_dirs:
+            current_path = lerobot_dirs[-1]  # outermost 'lerobot' directory
+        else:
+            # Fallback: use the parent of the file
+            current_path = lerobot_file_path.parent.parent  # up to 'lerobot'
+        weight_save_root_path = current_path / 'outputs' / 'train'
+        return weight_save_root_path.resolve()
 
     def get_current_training_status(self):
         current_training_status = TrainingStatus()

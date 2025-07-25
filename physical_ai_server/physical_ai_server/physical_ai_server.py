@@ -223,6 +223,7 @@ class PhysicalAIServer(Node):
             robot_type=self.robot_type,
             task_info=task_info
         )
+        self.communicator.clear_latest_data()
 
         self.timer_manager = TimerManager(node=self)
         self.timer_manager.set_timer(

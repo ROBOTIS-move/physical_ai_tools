@@ -226,9 +226,12 @@ class Communicator:
                 f'Operation mode {self.operation_mode} is not supported')
 
     def clear_latest_data(self):
-        self.camera_topic_msgs.clear()
-        self.follower_topic_msgs.clear()
-        self.leader_topic_msgs.clear()
+        for key in self.camera_topic_msgs.keys():
+            self.camera_topic_msgs[key] = None
+        for key in self.follower_topic_msgs.keys():
+            self.follower_topic_msgs[key] = None
+        for key in self.leader_topic_msgs.keys():
+            self.leader_topic_msgs[key] = None
         self.node.get_logger().info('Cleared latest data from communicator')
 
     def publish_action(self, joint_msg_datas: Dict[str, Any]):

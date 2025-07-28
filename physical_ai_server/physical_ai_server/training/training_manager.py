@@ -20,10 +20,10 @@ from pathlib import Path
 import threading
 
 import draccus
+import lerobot
 from lerobot.configs.train import TrainPipelineConfig
 from physical_ai_interfaces.msg import TrainingInfo, TrainingStatus
 from physical_ai_server.training.trainers.lerobot.lerobot_trainer import LerobotTrainer
-import lerobot
 # TODO: Uncomment when training metrics is implemented
 # from physical_ai_server.training.trainers.gr00tn1.gr00tn1_trainer import Gr00tN1Trainer
 # from physical_ai_server.training.trainers.openvla.openvla_trainer import OpenVLATrainer

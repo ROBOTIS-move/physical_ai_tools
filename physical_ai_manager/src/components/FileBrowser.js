@@ -26,6 +26,7 @@ import {
   MdKeyboardArrowRight,
   MdCheck,
   MdStar,
+  MdBookmark,
 } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 
@@ -58,11 +59,13 @@ const hasTargetFile = (item, targetFileName, directoriesWithTarget) => {
 const FileBrowserHeader = ({
   title,
   onGoHome,
+  onGoDefault,
   onGoParent,
   onRefresh,
   loading,
   parentPath,
   homePath,
+  defaultPath,
 }) => {
   const classHeader = clsx(
     'flex',
@@ -104,6 +107,16 @@ const FileBrowserHeader = ({
         >
           <MdHome size={20} />
         </button>
+        {defaultPath && (
+          <button
+            onClick={onGoDefault}
+            disabled={loading}
+            className={classButton}
+            title={`Default: ${defaultPath}`}
+          >
+            <MdBookmark size={20} />
+          </button>
+        )}
         <button
           onClick={onGoParent}
           disabled={loading || !parentPath}
@@ -125,7 +138,7 @@ const FileBrowserHeader = ({
   );
 };
 
-const PathInfo = ({ currentPath, homePath, targetFileName }) => {
+const PathInfo = ({ currentPath, homePath, defaultPath, targetFileName }) => {
   const classContainer = clsx('px-4', 'py-2', 'bg-gray-50', 'border-b', 'border-gray-200');
 
   const classPathRow = clsx('flex', 'items-center', 'text-sm', 'text-gray-600');
@@ -137,6 +150,10 @@ const PathInfo = ({ currentPath, homePath, targetFileName }) => {
   const classHomeRow = clsx('flex', 'items-center', 'mt-1', 'text-xs', 'text-purple-600');
 
   const classHomeBadge = clsx('ml-2', 'font-mono', 'bg-purple-100', 'px-2', 'py-1', 'rounded');
+
+  const classDefaultRow = clsx('flex', 'items-center', 'mt-1', 'text-xs', 'text-orange-600');
+
+  const classDefaultBadge = clsx('ml-2', 'font-mono', 'bg-orange-100', 'px-2', 'py-1', 'rounded');
 
   const classTargetRow = clsx('flex', 'items-center', 'mt-1', 'text-xs', 'text-blue-600');
 
@@ -152,6 +169,12 @@ const PathInfo = ({ currentPath, homePath, targetFileName }) => {
         <div className={classHomeRow}>
           <span className={classLabel}>Home:</span>
           <span className={classHomeBadge}>{homePath}</span>
+        </div>
+      )}
+      {defaultPath && (
+        <div className={classDefaultRow}>
+          <span className={classLabel}>Default:</span>
+          <span className={classDefaultBadge}>{defaultPath}</span>
         </div>
       )}
       {/* {targetFileName && (
@@ -375,6 +398,7 @@ export default function FileBrowser({
   onDirectorySelect = null,
   targetFileLabel = null,
   homePath = null,
+  defaultPath = null,
 }) {
   const { browseFile } = useRosServiceCaller();
 
@@ -458,6 +482,12 @@ export default function FileBrowser({
     }
   }, [browsePath, homePath]);
 
+  const goDefault = useCallback(async () => {
+    if (defaultPath) {
+      await browsePath(defaultPath, 'browse');
+    }
+  }, [browsePath, defaultPath]);
+
   const goParent = useCallback(async () => {
     if (parentPath) {
       await browsePath(currentPath, 'go_parent');
@@ -536,14 +566,21 @@ export default function FileBrowser({
       <FileBrowserHeader
         title={title}
         onGoHome={goHome}
+        onGoDefault={goDefault}
         onGoParent={goParent}
         onRefresh={refresh}
         loading={loading}
         parentPath={parentPath}
         homePath={homePath}
+        defaultPath={defaultPath}
       />
 
-      <PathInfo currentPath={currentPath} homePath={homePath} targetFileName={targetFileName} />
+      <PathInfo
+        currentPath={currentPath}
+        homePath={homePath}
+        defaultPath={defaultPath}
+        targetFileName={targetFileName}
+      />
 
       {error && <ErrorDisplay error={error} />}
 

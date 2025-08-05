@@ -31,6 +31,7 @@ export default function FileBrowserModal({
   targetFileName = null,
   targetFileLabel = null,
   homePath = null,
+  defaultPath = null,
 }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [currentPath, setCurrentPath] = useState(initialPath);
@@ -186,6 +187,7 @@ export default function FileBrowserModal({
               onDirectorySelect={handleFileSelect}
               targetFileLabel={targetFileLabel}
               homePath={homePath}
+              defaultPath={defaultPath}
               showSelectedInfo={false}
             />
           </div>

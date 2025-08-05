@@ -827,6 +827,7 @@ const InferencePanel = () => {
         allowDirectorySelect={true}
         targetFileName="model.safetensors"
         targetFileLabel="Policy file found! 🎯"
+        initialPath="/root/ros2_ws/src/physical_ai_tools/lerobot/outputs/train/"
         defaultPath="/root/ros2_ws/src/physical_ai_tools/lerobot/outputs/train/"
         homePath=""
       />

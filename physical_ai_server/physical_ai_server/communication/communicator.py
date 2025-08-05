@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author: Dongyun Kim, Seongwoo Kim
+# Author: Dongyun Kim, Seongwoo Kim, Kiwoong Park
 
 from functools import partial
 from typing import Any, Dict, Optional, Set, Tuple
@@ -76,12 +76,6 @@ class Communicator:
 
         # Initialize joint publishers
         self.joint_publishers = {}
-
-        self.file_browser_service = self.node.create_service(
-            BrowseFile,
-            '/browse_file',
-            self.handle_browse_file
-        )
 
         # Log topic information
         node.get_logger().info(f'Parsed camera topics: {self.camera_topics}')
@@ -207,6 +201,12 @@ class Communicator:
             self.get_image_topic_list_callback
         )
 
+        self.file_browser_service = self.node.create_service(
+            BrowseFile,
+            '/browse_file',
+            self.browse_file_callback
+        )
+
     def _camera_callback(self, name: str, msg: CompressedImage) -> None:
         self.camera_topic_msgs[name] = msg
 
@@ -269,49 +269,7 @@ class Communicator:
         response.message = 'Image topic list retrieved successfully'
         return response
 
-    def get_publisher_msg_types(self):
-        msg_types = {}
-        for publisher_name, publisher in self.joint_publishers.items():
-            msg_types[publisher_name] = publisher.msg_type
-        return msg_types
-
-    def cleanup(self):
-        self.node.get_logger().info(
-            'Cleaning up Communicator resources...')
-
-        if hasattr(self, 'status_publisher'):
-            self.node.destroy_publisher(self.status_publisher)
-            self.status_publisher = None
-
-        for _, publisher in self.joint_publishers.items():
-            self.node.destroy_publisher(publisher)
-        self.joint_publishers.clear()
-
-        if hasattr(self, 'multi_subscriber'):
-            self.multi_subscriber.cleanup()
-            self.multi_subscriber = None
-
-        if hasattr(self, 'image_topic_list_service'):
-            self.node.destroy_service(self.image_topic_list_service)
-            self.image_topic_list_service = None
-
-        self.camera_topic_msgs.clear()
-        self.follower_topic_msgs.clear()
-        self.leader_topic_msgs.clear()
-
-        self.node.get_logger().info('Communicator cleanup completed')
-
-    def heartbeat_timer_callback(self):
-        heartbeat_msg = Empty()
-        self.heartbeat_publisher.publish(heartbeat_msg)
-
-    def publish_training_status(self, status: TrainingStatus):
-        self.training_status_publisher.publish(status)
-
-    def handle_browse_file(self, request, response):
-        """Handle browse file service requests."""
-        # self.node.get_logger().info(f'Received browse file request: {request}')
-
+    def browse_file_callback(self, request, response):
         try:
             if request.action == "get_path":
                 result = file_browse_utils.handle_get_path_action(request.current_path)
@@ -358,3 +316,42 @@ class Communicator:
             response.items = []
 
         return response
+
+    def get_publisher_msg_types(self):
+        msg_types = {}
+        for publisher_name, publisher in self.joint_publishers.items():
+            msg_types[publisher_name] = publisher.msg_type
+        return msg_types
+
+    def cleanup(self):
+        self.node.get_logger().info(
+            'Cleaning up Communicator resources...')
+
+        if hasattr(self, 'status_publisher'):
+            self.node.destroy_publisher(self.status_publisher)
+            self.status_publisher = None
+
+        for _, publisher in self.joint_publishers.items():
+            self.node.destroy_publisher(publisher)
+        self.joint_publishers.clear()
+
+        if hasattr(self, 'multi_subscriber'):
+            self.multi_subscriber.cleanup()
+            self.multi_subscriber = None
+
+        if hasattr(self, 'image_topic_list_service'):
+            self.node.destroy_service(self.image_topic_list_service)
+            self.image_topic_list_service = None
+
+        self.camera_topic_msgs.clear()
+        self.follower_topic_msgs.clear()
+        self.leader_topic_msgs.clear()
+
+        self.node.get_logger().info('Communicator cleanup completed')
+
+    def heartbeat_timer_callback(self):
+        heartbeat_msg = Empty()
+        self.heartbeat_publisher.publish(heartbeat_msg)
+
+    def publish_training_status(self, status: TrainingStatus):
+        self.training_status_publisher.publish(status)

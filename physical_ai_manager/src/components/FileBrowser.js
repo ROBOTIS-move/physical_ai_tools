@@ -29,6 +29,341 @@ import {
 } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 
+/**
+ * Format file size in bytes to human readable format
+ */
+const formatFileSize = (bytes) => {
+  if (bytes < 0) return '-'; // Directory
+  if (bytes === 0) return '0 B';
+
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
+const filterItems = (items, targetFileName, fileFilter) => {
+  if (targetFileName) {
+    return items.filter((item) => item.is_directory);
+  } else if (fileFilter) {
+    return items.filter((item) => item.is_directory || fileFilter(item));
+  }
+  return items;
+};
+const hasTargetFile = (item, targetFileName, directoriesWithTarget) => {
+  return targetFileName && item.is_directory && directoriesWithTarget.has(item.full_path);
+};
+
+const FileBrowserHeader = ({
+  title,
+  onGoHome,
+  onGoParent,
+  onRefresh,
+  loading,
+  parentPath,
+  homePath,
+}) => {
+  const classHeader = clsx(
+    'flex',
+    'items-center',
+    'justify-between',
+    'p-4',
+    'border-b',
+    'border-gray-200'
+  );
+
+  const classTitle = clsx('text-lg', 'font-semibold', 'text-gray-900');
+
+  const classButtonContainer = clsx('flex', 'items-center', 'space-x-2');
+
+  const classButton = clsx(
+    'p-2',
+    'text-gray-600',
+    'hover:text-blue-600',
+    'hover:bg-blue-50',
+    'rounded-lg',
+    'transition-colors'
+  );
+
+  const classButtonWithDisabled = clsx(
+    classButton,
+    'disabled:opacity-50',
+    'disabled:cursor-not-allowed'
+  );
+
+  return (
+    <div className={classHeader}>
+      <h3 className={classTitle}>{title}</h3>
+      <div className={classButtonContainer}>
+        <button
+          onClick={onGoHome}
+          disabled={loading}
+          className={classButton}
+          title={homePath ? `Home: ${homePath}` : 'Home'}
+        >
+          <MdHome size={20} />
+        </button>
+        <button
+          onClick={onGoParent}
+          disabled={loading || !parentPath}
+          className={classButtonWithDisabled}
+          title="Parent Directory"
+        >
+          <MdArrowUpward size={20} />
+        </button>
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          className={clsx(classButton, 'disabled:opacity-50')}
+          title="Refresh"
+        >
+          <MdRefresh size={20} className={clsx(loading && 'animate-spin')} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const PathInfo = ({ currentPath, homePath, targetFileName }) => {
+  const classContainer = clsx('px-4', 'py-2', 'bg-gray-50', 'border-b', 'border-gray-200');
+
+  const classPathRow = clsx('flex', 'items-center', 'text-sm', 'text-gray-600');
+
+  const classLabel = clsx('font-medium');
+
+  const classPathValue = clsx('ml-2', 'font-mono', 'break-all');
+
+  const classHomeRow = clsx('flex', 'items-center', 'mt-1', 'text-xs', 'text-purple-600');
+
+  const classHomeBadge = clsx('ml-2', 'font-mono', 'bg-purple-100', 'px-2', 'py-1', 'rounded');
+
+  const classTargetRow = clsx('flex', 'items-center', 'mt-1', 'text-xs', 'text-blue-600');
+
+  const classTargetBadge = clsx('ml-2', 'font-mono', 'bg-blue-100', 'px-2', 'py-1', 'rounded');
+
+  return (
+    <div className={classContainer}>
+      <div className={classPathRow}>
+        <span className={classLabel}>Path:</span>
+        <span className={classPathValue}>{currentPath || '/'}</span>
+      </div>
+      {homePath && (
+        <div className={classHomeRow}>
+          <span className={classLabel}>Home:</span>
+          <span className={classHomeBadge}>{homePath}</span>
+        </div>
+      )}
+      {targetFileName && (
+        <div className={classTargetRow}>
+          <span className={classLabel}>Looking for:</span>
+          <span className={classTargetBadge}>{targetFileName}</span>
+          <span className="ml-2">in directories</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const FileItem = ({ item, isSelected, hasTarget, targetFileName, targetFileLabel, onClick }) => {
+  const classItemContainer = clsx(
+    'flex',
+    'items-center',
+    'px-4',
+    'py-3',
+    'cursor-pointer',
+    'transition-colors',
+    hasTarget ? 'hover:bg-green-50 bg-green-25' : 'hover:bg-blue-50',
+    isSelected &&
+      (hasTarget
+        ? 'bg-green-100 border-l-4 border-green-500'
+        : 'bg-blue-100 border-l-4 border-blue-500')
+  );
+
+  const classIconContainer = clsx('flex-shrink-0', 'mr-3', 'relative');
+
+  const classFolderIcon = clsx('w-5', 'h-5', hasTarget ? 'text-green-500' : 'text-blue-500');
+
+  const classStarIcon = clsx('w-3', 'h-3', 'text-yellow-500', 'absolute', '-top-1', '-right-1');
+
+  const classFileIcon = clsx('w-5', 'h-5', 'text-gray-400');
+
+  const classContentContainer = clsx('flex-1', 'min-w-0');
+
+  const classHeaderRow = clsx('flex', 'items-center', 'justify-between');
+
+  const classNameContainer = clsx('flex', 'items-center');
+
+  const classItemName = clsx(
+    'text-sm',
+    'font-medium',
+    'truncate',
+    hasTarget ? 'text-green-900' : 'text-gray-900'
+  );
+
+  const classTargetBadge = clsx(
+    'ml-2',
+    'text-xs',
+    'bg-green-100',
+    'text-green-700',
+    'px-2',
+    'py-1',
+    'rounded-full'
+  );
+
+  const classCheckIcon = clsx('w-4', 'h-4', 'ml-2', hasTarget ? 'text-green-600' : 'text-blue-600');
+
+  const classMetaRow = clsx('flex', 'items-center', 'mt-1', 'text-xs', 'text-gray-500');
+
+  const classArrowIcon = clsx('w-4', 'h-4', 'text-gray-400', 'ml-2');
+
+  return (
+    <div onClick={() => onClick(item)} className={classItemContainer}>
+      <div className={classIconContainer}>
+        {item.is_directory ? (
+          <>
+            <MdFolder className={classFolderIcon} />
+            {hasTarget && <MdStar className={classStarIcon} />}
+          </>
+        ) : (
+          <MdDescription className={classFileIcon} />
+        )}
+      </div>
+
+      <div className={classContentContainer}>
+        <div className={classHeaderRow}>
+          <div className={classNameContainer}>
+            <p className={classItemName}>{item.name}</p>
+            {hasTarget && (
+              <span className={classTargetBadge}>
+                {targetFileLabel || `Contains ${targetFileName}`}
+              </span>
+            )}
+          </div>
+          {isSelected && <MdCheck className={classCheckIcon} />}
+        </div>
+        <div className={classMetaRow}>
+          <span>{formatFileSize(item.size)}</span>
+          <span className="mx-2">•</span>
+          <span>{item.modified_time}</span>
+        </div>
+      </div>
+
+      {item.is_directory && <MdKeyboardArrowRight className={classArrowIcon} />}
+    </div>
+  );
+};
+
+const LoadingState = () => {
+  const classContainer = clsx('flex', 'items-center', 'justify-center', 'py-8');
+
+  const classSpinner = clsx(
+    'animate-spin',
+    'rounded-full',
+    'h-6',
+    'w-6',
+    'border-b-2',
+    'border-blue-600'
+  );
+
+  const classText = clsx('ml-2', 'text-gray-600');
+
+  return (
+    <div className={classContainer}>
+      <div className={classSpinner}></div>
+      <span className={classText}>Loading...</span>
+    </div>
+  );
+};
+
+const EmptyState = () => {
+  const classContainer = clsx('flex', 'items-center', 'justify-center', 'py-8', 'text-gray-500');
+
+  return (
+    <div className={classContainer}>
+      <span>No items found</span>
+    </div>
+  );
+};
+
+const ErrorDisplay = ({ error }) => {
+  const classContainer = clsx('px-4', 'py-3', 'bg-red-50', 'border-b', 'border-red-200');
+
+  const classText = clsx('text-sm', 'text-red-600');
+
+  return (
+    <div className={classContainer}>
+      <p className={classText}>{error}</p>
+    </div>
+  );
+};
+const SelectedItemInfo = ({
+  selectedItem,
+  targetFileName,
+  directoriesWithTarget,
+  targetFileLabel,
+}) => {
+  if (!selectedItem) return null;
+
+  const isTargetDirectory =
+    targetFileName &&
+    selectedItem.is_directory &&
+    directoriesWithTarget.has(selectedItem.full_path);
+
+  const classContainer = clsx(
+    'px-4',
+    'py-3',
+    'border-t',
+    isTargetDirectory ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'
+  );
+
+  const classContent = clsx('text-sm');
+
+  const classLabel = clsx('font-medium', isTargetDirectory ? 'text-green-900' : 'text-blue-900');
+
+  const classPath = clsx(
+    'font-mono',
+    'break-all',
+    'mt-1',
+    isTargetDirectory ? 'text-green-700' : 'text-blue-700'
+  );
+
+  const classTargetInfo = clsx('text-green-600', 'text-xs', 'mt-2', 'flex', 'items-center');
+
+  const classFileLabel = clsx('font-medium', 'text-blue-900');
+
+  const classFilePath = clsx('text-blue-700', 'font-mono', 'break-all', 'mt-1');
+
+  const classStarIcon = clsx('w-3', 'h-3', 'mr-1');
+
+  return (
+    <div className={classContainer}>
+      <div className={classContent}>
+        {selectedItem.is_directory ? (
+          <>
+            <p className={classLabel}>Selected Directory:</p>
+            <p className={classPath}>{selectedItem.full_path}</p>
+            {isTargetDirectory && (
+              <p className={classTargetInfo}>
+                <MdStar className={classStarIcon} />
+                {targetFileLabel || `This directory contains ${targetFileName}`}
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className={classFileLabel}>Selected File:</p>
+            <p className={classFilePath}>{selectedItem.full_path}</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * FileBrowser - A comprehensive file browser component with navigation and selection capabilities
+ */
 export default function FileBrowser({
   onFileSelect,
   onPathChange,
@@ -36,10 +371,10 @@ export default function FileBrowser({
   fileFilter = null,
   className = '',
   title = 'File Browser',
-  targetFileName = null, // 특정 파일이 포함된 폴더를 찾는 경우
-  onDirectorySelect = null, // 디렉토리 선택 콜백
-  targetFileLabel = null, // 타겟 파일 표시용 커스텀 라벨
-  homePath = null, // 홈 버튼 클릭 시 이동할 경로 (기본값: 시스템 홈)
+  targetFileName = null,
+  onDirectorySelect = null,
+  targetFileLabel = null,
+  homePath = null,
 }) {
   const { browseFile } = useRosServiceCaller();
 
@@ -50,16 +385,11 @@ export default function FileBrowser({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [directoriesWithTarget, setDirectoriesWithTarget] = useState(new Set());
-
-  // Check which directories contain the target file
   const checkDirectoriesForTargetFile = useCallback(
     async (itemList) => {
-      if (!targetFileName) return;
-
       const newDirectoriesWithTarget = new Set();
       const directories = itemList.filter((item) => item.is_directory);
 
-      // Check each directory for the target file
       const checkPromises = directories.map(async (dir) => {
         try {
           const result = await browseFile('browse', dir.full_path, '');
@@ -72,7 +402,7 @@ export default function FileBrowser({
             }
           }
         } catch (error) {
-          console.log(`Failed to check directory ${dir.name}:`, error);
+          // Silently fail for inaccessible directories
         }
       });
 
@@ -82,9 +412,8 @@ export default function FileBrowser({
     [targetFileName, browseFile]
   );
 
-  // Browse current directory
   const browsePath = useCallback(
-    async (path = currentPath, action = 'browse', targetName = '') => {
+    async (path, action = 'browse', targetName = '') => {
       setLoading(true);
       setError(null);
 
@@ -100,9 +429,10 @@ export default function FileBrowser({
             onPathChange(result.current_path);
           }
 
-          // If looking for specific file, check which directories contain it
           if (targetFileName && result.items) {
-            checkDirectoriesForTargetFile(result.items);
+            await checkDirectoriesForTargetFile(result.items);
+          } else if (!targetFileName) {
+            setDirectoriesWithTarget(new Set());
           }
         } else {
           setError(result.message || 'Failed to browse directory');
@@ -112,56 +442,45 @@ export default function FileBrowser({
         const errorMessage = err.message || 'Failed to browse directory';
         setError(errorMessage);
         toast.error(errorMessage);
-        console.error('Browse error:', err);
       } finally {
         setLoading(false);
       }
     },
-    [browseFile, currentPath, onPathChange, targetFileName, checkDirectoriesForTargetFile]
+    [browseFile, onPathChange, targetFileName, checkDirectoriesForTargetFile]
   );
 
-  // Initial load
-  useEffect(() => {
-    if (initialPath) {
-      browsePath(initialPath, 'browse');
-    } else {
-      browsePath('', 'get_path');
-    }
-  }, [initialPath, browsePath]);
-
-  // Navigate to home directory
   const goHome = useCallback(async () => {
     if (homePath) {
       await browsePath(homePath, 'browse');
     } else {
-      await browsePath('', 'get_path');
+      await browsePath('', 'browse');
     }
   }, [browsePath, homePath]);
 
-  // Navigate to parent directory
   const goParent = useCallback(async () => {
     if (parentPath) {
       await browsePath(currentPath, 'go_parent');
     }
   }, [browsePath, currentPath, parentPath]);
 
-  // Handle item click
+  const refresh = useCallback(() => {
+    browsePath(currentPath, 'browse');
+    setSelectedItem(null);
+  }, [browsePath, currentPath]);
+
   const handleItemClick = useCallback(
     async (item) => {
       if (item.is_directory) {
-        // If we're looking for a specific file in directories
         if (targetFileName) {
           try {
-            // Check if the target file exists in this directory
             const result = await browseFile('browse', item.full_path, '');
 
             if (result.success && result.items) {
-              const hasTargetFile = result.items.some(
+              const hasTargetFileInDir = result.items.some(
                 (subItem) => !subItem.is_directory && subItem.name === targetFileName
               );
 
-              if (hasTargetFile) {
-                // Target file found! Select this directory
+              if (hasTargetFileInDir) {
                 setSelectedItem(item);
                 if (onDirectorySelect) {
                   onDirectorySelect(item);
@@ -172,208 +491,83 @@ export default function FileBrowser({
               }
             }
           } catch (error) {
-            console.log('Failed to check directory contents:', error);
+            // Silently fail for inaccessible directories
           }
         }
 
-        // Target file not found or not looking for specific file - navigate into directory
-        await browsePath(currentPath, 'browse', item.name);
+        await browsePath(item.full_path, 'browse', '');
         setSelectedItem(null);
       } else {
-        // Select file
         setSelectedItem(item);
         if (onFileSelect) {
           onFileSelect(item);
         }
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [browsePath, currentPath, onFileSelect, onDirectorySelect, targetFileName, browseFile]
   );
 
-  // Refresh current directory
-  const refresh = useCallback(() => {
-    browsePath(currentPath, 'browse');
-    setSelectedItem(null);
-  }, [browsePath, currentPath]);
+  const filteredItems = filterItems(items, targetFileName, fileFilter);
 
-  // Filter items based on file filter and targetFileName
-  const filteredItems = (() => {
-    if (targetFileName) {
-      // When looking for specific files in directories, only show directories
-      return items.filter((item) => item.is_directory);
-    } else if (fileFilter) {
-      // Apply file filter when not looking for target files
-      return items.filter((item) => item.is_directory || fileFilter(item));
-    }
-    // Show all items when no filtering is applied
-    return items;
-  })();
+  useEffect(() => {
+    const initializeBrowser = async () => {
+      const targetPath = initialPath || homePath;
+      if (targetPath) {
+        await browsePath(targetPath, 'browse');
+      } else {
+        await browsePath('', 'browse');
+      }
+    };
 
-  // Format file size
-  const formatFileSize = (bytes) => {
-    if (bytes < 0) return '-'; // Directory
-    if (bytes === 0) return '0 B';
+    initializeBrowser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPath, homePath]);
 
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const classMainContainer = clsx('bg-white', 'border', 'border-gray-300', 'rounded-lg', className);
 
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  };
+  const classScrollContainer = clsx('max-h-96', 'overflow-y-auto');
+
+  const classItemList = clsx('divide-y', 'divide-gray-100');
 
   return (
-    <div className={clsx('bg-white border border-gray-300 rounded-lg', className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={goHome}
-            disabled={loading}
-            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            title={homePath ? `Home: ${homePath}` : 'Home'}
-          >
-            <MdHome size={20} />
-          </button>
-          <button
-            onClick={goParent}
-            disabled={loading || !parentPath}
-            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Parent Directory"
-          >
-            <MdArrowUpward size={20} />
-          </button>
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
-            title="Refresh"
-          >
-            <MdRefresh size={20} className={clsx(loading && 'animate-spin')} />
-          </button>
-        </div>
-      </div>
+    <div className={classMainContainer}>
+      <FileBrowserHeader
+        title={title}
+        onGoHome={goHome}
+        onGoParent={goParent}
+        onRefresh={refresh}
+        loading={loading}
+        parentPath={parentPath}
+        homePath={homePath}
+      />
 
-      {/* Current Path */}
-      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-        <div className="flex items-center text-sm text-gray-600">
-          <span className="font-medium">Path:</span>
-          <span className="ml-2 font-mono break-all">{currentPath || '/'}</span>
-        </div>
-        {homePath && (
-          <div className="flex items-center mt-1 text-xs text-purple-600">
-            <span className="font-medium">Home:</span>
-            <span className="ml-2 font-mono bg-purple-100 px-2 py-1 rounded">{homePath}</span>
-          </div>
-        )}
-        {targetFileName && (
-          <div className="flex items-center mt-1 text-xs text-blue-600">
-            <span className="font-medium">Looking for:</span>
-            <span className="ml-2 font-mono bg-blue-100 px-2 py-1 rounded">{targetFileName}</span>
-            <span className="ml-2">in directories</span>
-          </div>
-        )}
-      </div>
+      <PathInfo currentPath={currentPath} homePath={homePath} targetFileName={targetFileName} />
 
-      {/* Error Display */}
-      {error && (
-        <div className="px-4 py-3 bg-red-50 border-b border-red-200">
-          <p className="text-sm text-red-600">{error}</p>
-        </div>
-      )}
+      {error && <ErrorDisplay error={error} />}
 
-      {/* Loading State */}
-      {loading && (
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-gray-600">Loading...</span>
-        </div>
-      )}
+      {loading && <LoadingState />}
 
-      {/* File List */}
       {!loading && (
-        <div className="max-h-96 overflow-y-auto">
+        <div className={classScrollContainer}>
           {filteredItems.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-gray-500">
-              <span>No items found</span>
-            </div>
+            <EmptyState />
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className={classItemList}>
               {filteredItems.map((item, index) => {
-                const hasTargetFile =
-                  targetFileName && item.is_directory && directoriesWithTarget.has(item.full_path);
+                const itemHasTarget = hasTargetFile(item, targetFileName, directoriesWithTarget);
+                const isSelected = selectedItem?.full_path === item.full_path;
 
                 return (
-                  <div
+                  <FileItem
                     key={index}
-                    onClick={() => handleItemClick(item)}
-                    className={clsx(
-                      'flex items-center px-4 py-3 cursor-pointer transition-colors',
-                      hasTargetFile ? 'hover:bg-green-50 bg-green-25' : 'hover:bg-blue-50',
-                      selectedItem?.full_path === item.full_path &&
-                        (hasTargetFile
-                          ? 'bg-green-100 border-l-4 border-green-500'
-                          : 'bg-blue-100 border-l-4 border-blue-500')
-                    )}
-                  >
-                    {/* Icon */}
-                    <div className="flex-shrink-0 mr-3 relative">
-                      {item.is_directory ? (
-                        <>
-                          <MdFolder
-                            className={clsx(
-                              'w-5 h-5',
-                              hasTargetFile ? 'text-green-500' : 'text-blue-500'
-                            )}
-                          />
-                          {hasTargetFile && (
-                            <MdStar className="w-3 h-3 text-yellow-500 absolute -top-1 -right-1" />
-                          )}
-                        </>
-                      ) : (
-                        <MdDescription className="w-5 h-5 text-gray-400" />
-                      )}
-                    </div>
-
-                    {/* File Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <p
-                            className={clsx(
-                              'text-sm font-medium truncate',
-                              hasTargetFile ? 'text-green-900' : 'text-gray-900'
-                            )}
-                          >
-                            {item.name}
-                          </p>
-                          {hasTargetFile && (
-                            <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                              {targetFileLabel || `Contains ${targetFileName}`}
-                            </span>
-                          )}
-                        </div>
-                        {selectedItem?.full_path === item.full_path && (
-                          <MdCheck
-                            className={clsx(
-                              'w-4 h-4 ml-2',
-                              hasTargetFile ? 'text-green-600' : 'text-blue-600'
-                            )}
-                          />
-                        )}
-                      </div>
-                      <div className="flex items-center mt-1 text-xs text-gray-500">
-                        <span>{formatFileSize(item.size)}</span>
-                        <span className="mx-2">•</span>
-                        <span>{item.modified_time}</span>
-                      </div>
-                    </div>
-
-                    {/* Directory Indicator */}
-                    {item.is_directory && (
-                      <MdKeyboardArrowRight className="w-4 h-4 text-gray-400 ml-2" />
-                    )}
-                  </div>
+                    item={item}
+                    isSelected={isSelected}
+                    hasTarget={itemHasTarget}
+                    targetFileName={targetFileName}
+                    targetFileLabel={targetFileLabel}
+                    onClick={handleItemClick}
+                  />
                 );
               })}
             </div>
@@ -381,57 +575,12 @@ export default function FileBrowser({
         </div>
       )}
 
-      {/* Selected Item Info */}
-      {selectedItem && (
-        <div
-          className={clsx(
-            'px-4 py-3 border-t',
-            selectedItem.is_directory &&
-              targetFileName &&
-              directoriesWithTarget.has(selectedItem.full_path)
-              ? 'bg-green-50 border-green-200'
-              : 'bg-blue-50 border-blue-200'
-          )}
-        >
-          <div className="text-sm">
-            {selectedItem.is_directory ? (
-              <>
-                <p
-                  className={clsx(
-                    'font-medium',
-                    targetFileName && directoriesWithTarget.has(selectedItem.full_path)
-                      ? 'text-green-900'
-                      : 'text-blue-900'
-                  )}
-                >
-                  Selected Directory:
-                </p>
-                <p
-                  className={clsx(
-                    'font-mono break-all mt-1',
-                    targetFileName && directoriesWithTarget.has(selectedItem.full_path)
-                      ? 'text-green-700'
-                      : 'text-blue-700'
-                  )}
-                >
-                  {selectedItem.full_path}
-                </p>
-                {targetFileName && directoriesWithTarget.has(selectedItem.full_path) && (
-                  <p className="text-green-600 text-xs mt-2 flex items-center">
-                    <MdStar className="w-3 h-3 mr-1" />
-                    {targetFileLabel || `This directory contains ${targetFileName}`}
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <p className="font-medium text-blue-900">Selected File:</p>
-                <p className="text-blue-700 font-mono break-all mt-1">{selectedItem.full_path}</p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <SelectedItemInfo
+        selectedItem={selectedItem}
+        targetFileName={targetFileName}
+        directoriesWithTarget={directoriesWithTarget}
+        targetFileLabel={targetFileLabel}
+      />
     </div>
   );
 }

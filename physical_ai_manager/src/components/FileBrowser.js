@@ -154,13 +154,13 @@ const PathInfo = ({ currentPath, homePath, targetFileName }) => {
           <span className={classHomeBadge}>{homePath}</span>
         </div>
       )}
-      {targetFileName && (
+      {/* {targetFileName && (
         <div className={classTargetRow}>
           <span className={classLabel}>Looking for:</span>
           <span className={classTargetBadge}>{targetFileName}</span>
           <span className="ml-2">in directories</span>
         </div>
-      )}
+      )} */}
     </div>
   );
 };

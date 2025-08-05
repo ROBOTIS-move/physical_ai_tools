@@ -41,6 +41,8 @@ export default function FileBrowserModal({
 
   const handlePathChange = useCallback((path) => {
     setCurrentPath(path);
+    // Clear selection when path changes (navigation)
+    setSelectedItem(null);
   }, []);
 
   const handleConfirm = useCallback(() => {
@@ -48,8 +50,9 @@ export default function FileBrowserModal({
       onFileSelect(selectedItem);
       onClose();
       setSelectedItem(null);
-    } else if (allowDirectorySelect && currentPath) {
+    } else if (allowDirectorySelect && currentPath && !targetFileName) {
       // If directory selection is allowed and no file is selected, select current directory
+      // But only when targetFileName is not specified
       onFileSelect({
         name: currentPath.split('/').pop() || currentPath,
         full_path: currentPath,
@@ -59,7 +62,7 @@ export default function FileBrowserModal({
       });
       onClose();
     }
-  }, [selectedItem, currentPath, allowDirectorySelect, onFileSelect, onClose]);
+  }, [selectedItem, currentPath, allowDirectorySelect, targetFileName, onFileSelect, onClose]);
 
   const handleCancel = useCallback(() => {
     onClose();
@@ -183,6 +186,7 @@ export default function FileBrowserModal({
               onDirectorySelect={handleFileSelect}
               targetFileLabel={targetFileLabel}
               homePath={homePath}
+              showSelectedInfo={false}
             />
           </div>
 
@@ -194,7 +198,7 @@ export default function FileBrowserModal({
                   <span className={classLabel}>Selected:</span>
                   <span className={classValue}>{selectedItem.name}</span>
                 </div>
-              ) : allowDirectorySelect && currentPath ? (
+              ) : allowDirectorySelect && currentPath && !targetFileName ? (
                 <div className={classStatusRow}>
                   <MdFolderOpen className={classIcon} />
                   <span className={classLabel}>Current Directory:</span>
@@ -202,7 +206,9 @@ export default function FileBrowserModal({
                 </div>
               ) : (
                 <span>
-                  {allowDirectorySelect
+                  {targetFileName
+                    ? `Select a directory containing ${targetFileName}`
+                    : allowDirectorySelect
                     ? 'Select a file or use current directory'
                     : 'Select a file to continue'}
                 </span>
@@ -215,7 +221,11 @@ export default function FileBrowserModal({
               </button>
               <button
                 onClick={handleConfirm}
-                disabled={!selectedItem && !(allowDirectorySelect && currentPath)}
+                disabled={
+                  targetFileName
+                    ? !(selectedItem && selectedItem.is_directory)
+                    : !selectedItem && !(allowDirectorySelect && currentPath)
+                }
                 className={classConfirmButton}
               >
                 {selectButtonText}

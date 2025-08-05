@@ -416,6 +416,7 @@ export default function FileBrowser({
     async (path, action = 'browse', targetName = '') => {
       setLoading(true);
       setError(null);
+      setSelectedItem(null);
 
       try {
         const result = await browseFile(action, path, targetName);

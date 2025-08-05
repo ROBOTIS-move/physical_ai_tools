@@ -310,7 +310,7 @@ class Communicator:
 
     def handle_browse_file(self, request, response):
         """Handle browse file service requests."""
-        self.node.get_logger().info(f'Received browse file request: {request}')
+        # self.node.get_logger().info(f'Received browse file request: {request}')
 
         try:
             if request.action == "get_path":

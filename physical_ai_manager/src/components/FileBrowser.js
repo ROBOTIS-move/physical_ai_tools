@@ -569,7 +569,7 @@ export default function FileBrowser({
     className
   );
 
-  const classScrollContainer = clsx('overflow-y-auto');
+  const classScrollContainer = clsx('overflow-y-auto', 'scrollbar-thin');
 
   const classItemList = clsx('divide-y', 'divide-gray-100');
 

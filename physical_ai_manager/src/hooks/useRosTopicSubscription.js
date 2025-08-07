@@ -309,7 +309,7 @@ export function useRosTopicSubscription() {
         dispatch(setSelectedDataset(datasetParts[1] || ''));
         dispatch(setIsTraining(msg.is_training));
         dispatch(setCurrentStep(msg.current_step || 0));
-        dispatch(setCurrentLoss(msg.current_loss || 0.0));
+        dispatch(setCurrentLoss(msg.current_loss));
         dispatch(setTopicReceived(true));
         dispatch(setLastUpdate(Date.now()));
       });

@@ -22,12 +22,15 @@ export default function TrainingLossDisplay() {
   const currentLoss = useSelector((state) => state.training.currentLoss);
   const currentStep = useSelector((state) => state.training.currentStep);
   const isTraining = useSelector((state) => state.training.isTraining);
-  const lastUpdate = useSelector((state) => state.training.lastUpdate);
 
   // Format loss value for display
   const formatLoss = (loss) => {
-    if (loss === null || loss === undefined) return 'N/A';
+    if (loss === null || loss === undefined || Number.isNaN(loss)) return 'N/A';
     if (typeof loss !== 'number') return 'N/A';
+
+    if (loss === 0) {
+      return loss.toFixed(3);
+    }
 
     // Format to appropriate decimal places
     if (loss >= 1) {
@@ -43,19 +46,6 @@ export default function TrainingLossDisplay() {
   const formatStep = (step) => {
     return step.toLocaleString();
   };
-
-  // Calculate time since last update
-  const getTimeSinceUpdate = () => {
-    if (!lastUpdate) return null;
-    const seconds = Math.floor((Date.now() - lastUpdate) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  };
-
-  // const classContainer = clsx('w-full', 'rounded-lg', 'p-4', 'shadow-md', 'mt-4');
 
   const classContainer = clsx(
     'bg-white',
@@ -113,9 +103,6 @@ export default function TrainingLossDisplay() {
     <div className={classContainer}>
       <div className={classHeader}>
         <span>Training Loss</span>
-        {false && lastUpdate && (
-          <span className="text-xs text-gray-500">{getTimeSinceUpdate()}</span>
-        )}
       </div>
 
       <div className={classLossContainer}>

@@ -101,7 +101,7 @@ export default function TrainingPage() {
       <div className="overflow-scroll h-full w-full">
         <div>{renderTrainingComponents()}</div>
         <div className="flex justify-center items-center mt-5 mb-8">
-          <div className="rounded-full bg-gray-200 w-30 h-3"></div>
+          <div className="rounded-full bg-gray-200 w-32 h-3"></div>
         </div>
         <div className="flex justify-center items-center mb-10">
           <div className="w-full max-w-md">

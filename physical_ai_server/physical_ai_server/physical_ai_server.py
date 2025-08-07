@@ -210,10 +210,10 @@ class PhysicalAIServer(Node):
             msg.error = ''
         except Exception as e:
             msg.current_step = 0
-            msg.current_loss = None
+            msg.current_loss = float('nan')
             msg.error = str(e)
             self.get_logger().error(f'Error publishing training status: {msg.error}')
-            return
+            return msg
         return msg
 
     def init_robot_control_parameters_from_user_task(

@@ -125,7 +125,7 @@ class TrainingManager:
             current_training_status.current_loss = self.trainer.get_current_loss()
         else:
             current_training_status.current_step = 0
-            current_training_status.current_loss = None
+            current_training_status.current_loss = float('nan')
         return current_training_status
 
     def train(self):

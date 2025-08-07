@@ -111,9 +111,9 @@ export default function FileBrowserModal({
     'transition-colors'
   );
 
-  const classBrowserContent = clsx('flex-1', 'overflow-hidden');
+  const classBrowserContent = clsx('flex-1 h-full');
 
-  const classBrowserStyles = clsx('border-0', 'rounded-none', 'h-full');
+  const classBrowserStyles = clsx('border-0', 'rounded-none', 'h-full', 'max-h-[60vh]');
 
   const classFooter = clsx(
     'flex',

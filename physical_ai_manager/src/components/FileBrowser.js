@@ -173,7 +173,9 @@ const PathInfo = ({ currentPath, homePath, defaultPath, targetFileName }) => {
       )}
       {defaultPath && (
         <div className={classDefaultRow}>
-          <span className={classLabel}>Default:</span>
+          <span className={classLabel}>
+            <MdBookmark size={20} />
+          </span>
           <span className={classDefaultBadge}>{defaultPath}</span>
         </div>
       )}
@@ -555,9 +557,19 @@ export default function FileBrowser({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPath, homePath]);
 
-  const classMainContainer = clsx('bg-white', 'border', 'border-gray-300', 'rounded-lg', className);
+  const classMainContainer = clsx(
+    'h-full',
+    'w-full',
+    'flex',
+    'flex-col',
+    'bg-white',
+    'border',
+    'border-gray-300',
+    'rounded-lg',
+    className
+  );
 
-  const classScrollContainer = clsx('max-h-96', 'overflow-y-auto');
+  const classScrollContainer = clsx('overflow-y-auto');
 
   const classItemList = clsx('divide-y', 'divide-gray-100');
 

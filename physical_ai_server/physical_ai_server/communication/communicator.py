@@ -28,7 +28,7 @@ from physical_ai_interfaces.srv import (
 )
 from physical_ai_server.communication.multi_subscriber import MultiSubscriber
 from physical_ai_server.utils.parameter_utils import parse_topic_list_with_names
-from physical_ai_server.utils import file_browse_utils
+from physical_ai_server.utils.file_browse_utils import FileBrowseUtils
 from rclpy.node import Node
 from rclpy.qos import (
     DurabilityPolicy,
@@ -63,6 +63,7 @@ class Communicator:
         self.node = node
         self.operation_mode = operation_mode
         self.params = params
+        self.file_browse_utils = FileBrowseUtils()
 
         # Parse topic lists for more convenient access
         self.camera_topics = parse_topic_list_with_names(self.params['camera_topic_list'])
@@ -272,11 +273,11 @@ class Communicator:
     def browse_file_callback(self, request, response):
         try:
             if request.action == "get_path":
-                result = file_browse_utils.handle_get_path_action(request.current_path)
+                result = self.file_browse_utils.handle_get_path_action(request.current_path)
             elif request.action == "go_parent":
-                result = file_browse_utils.handle_go_parent_action(request.current_path)
+                result = self.file_browse_utils.handle_go_parent_action(request.current_path)
             elif request.action == "browse":
-                result = file_browse_utils.handle_browse_action(
+                result = self.file_browse_utils.handle_browse_action(
                     request.current_path, request.target_name)
             else:
                 result = {

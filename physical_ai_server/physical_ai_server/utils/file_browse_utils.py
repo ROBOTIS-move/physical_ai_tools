@@ -148,7 +148,8 @@ class FileBrowseUtils:
                 for entry in it:
                     try:
                         name = entry.name
-                        if name.startswith('.'):  # Skip hidden files and directories
+                        # Skip hidden files and directories except .cache
+                        if name.startswith('.') and name != '.cache':
                             continue
 
                         is_directory = entry.is_dir(follow_symlinks=False)

@@ -278,9 +278,7 @@ class Communicator:
             elif request.action == "go_parent":
                 # Check if target_files are provided for parallel file checking
                 target_files = None
-                if hasattr(request, 'target_files') and \
-                        request.target_files and \
-                        len(request.target_files) > 0:
+                if hasattr(request, 'target_files') and request.target_files:
                     target_files = set(request.target_files)
 
                 if target_files:
@@ -294,9 +292,7 @@ class Communicator:
             elif request.action == "browse":
                 # Check if target_files are provided for parallel file checking
                 target_files = None
-                if hasattr(request, 'target_files') and \
-                        request.target_files and \
-                        len(request.target_files) > 0:
+                if hasattr(request, 'target_files') and request.target_files:
                     target_files = set(request.target_files)
 
                 if target_files:

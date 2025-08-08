@@ -584,7 +584,7 @@ export default function FileBrowser({
 
                 return (
                   <FileItem
-                    key={index}
+                    key={item.full_path}
                     item={item}
                     isSelected={isSelected}
                     hasTarget={itemHasTarget}

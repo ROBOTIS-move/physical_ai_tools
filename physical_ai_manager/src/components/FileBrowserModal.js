@@ -188,7 +188,6 @@ export default function FileBrowserModal({
               targetFileLabel={targetFileLabel}
               homePath={homePath}
               defaultPath={defaultPath}
-              showSelectedInfo={false}
             />
           </div>
 

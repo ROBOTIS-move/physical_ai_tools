@@ -276,6 +276,7 @@ class FileBrowseUtils:
                     results[dir_path] = has_target
                 except Exception:
                     # If error occurs, assume no target file
+                    print(f"Error during directory check: {future}")
                     path = future_to_path[future]
                     results[path] = False
 
@@ -363,6 +364,7 @@ class FileBrowseUtils:
             items.sort(key=lambda x: x['name'])
         except Exception:
             # If anything unexpected happens during sort, return unsorted items.
+            print(f"Error during sort: {items}")
             pass
 
         return items

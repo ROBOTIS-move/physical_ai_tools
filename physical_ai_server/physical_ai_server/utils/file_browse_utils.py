@@ -140,46 +140,50 @@ class FileBrowseUtils:
         items = []
 
         try:
-            if (not os.path.exists(directory_path) or
-                    not os.path.isdir(directory_path)):
+            if (not os.path.exists(directory_path)
+                    or not os.path.isdir(directory_path)):
                 return items
 
-            for item_name in sorted(os.listdir(directory_path)):
-                # Skip hidden files and directories
-                if item_name.startswith('.'):
-                    continue
+            with os.scandir(directory_path) as it:
+                for entry in it:
+                    try:
+                        name = entry.name
+                        if name.startswith('.'):  # Skip hidden files and directories
+                            continue
 
-                item_path = os.path.join(directory_path, item_name)
+                        is_directory = entry.is_dir(follow_symlinks=False)
+                        if is_directory:
+                            size = -1
+                            # Use entry.stat for mtime without extra os.path.* calls.
+                            mtime = entry.stat(follow_symlinks=False).st_mtime
+                        else:
+                            stat_result = entry.stat(follow_symlinks=False)
+                            size = stat_result.st_size
+                            mtime = stat_result.st_mtime
 
-                try:
-                    is_directory = os.path.isdir(item_path)
+                        timestamp = datetime.datetime.fromtimestamp(mtime)
+                        modified_time = timestamp.strftime('%Y-%m-%d %H:%M:%S')
 
-                    if is_directory:
-                        size = -1  # Directory size set to -1
-                    else:
-                        size = os.path.getsize(item_path)
-
-                    # Get modification time
-                    mtime = os.path.getmtime(item_path)
-                    timestamp = datetime.datetime.fromtimestamp(mtime)
-                    modified_time = timestamp.strftime('%Y-%m-%d %H:%M:%S')
-
-                    item_dict = {
-                        'name': item_name,
-                        'full_path': item_path,
-                        'is_directory': is_directory,
-                        'size': size,
-                        'modified_time': modified_time
-                    }
-
-                    items.append(item_dict)
-
-                except (OSError, PermissionError):
-                    # Skip items that can't be accessed
-                    continue
-
+                        item_dict = {
+                            'name': name,
+                            'full_path': os.path.join(directory_path, name),
+                            'is_directory': is_directory,
+                            'size': size,
+                            'modified_time': modified_time
+                        }
+                        items.append(item_dict)
+                    except (OSError, PermissionError):
+                        # Skip items that cannot be accessed
+                        continue
         except (OSError, PermissionError):
-            # Return empty list if directory can't be read
+            # Return empty list if directory cannot be read
+            pass
+
+        # Sort items by name to keep previous behavior deterministic.
+        try:
+            items.sort(key=lambda x: x['name'])
+        except Exception:
+            # If anything unexpected happens during sort, return unsorted items.
             pass
 
         return items

@@ -73,16 +73,7 @@ class FileBrowseUtils:
     def handle_go_parent_with_file_check(self,
                                          current_path: str,
                                          target_files: Set[str]) -> Dict:
-        """
-        Handle go_parent action with parallel file checking for target files.
-
-        Args:
-            current_path: Current directory path
-            target_files: Set of filenames to check for in subdirectories
-
-        Returns:
-            Result dictionary with items containing has_target_file flags
-        """
+        """Handle go_parent action with parallel file checking for target files."""
         if current_path is None or current_path == "":
             current_path = os.path.expanduser("~")
 
@@ -134,17 +125,7 @@ class FileBrowseUtils:
                                       current_path: str,
                                       target_name: str,
                                       target_files: Set[str]) -> Dict:
-        """
-        Handle browse action with parallel file checking for target files.
-
-        Args:
-            current_path: Current directory path
-            target_name: Target file/directory name (for navigation)
-            target_files: Set of filenames to check for in subdirectories
-
-        Returns:
-            Result dictionary with items containing has_target_file flags
-        """
+        """Handle browse action with parallel file checking for target files."""
         if current_path is None or current_path == "":
             current_path = os.path.expanduser("~")
 
@@ -265,16 +246,7 @@ class FileBrowseUtils:
         directory_paths: List[str],
         target_files: Set[str]
     ) -> Dict[str, bool]:
-        """
-        Check multiple directories in parallel for presence of target files.
-
-        Args:
-            directory_paths: List of directory paths to check
-            target_files: Set of filenames to look for (e.g., {'dataset.json', 'config.yaml'})
-
-        Returns:
-            Dictionary mapping directory path to boolean (has target file)
-        """
+        """Check multiple directories in parallel for presence of target files."""
         def check_single_directory(dir_path: str) -> tuple:
             """Check if any target files exist in a single directory."""
             try:
@@ -314,16 +286,7 @@ class FileBrowseUtils:
         directory_path: str,
         target_files: Optional[Set[str]] = None
     ) -> List[Dict]:
-        """
-        Get directory items with parallel file existence checking.
-
-        Args:
-            directory_path: Directory to scan
-            target_files: Optional set of files to check for in subdirectories
-
-        Returns:
-            List of directory item dictionaries with optional has_target_file field
-        """
+        """Get directory items with parallel file existence checking."""
         items = self._get_directory_items(directory_path)
 
         if target_files is None:

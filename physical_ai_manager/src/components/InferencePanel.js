@@ -23,6 +23,7 @@ import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import TagInput from './TagInput';
 import FileBrowserModal from './FileBrowserModal';
 import TaskPhase from '../constants/taskPhases';
+import { DEFAULT_PATHS, TARGET_FILES } from '../constants/paths';
 import { setTaskInfo } from '../features/tasks/taskSlice';
 
 const InferencePanel = () => {
@@ -825,10 +826,10 @@ const InferencePanel = () => {
         title="Select Policy Path"
         selectButtonText="Select"
         allowDirectorySelect={true}
-        targetFileName="model.safetensors"
+        targetFileName={TARGET_FILES.POLICY_MODEL}
         targetFileLabel="Policy file found! 🎯"
-        initialPath="/root/ros2_ws/src/physical_ai_tools/lerobot/outputs/train/"
-        defaultPath="/root/ros2_ws/src/physical_ai_tools/lerobot/outputs/train/"
+        initialPath={DEFAULT_PATHS.POLICY_MODEL_PATH}
+        defaultPath={DEFAULT_PATHS.POLICY_MODEL_PATH}
         homePath=""
       />
     </div>

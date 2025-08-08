@@ -28,9 +28,10 @@ from typing import Set, Dict, List, Optional
 class FileBrowseUtils:
     """Utility class for file browsing operations."""
 
-    def __init__(self, max_workers: int = 4):
+    def __init__(self, max_workers: int = 4, logger=None):
         """Initialize the FileBrowseUtils instance."""
         self.max_workers = max_workers
+        self.logger = logger
 
     def handle_get_path_action(self, current_path):
         """Handle get_path action and return path information."""
@@ -274,10 +275,11 @@ class FileBrowseUtils:
                 try:
                     dir_path, has_target = future.result()
                     results[dir_path] = has_target
-                except Exception:
+                except Exception as e:
                     # If error occurs, assume no target file
-                    print(f"Error during directory check: {future}")
                     path = future_to_path[future]
+                    if self.logger:
+                        self.logger.error(f"Error during directory check: {path} {e}")
                     results[path] = False
 
         return results
@@ -364,7 +366,8 @@ class FileBrowseUtils:
             items.sort(key=lambda x: x['name'])
         except Exception:
             # If anything unexpected happens during sort, return unsorted items.
-            print(f"Error during sort: {items}")
+            if self.logger:
+                self.logger.error(f"Error during sort: {items}")
             pass
 
         return items

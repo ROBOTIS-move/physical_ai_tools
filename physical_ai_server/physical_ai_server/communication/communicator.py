@@ -63,7 +63,9 @@ class Communicator:
         self.node = node
         self.operation_mode = operation_mode
         self.params = params
-        self.file_browse_utils = FileBrowseUtils(max_workers=8)
+        self.file_browse_utils = FileBrowseUtils(
+            max_workers=8,
+            logger=self.node.get_logger())
 
         # Parse topic lists for more convenient access
         self.camera_topics = parse_topic_list_with_names(self.params['camera_topic_list'])

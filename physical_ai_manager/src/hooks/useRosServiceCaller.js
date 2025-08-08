@@ -377,13 +377,26 @@ export function useRosServiceCaller() {
   );
 
   const browseFile = useCallback(
-    async (action, currentPath = '', targetName = '') => {
+    async (action, currentPath = '', targetName = '', targetFiles = null) => {
       try {
-        const result = await callService('/browse_file', 'physical_ai_interfaces/srv/BrowseFile', {
+        const requestData = {
           action: action,
           current_path: currentPath,
           target_name: targetName,
-        });
+        };
+
+        // Only add target_files if we actually have files to search for
+        if (targetFiles && targetFiles.length > 0) {
+          requestData.target_files = targetFiles;
+        } else {
+          requestData.target_files = [];
+        }
+
+        const result = await callService(
+          '/browse_file',
+          'physical_ai_interfaces/srv/BrowseFile',
+          requestData
+        );
 
         console.log('browseFile service response:', result);
         return result;

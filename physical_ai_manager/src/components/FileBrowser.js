@@ -411,32 +411,19 @@ export default function FileBrowser({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [directoriesWithTarget, setDirectoriesWithTarget] = useState(new Set());
-  const checkDirectoriesForTargetFile = useCallback(
-    async (itemList) => {
-      const newDirectoriesWithTarget = new Set();
-      const directories = itemList.filter((item) => item.is_directory);
+  const checkDirectoriesForTargetFile = useCallback((itemList) => {
+    // Server-side parallel checking now provides has_target_file field
+    // No need for client-side checking anymore
+    const newDirectoriesWithTarget = new Set();
 
-      const checkPromises = directories.map(async (dir) => {
-        try {
-          const result = await browseFile('browse', dir.full_path, '');
-          if (result.success && result.items) {
-            const hasTargetFile = result.items.some(
-              (subItem) => !subItem.is_directory && subItem.name === targetFileName
-            );
-            if (hasTargetFile) {
-              newDirectoriesWithTarget.add(dir.full_path);
-            }
-          }
-        } catch (error) {
-          // Silently fail for inaccessible directories
-        }
-      });
+    itemList.forEach((item) => {
+      if (item.is_directory && item.has_target_file) {
+        newDirectoriesWithTarget.add(item.full_path);
+      }
+    });
 
-      await Promise.all(checkPromises);
-      setDirectoriesWithTarget(newDirectoriesWithTarget);
-    },
-    [targetFileName, browseFile]
-  );
+    setDirectoriesWithTarget(newDirectoriesWithTarget);
+  }, []);
 
   const browsePath = useCallback(
     async (path, action = 'browse', targetName = '') => {
@@ -445,7 +432,9 @@ export default function FileBrowser({
       setSelectedItem(null);
 
       try {
-        const result = await browseFile(action, path, targetName);
+        // Only pass target files if we actually have a targetFileName
+        const targetFiles = targetFileName ? [targetFileName] : null;
+        const result = await browseFile(action, path, targetName, targetFiles);
 
         if (result.success) {
           setCurrentPath(result.current_path);
@@ -456,8 +445,9 @@ export default function FileBrowser({
             onPathChange(result.current_path);
           }
 
+          // Server already checked for target files, just process the results
           if (targetFileName && result.items) {
-            await checkDirectoriesForTargetFile(result.items);
+            checkDirectoriesForTargetFile(result.items);
           } else if (!targetFileName) {
             setDirectoriesWithTarget(new Set());
           }
@@ -505,30 +495,19 @@ export default function FileBrowser({
     async (item) => {
       if (item.is_directory) {
         if (targetFileName) {
-          try {
-            const result = await browseFile('browse', item.full_path, '');
-
-            if (result.success && result.items) {
-              const hasTargetFileInDir = result.items.some(
-                (subItem) => !subItem.is_directory && subItem.name === targetFileName
-              );
-
-              if (hasTargetFileInDir) {
-                setSelectedItem(item);
-                if (onDirectorySelect) {
-                  onDirectorySelect(item);
-                } else if (onFileSelect) {
-                  onFileSelect(item);
-                }
-                return;
-              }
+          // Check if this directory has target files (server already checked)
+          if (item.has_target_file) {
+            setSelectedItem(item);
+            if (onDirectorySelect) {
+              onDirectorySelect(item);
+            } else if (onFileSelect) {
+              onFileSelect(item);
             }
-          } catch (error) {
-            // Silently fail for inaccessible directories
+            return;
           }
         }
 
-        await browsePath(item.full_path, 'browse', '');
+        await browsePath(item.full_path, 'browse');
         setSelectedItem(null);
       } else {
         setSelectedItem(item);
@@ -538,7 +517,7 @@ export default function FileBrowser({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [browsePath, currentPath, onFileSelect, onDirectorySelect, targetFileName, browseFile]
+    [browsePath, currentPath, onFileSelect, onDirectorySelect, targetFileName]
   );
 
   const filteredItems = filterItems(items, targetFileName, fileFilter);

@@ -63,7 +63,7 @@ class Communicator:
         self.node = node
         self.operation_mode = operation_mode
         self.params = params
-        self.file_browse_utils = FileBrowseUtils()
+        self.file_browse_utils = FileBrowseUtils(max_workers=8)
 
         # Parse topic lists for more convenient access
         self.camera_topics = parse_topic_list_with_names(self.params['camera_topic_list'])
@@ -273,12 +273,40 @@ class Communicator:
     def browse_file_callback(self, request, response):
         try:
             if request.action == "get_path":
-                result = self.file_browse_utils.handle_get_path_action(request.current_path)
+                result = self.file_browse_utils.handle_get_path_action(
+                    request.current_path)
             elif request.action == "go_parent":
-                result = self.file_browse_utils.handle_go_parent_action(request.current_path)
+                # Check if target_files are provided for parallel file checking
+                target_files = None
+                if hasattr(request, 'target_files') and \
+                        request.target_files and \
+                        len(request.target_files) > 0:
+                    target_files = set(request.target_files)
+
+                if target_files:
+                    # Use parallel file checking for go_parent
+                    result = self.file_browse_utils.handle_go_parent_with_file_check(
+                        request.current_path, target_files)
+                else:
+                    # Use standard go_parent (no target files or empty list)
+                    result = self.file_browse_utils.handle_go_parent_action(
+                        request.current_path)
             elif request.action == "browse":
-                result = self.file_browse_utils.handle_browse_action(
-                    request.current_path, request.target_name)
+                # Check if target_files are provided for parallel file checking
+                target_files = None
+                if hasattr(request, 'target_files') and \
+                        request.target_files and \
+                        len(request.target_files) > 0:
+                    target_files = set(request.target_files)
+
+                if target_files:
+                    # Use parallel file checking
+                    result = self.file_browse_utils.handle_browse_with_file_check(
+                        request.current_path, request.target_name, target_files)
+                else:
+                    # Use standard browsing (no target files or empty list)
+                    result = self.file_browse_utils.handle_browse_action(
+                        request.current_path, request.target_name)
             else:
                 result = {
                     'success': False,
@@ -305,6 +333,8 @@ class Communicator:
                 item.is_directory = item_dict['is_directory']
                 item.size = item_dict['size']
                 item.modified_time = item_dict['modified_time']
+                # Set has_target_file field (default False for files)
+                item.has_target_file = item_dict.get('has_target_file', False)
                 response.items.append(item)
 
         except Exception as e:

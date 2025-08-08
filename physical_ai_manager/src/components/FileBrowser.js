@@ -155,10 +155,6 @@ const PathInfo = ({ currentPath, homePath, defaultPath, targetFileName }) => {
 
   const classDefaultBadge = clsx('ml-2', 'font-mono', 'bg-orange-100', 'px-2', 'py-1', 'rounded');
 
-  const classTargetRow = clsx('flex', 'items-center', 'mt-1', 'text-xs', 'text-blue-600');
-
-  const classTargetBadge = clsx('ml-2', 'font-mono', 'bg-blue-100', 'px-2', 'py-1', 'rounded');
-
   return (
     <div className={classContainer}>
       <div className={classPathRow}>
@@ -533,8 +529,7 @@ export default function FileBrowser({
     };
 
     initializeBrowser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPath, homePath]);
+  }, [initialPath, homePath, browsePath]);
 
   const classMainContainer = clsx(
     'h-full',

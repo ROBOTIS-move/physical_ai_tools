@@ -25,7 +25,7 @@ import time
 import cv2
 from geometry_msgs.msg import Twist
 from huggingface_hub import HfApi, snapshot_download
-from lerobot.common.datasets.utils import DEFAULT_FEATURES
+from lerobot.datasets.utils import DEFAULT_FEATURES
 from nav_msgs.msg import Odometry
 import numpy as np
 from physical_ai_interfaces.msg import TaskStatus
@@ -95,7 +95,9 @@ class DataManager:
                     return self.RECORDING
                 frame = self.create_frame(images, state, action)
                 if self._task_info.use_optimized_save_mode:
-                    self._lerobot_dataset.add_frame_without_write_image(frame)
+                    self._lerobot_dataset.add_frame_without_write_image(
+                        frame,
+                        self.current_instruction)
                 else:
                     self._lerobot_dataset.add_frame(frame)
 
@@ -202,7 +204,6 @@ class DataManager:
         self.current_instruction = self._task_info.task_instruction[
             self._current_task % len(self._task_info.task_instruction)
         ]
-        frame['task'] = self.current_instruction
         return frame
 
     def record_early_save(self):
@@ -328,12 +329,17 @@ class DataManager:
                 if value is not None:
                     follower_data.extend(self.joint_msgs2tensor_array(
                         value, total_joint_order))
-
         if leader_msgs is not None:
-            for key, value in leader_msgs.items():
-                if value is not None:
+            for key, value in leader_joint_order.items():
+                # remove joint_order. from key
+                prefix_key = key.replace('joint_order.', '')
+                if prefix_key not in leader_msgs:
+                    return camera_data, follower_data, None
+                elif leader_msgs[prefix_key] is not None:
                     leader_data.extend(self.joint_msgs2tensor_array(
-                        value, leader_joint_order[f'joint_order.{key}']))
+                        leader_msgs[prefix_key], value))
+                else:
+                    return camera_data, follower_data, None
 
         return camera_data, follower_data, leader_data
 

@@ -10,9 +10,6 @@ services:
   physical_ai_server:
     container_name: physical_ai_server
     image: robotis/physical-ai-server:latest
-    build:
-      context: ../physical_ai_server
-      dockerfile: Dockerfile
     tty: true
     restart: always
     cap_add:
@@ -31,7 +28,7 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
       - ../:/root/ros2_ws/src/physical_ai_tools/
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - ./huggingface:/root/.cache/huggingface
     privileged: true
     command: bash
     runtime: nvidia

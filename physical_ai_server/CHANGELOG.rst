@@ -2,6 +2,27 @@
 Changelog for package physical_ai_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.6.3 (2025-07-25)
+------------------
+* Fixed a bug to allow setting the output folder path to a specified location.
+* Fixed a bug that did not guarantee the order of messages.
+* Contributors: Dongyun Kim, Seongwoo Kim, Woojin Wie
+
+0.6.2 (2025-07-24)
+------------------
+* Updated Lerobot to the latest version and modified related functionalities.
+* Contributors: Dongyun Kim, Seongwoo Kim, Woojin Wie
+
+0.6.1 (2025-07-23)
+------------------
+* Implemented robust error handling during data collection to prevent server crashes due to incorrect robot type configuration
+* Contributors: Seongwoo Kim
+
+0.6.0 (2025-07-23)
+------------------
+* Implemented a Training Manager to support model training through the Web UI
+* Contributors: Seongwoo Kim
+
 0.5.13 (2025-07-21)
 ------------------
 * None

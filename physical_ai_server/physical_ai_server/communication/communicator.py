@@ -21,14 +21,14 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from physical_ai_interfaces.msg import TaskStatus, TrainingStatus, BrowserItem
+from physical_ai_interfaces.msg import BrowserItem, TaskStatus, TrainingStatus
 from physical_ai_interfaces.srv import (
     BrowseFile,
     GetImageTopicList
 )
 from physical_ai_server.communication.multi_subscriber import MultiSubscriber
-from physical_ai_server.utils.parameter_utils import parse_topic_list_with_names
 from physical_ai_server.utils.file_browse_utils import FileBrowseUtils
+from physical_ai_server.utils.parameter_utils import parse_topic_list_with_names
 from rclpy.node import Node
 from rclpy.qos import (
     DurabilityPolicy,
@@ -274,10 +274,10 @@ class Communicator:
 
     def browse_file_callback(self, request, response):
         try:
-            if request.action == "get_path":
+            if request.action == 'get_path':
                 result = self.file_browse_utils.handle_get_path_action(
                     request.current_path)
-            elif request.action == "go_parent":
+            elif request.action == 'go_parent':
                 # Check if target_files are provided for parallel file checking
                 target_files = None
                 if hasattr(request, 'target_files') and request.target_files:
@@ -291,7 +291,7 @@ class Communicator:
                     # Use standard go_parent (no target files or empty list)
                     result = self.file_browse_utils.handle_go_parent_action(
                         request.current_path)
-            elif request.action == "browse":
+            elif request.action == 'browse':
                 # Check if target_files are provided for parallel file checking
                 target_files = None
                 if hasattr(request, 'target_files') and request.target_files:
@@ -308,10 +308,10 @@ class Communicator:
             else:
                 result = {
                     'success': False,
-                    'message': f"Unknown action: {request.action}",
-                    'current_path': "",
-                    'parent_path': "",
-                    'selected_path': "",
+                    'message': f'Unknown action: {request.action}',
+                    'current_path': '',
+                    'parent_path': '',
+                    'selected_path': '',
                     'items': []
                 }
 
@@ -336,12 +336,12 @@ class Communicator:
                 response.items.append(item)
 
         except Exception as e:
-            self.node.get_logger().error(f"Error in browse file handler: {str(e)}")
+            self.node.get_logger().error(f'Error in browse file handler: {str(e)}')
             response.success = False
-            response.message = f"Error: {str(e)}"
-            response.current_path = ""
-            response.parent_path = ""
-            response.selected_path = ""
+            response.message = f'Error: {str(e)}'
+            response.current_path = ''
+            response.parent_path = ''
+            response.selected_path = ''
             response.items = []
 
         return response

@@ -19,10 +19,10 @@
 
 """File browser utility class for handling file system operations."""
 
-import os
 import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Set, Dict, List, Optional
+import os
+from concurrent.futures import as_completed, ThreadPoolExecutor
+from typing import Dict, List, Optional, Set
 
 
 class FileBrowseUtils:
@@ -35,39 +35,39 @@ class FileBrowseUtils:
 
     def handle_get_path_action(self, current_path):
         """Handle get_path action and return path information."""
-        current_path = current_path or os.path.expanduser("~")
+        current_path = current_path or os.path.expanduser('~')
         current_path = os.path.abspath(current_path)
 
         return {
             'success': True,
-            'message': "Current path retrieved successfully",
+            'message': 'Current path retrieved successfully',
             'current_path': current_path,
             'parent_path': os.path.dirname(current_path),
-            'selected_path': "",
+            'selected_path': '',
             'items': []
         }
 
     def handle_go_parent_action(self, current_path):
         """Handle go_parent action and return parent directory information."""
-        current_path = current_path or os.path.expanduser("~")
+        current_path = current_path or os.path.expanduser('~')
         parent_path = os.path.dirname(os.path.abspath(current_path))
 
         if os.path.exists(parent_path) and os.path.isdir(parent_path):
             return {
                 'success': True,
-                'message': "Navigated to parent directory",
+                'message': 'Navigated to parent directory',
                 'current_path': parent_path,
                 'parent_path': os.path.dirname(parent_path),
-                'selected_path': "",
+                'selected_path': '',
                 'items': self._get_directory_items(parent_path)
             }
         else:
             return {
                 'success': False,
-                'message': "Cannot navigate to parent directory",
+                'message': 'Cannot navigate to parent directory',
                 'current_path': current_path,
-                'parent_path': "",
-                'selected_path': "",
+                'parent_path': '',
+                'selected_path': '',
                 'items': []
             }
 
@@ -75,8 +75,8 @@ class FileBrowseUtils:
                                          current_path: str,
                                          target_files: Set[str]) -> Dict:
         """Handle go_parent action with parallel file checking for target files."""
-        if current_path is None or current_path == "":
-            current_path = os.path.expanduser("~")
+        if current_path is None or current_path == '':
+            current_path = os.path.expanduser('~')
 
         parent_path = os.path.dirname(os.path.abspath(current_path))
 
@@ -87,34 +87,34 @@ class FileBrowseUtils:
 
                 return {
                     'success': True,
-                    'message': "Navigated to parent directory with file check",
+                    'message': 'Navigated to parent directory with file check',
                     'current_path': parent_path,
                     'parent_path': os.path.dirname(parent_path),
-                    'selected_path': "",
+                    'selected_path': '',
                     'items': items
                 }
             except Exception as e:
                 return {
                     'success': False,
-                    'message': f"Error during parent navigation with file check: {str(e)}",
+                    'message': f'Error during parent navigation with file check: {str(e)}',
                     'current_path': current_path,
-                    'parent_path': "",
-                    'selected_path': "",
+                    'parent_path': '',
+                    'selected_path': '',
                     'items': []
                 }
         else:
             return {
                 'success': False,
-                'message': "Cannot navigate to parent directory",
+                'message': 'Cannot navigate to parent directory',
                 'current_path': current_path,
-                'parent_path': "",
-                'selected_path': "",
+                'parent_path': '',
+                'selected_path': '',
                 'items': []
             }
 
     def handle_browse_action(self, current_path, target_name=None):
         """Handle browse action for directory or file selection."""
-        current_path = current_path or os.path.expanduser("~")
+        current_path = current_path or os.path.expanduser('~')
         current_path = os.path.abspath(current_path)
 
         if target_name:
@@ -127,8 +127,8 @@ class FileBrowseUtils:
                                       target_name: str,
                                       target_files: Set[str]) -> Dict:
         """Handle browse action with parallel file checking for target files."""
-        if current_path is None or current_path == "":
-            current_path = os.path.expanduser("~")
+        if current_path is None or current_path == '':
+            current_path = os.path.expanduser('~')
 
         if target_name:
             # Handle target selection (navigate to specific item)
@@ -143,7 +143,7 @@ class FileBrowseUtils:
 
                     return {
                         'success': True,
-                        'message': f"Navigated to {target_name}",
+                        'message': f'Navigated to {target_name}',
                         'current_path': target_path,
                         'parent_path': current_path,
                         'selected_path': target_path,
@@ -152,10 +152,10 @@ class FileBrowseUtils:
                 except Exception as e:
                     return {
                         'success': False,
-                        'message': f"Error during navigation with file check: {str(e)}",
+                        'message': f'Error during navigation with file check: {str(e)}',
                         'current_path': current_path,
-                        'parent_path': "",
-                        'selected_path': "",
+                        'parent_path': '',
+                        'selected_path': '',
                         'items': []
                     }
             else:
@@ -169,19 +169,19 @@ class FileBrowseUtils:
 
                 return {
                     'success': True,
-                    'message': "Directory browsed successfully with file check",
+                    'message': 'Directory browsed successfully with file check',
                     'current_path': current_path,
                     'parent_path': self._get_parent_path(current_path),
-                    'selected_path': "",
+                    'selected_path': '',
                     'items': items
                 }
             except Exception as e:
                 return {
                     'success': False,
-                    'message': f"Error during file check: {str(e)}",
+                    'message': f'Error during file check: {str(e)}',
                     'current_path': current_path,
-                    'parent_path': "",
-                    'selected_path': "",
+                    'parent_path': '',
+                    'selected_path': '',
                     'items': []
                 }
 
@@ -194,7 +194,7 @@ class FileBrowseUtils:
                 # Navigate into directory
                 return {
                     'success': True,
-                    'message': f"Navigated to {target_name}",
+                    'message': f'Navigated to {target_name}',
                     'current_path': target_path,
                     'parent_path': current_path,
                     'selected_path': target_path,
@@ -204,7 +204,7 @@ class FileBrowseUtils:
                 # Select file
                 return {
                     'success': True,
-                    'message': f"Selected file {target_name}",
+                    'message': f'Selected file {target_name}',
                     'current_path': current_path,
                     'parent_path': os.path.dirname(current_path),
                     'selected_path': target_path,
@@ -213,10 +213,10 @@ class FileBrowseUtils:
         else:
             return {
                 'success': False,
-                'message': f"Item {target_name} not found",
+                'message': f'Item {target_name} not found',
                 'current_path': current_path,
                 'parent_path': os.path.dirname(current_path),
-                'selected_path': "",
+                'selected_path': '',
                 'items': self._get_directory_items(current_path)
             }
 
@@ -225,20 +225,20 @@ class FileBrowseUtils:
         if os.path.exists(current_path) and os.path.isdir(current_path):
             return {
                 'success': True,
-                'message': "Directory browsed successfully",
+                'message': 'Directory browsed successfully',
                 'current_path': current_path,
                 'parent_path': os.path.dirname(current_path),
-                'selected_path': "",
+                'selected_path': '',
                 'items': self._get_directory_items(current_path)
             }
         else:
             # Return error if directory doesn't exist
             return {
                 'success': False,
-                'message': f"Directory does not exist: {current_path}",
-                'current_path': "",
-                'parent_path': "",
-                'selected_path': "",
+                'message': f'Directory does not exist: {current_path}',
+                'current_path': '',
+                'parent_path': '',
+                'selected_path': '',
                 'items': []
             }
 
@@ -279,7 +279,7 @@ class FileBrowseUtils:
                     # If error occurs, assume no target file
                     path = future_to_path[future]
                     if self.logger:
-                        self.logger.error(f"Error during directory check: {path} {e}")
+                        self.logger.error(f'Error during directory check: {path} {e}')
                     results[path] = False
 
         return results
@@ -367,7 +367,7 @@ class FileBrowseUtils:
         except Exception:
             # If anything unexpected happens during sort, return unsorted items.
             if self.logger:
-                self.logger.error(f"Error during sort: {items}")
+                self.logger.error(f'Error during sort: {items}')
             pass
 
         return items

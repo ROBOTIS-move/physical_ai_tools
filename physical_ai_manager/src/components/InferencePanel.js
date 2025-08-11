@@ -141,16 +141,6 @@ const InferencePanel = () => {
     }
   }, [info.pushToHub]);
 
-  useEffect(() => {
-    handleLoadUserId();
-  }, [handleLoadUserId]);
-
-  useEffect(() => {
-    if (userIdList.length > 0 && !info.userId) {
-      handleUserIdSelect(userIdList[0]);
-    }
-  }, [userIdList, info.userId, handleUserIdSelect]);
-
   // track task status update
   useEffect(() => {
     if (taskStatus) {

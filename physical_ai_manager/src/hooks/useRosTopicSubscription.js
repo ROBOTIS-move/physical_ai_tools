@@ -42,10 +42,35 @@ export function useRosTopicSubscription() {
   const taskStatusTopicRef = useRef(null);
   const heartbeatTopicRef = useRef(null);
   const trainingStatusTopicRef = useRef(null);
+  const previousPhaseRef = useRef(null); // 이전 phase 상태 추적
 
   const dispatch = useDispatch();
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
   const [connected, setConnected] = useState(false);
+
+  // 신호음 재생 함수
+  const playBeep = useCallback((frequency = 800, duration = 200) => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration / 1000);
+    } catch (error) {
+      console.warn('Audio playback failed:', error);
+    }
+  }, []);
 
   const cleanup = useCallback(() => {
     console.log('Starting ROS task status cleanup...');
@@ -65,6 +90,10 @@ export function useRosTopicSubscription() {
       trainingStatusTopicRef.current = null;
       console.log('Training status topic unsubscribed');
     }
+    
+    // Reset previous phase tracking
+    previousPhaseRef.current = null;
+    
     setConnected(false);
     dispatch(setHeartbeatStatus('disconnected'));
     console.log('ROS task status cleanup completed');
@@ -98,6 +127,19 @@ export function useRosTopicSubscription() {
           toast.error(msg.error);
           return;
         }
+
+        // RECORDING 상태가 처음 시작될 때만 신호음 재생
+        const currentPhase = msg.phase;
+        const previousPhase = previousPhaseRef.current;
+        
+        if (currentPhase === TaskPhase.RECORDING && previousPhase !== TaskPhase.RECORDING) {
+          console.log('🔊 Recording started - playing beep sound');
+          playBeep(1000, 300); // 높은 톤의 긴 신호음
+          toast.success('Recording started! 🎬');
+        }
+        
+        // 이전 phase 상태 업데이트
+        previousPhaseRef.current = currentPhase;
 
         // Calculate progress percentage
         if (msg.phase === TaskPhase.SAVING) {

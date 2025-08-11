@@ -102,12 +102,11 @@ class DataEditor:
     # ─────────────────────────────────── MERGE Operation ─────────────────────────────────── #
 
     def merge_datasets(
-        self, dataset_paths_str: str, output_dir: Path, chunk_name: str, verbose: bool = False
+        self, dataset_paths: list, output_dir: Path, chunk_name: str, verbose: bool = False
     ):
         """
         Merges multiple Lerobot datasets into a new output directory.
         """
-        dataset_paths = [Path(p.strip()) for p in dataset_paths_str.strip().split() if p.strip()]
         if not dataset_paths:
             print("No dataset paths provided for merging.")
             return
@@ -628,3 +627,18 @@ class DataEditor:
 
         if verbose:
             print(f"    {path.name} updated.")
+
+
+def main():
+    editor = DataEditor()
+    base_path = '/home/elicer/.cache/huggingface/lerobot/Dongkkka'
+    output_dir = Path(base_path) / "merged_dataset_PickTunaCan"
+    dataset_paths = [
+        Path(base_path) / "ffw_sg2_rev1_PickTunaCan",
+        Path(base_path) / "ffw_sg2_rev1_PickTunaCan3",
+    ]
+    editor.merge_datasets(dataset_paths, output_dir, chunk_name=CHUNK_NAME_DEFAULT, verbose=True)
+
+
+if __name__ == "__main__":
+    main()

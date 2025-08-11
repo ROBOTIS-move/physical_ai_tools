@@ -43,15 +43,39 @@ export function useRosTopicSubscription() {
   const heartbeatTopicRef = useRef(null);
   const trainingStatusTopicRef = useRef(null);
   const previousPhaseRef = useRef(null); // 이전 phase 상태 추적
+  const audioContextRef = useRef(null); // AudioContext 유지
 
   const dispatch = useDispatch();
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
   const [connected, setConnected] = useState(false);
 
-  // 신호음 재생 함수
-  const playBeep = useCallback((frequency = 1000, duration = 400) => {
+  // AudioContext 초기화 및 활성화
+  const initializeAudioContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    // 모바일에서 AudioContext 활성화
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().then(() => {
+        console.log('AudioContext resumed for mobile compatibility');
+      }).catch(error => {
+        console.warn('Failed to resume AudioContext:', error);
+      });
+    }
+    
+    return audioContextRef.current;
+  }, []);
+
+  // 신호음 재생 함수 (모바일 호환성 개선)
+  const playBeep = useCallback(async (frequency = 1000, duration = 400) => {
     try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const audioContext = initializeAudioContext();
+      
+      // AudioContext가 suspended 상태면 활성화 시도
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
       
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
@@ -67,10 +91,22 @@ export function useRosTopicSubscription() {
 
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + duration / 1000);
+      
+      console.log('🔊 Beep played successfully');
     } catch (error) {
       console.warn('Audio playback failed:', error);
+      // 폴백: 브라우저 기본 알림음 시도
+      try {
+        // 모바일에서도 작동할 수 있는 대안
+        if (window.navigator && window.navigator.vibrate) {
+          window.navigator.vibrate([200, 100, 200]); // 진동으로 대체
+          console.log('📳 Fallback to vibration');
+        }
+      } catch (vibrationError) {
+        console.warn('Vibration fallback also failed:', vibrationError);
+      }
     }
-  }, []);
+  }, [initializeAudioContext]);
 
   const cleanup = useCallback(() => {
     console.log('Starting ROS task status cleanup...');
@@ -94,10 +130,38 @@ export function useRosTopicSubscription() {
     // Reset previous phase tracking
     previousPhaseRef.current = null;
     
+    // AudioContext 정리
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    
     setConnected(false);
     dispatch(setHeartbeatStatus('disconnected'));
     console.log('ROS task status cleanup completed');
   }, [dispatch]);
+
+  // 사용자 제스처로 오디오 권한 활성화 (전역 이벤트 리스너)
+  useEffect(() => {
+    const enableAudioOnUserGesture = () => {
+      if (!audioContextRef.current || audioContextRef.current.state === 'suspended') {
+        initializeAudioContext();
+        console.log('🎵 Audio enabled by user gesture');
+      }
+    };
+
+    // 사용자의 첫 번째 상호작용에서 오디오 활성화
+    const events = ['touchstart', 'touchend', 'mousedown', 'keydown', 'click'];
+    events.forEach(event => {
+      document.addEventListener(event, enableAudioOnUserGesture, { once: true, passive: true });
+    });
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, enableAudioOnUserGesture);
+      });
+    };
+  }, [initializeAudioContext]);
 
   const subscribeToTaskStatus = useCallback(async () => {
     try {
@@ -134,7 +198,12 @@ export function useRosTopicSubscription() {
         
         if (currentPhase === TaskPhase.RECORDING && previousPhase !== TaskPhase.RECORDING) {
           console.log('🔊 Recording started - playing beep sound');
-          playBeep(1000, 400); // 높은 톤의 긴 신호음
+          
+          // 모바일에서도 확실히 들리도록 약간의 지연 후 재생
+          setTimeout(() => {
+            playBeep(1000, 400); // 높은 톤의 긴 신호음
+          }, 100);
+          
           toast.success('Recording started! 🎬');
         }
         

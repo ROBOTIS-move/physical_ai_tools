@@ -62,7 +62,8 @@ export function useRosTopicSubscription() {
       oscillator.frequency.value = frequency;
       oscillator.type = 'sine';
       
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      // 볼륨을 더 크게 조정 (0.3 → 0.8)
+      gainNode.gain.setValueAtTime(0.8, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
       
       oscillator.start(audioContext.currentTime);

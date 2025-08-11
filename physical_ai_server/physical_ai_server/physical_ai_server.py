@@ -104,14 +104,14 @@ class PhysicalAIServer(Node):
                 return
             try:
                 # DataManager의 현재 상태 확인
-                if self.joystick_left_flag == 'start':
-                    self.get_logger().info('Left tact triggered - Re-record (previous state was stop)')
-                    self.data_manager.re_record()
-                    self.joystick_left_flag = 'stop'
-                else:
-                    self.get_logger().info('Left tact triggered - Stop recording')
-                    self.data_manager.record_stop()
-                    self.joystick_left_flag = 'start'
+                # if self.joystick_left_flag == 'start':
+                    # self.get_logger().info('Left tact triggered - Re-record (previous state was stop)')
+                self.data_manager.re_record()
+                    # self.joystick_left_flag = 'stop'
+                # else:
+                #     self.get_logger().info('Left tact triggered - Stop recording')
+                #     self.data_manager.record_stop()
+                #     self.joystick_left_flag = 'start'
             except Exception as e:
                 self.get_logger().error(f'Error in left trigger handling: {str(e)}')
         else:

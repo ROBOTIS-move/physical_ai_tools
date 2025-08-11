@@ -49,7 +49,7 @@ export function useRosTopicSubscription() {
   const [connected, setConnected] = useState(false);
 
   // 신호음 재생 함수
-  const playBeep = useCallback((frequency = 800, duration = 200) => {
+  const playBeep = useCallback((frequency = 1000, duration = 400) => {
     try {
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       
@@ -61,11 +61,10 @@ export function useRosTopicSubscription() {
       
       oscillator.frequency.value = frequency;
       oscillator.type = 'sine';
-      
-      // 볼륨을 더 크게 조정 (0.3 → 0.8)
-      gainNode.gain.setValueAtTime(0.8, audioContext.currentTime);
+
+      gainNode.gain.setValueAtTime(1.0, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
-      
+
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + duration / 1000);
     } catch (error) {
@@ -135,7 +134,7 @@ export function useRosTopicSubscription() {
         
         if (currentPhase === TaskPhase.RECORDING && previousPhase !== TaskPhase.RECORDING) {
           console.log('🔊 Recording started - playing beep sound');
-          playBeep(1000, 300); // 높은 톤의 긴 신호음
+          playBeep(1000, 400); // 높은 톤의 긴 신호음
           toast.success('Recording started! 🎬');
         }
         

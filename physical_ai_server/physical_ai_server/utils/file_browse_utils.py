@@ -20,8 +20,8 @@
 """File browser utility class for handling file system operations."""
 
 import datetime
-import os
 from concurrent.futures import as_completed, ThreadPoolExecutor
+import os
 from typing import Dict, List, Optional, Set
 
 

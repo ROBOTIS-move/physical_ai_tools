@@ -36,7 +36,7 @@ class DataEditor:
     @staticmethod
     def _natural_sort_paths(paths: Iterable[Path]) -> List[Path]:
         """Sorts an iterable of Path objects naturally based on extracted numerical indices."""
-        return sorted(paths, key=lambda p: DatasetManager._extract_idx_from_name(p.name))
+        return sorted(paths, key=lambda p: DataEditor._extract_idx_from_name(p.name))
 
     @staticmethod
     def safe_mkdir(path: Path) -> None:
@@ -64,9 +64,9 @@ class DataEditor:
         if isinstance(obj, int):
             return obj + offset
         if isinstance(obj, list):
-            return [DatasetManager._shift_any_positive_recursive(x, offset) for x in obj]
+            return [DataEditor._shift_any_positive_recursive(x, offset) for x in obj]
         if isinstance(obj, dict):
-            return {k: DatasetManager._shift_any_positive_recursive(v, offset) for k, v in obj.items()}
+            return {k: DataEditor._shift_any_positive_recursive(v, offset) for k, v in obj.items()}
         return obj
 
     # --- Utilities for DELETE ---
@@ -80,7 +80,7 @@ class DataEditor:
         if isinstance(val, int):
             return val + off
         if isinstance(val, list):
-            return [DatasetManager._add_offset_for_delete(x, off) for x in val]
+            return [DataEditor._add_offset_for_delete(x, off) for x in val]
         return val
 
     @staticmethod
@@ -89,14 +89,14 @@ class DataEditor:
         if isinstance(obj, dict):
             return {
                 k: (
-                    DatasetManager._add_offset_for_delete(v, off)
+                    DataEditor._add_offset_for_delete(v, off)
                     if k in DELETE_PATCH_KEYS
-                    else DatasetManager._patch_indices_recursive_negative(v, off)
+                    else DataEditor._patch_indices_recursive_negative(v, off)
                 )
                 for k, v in obj.items()
             }
         if isinstance(obj, list):
-            return [DatasetManager._patch_indices_recursive_negative(x, off) for x in obj]
+            return [DataEditor._patch_indices_recursive_negative(x, off) for x in obj]
         return obj
 
     # ─────────────────────────────────── MERGE Operation ─────────────────────────────────── #

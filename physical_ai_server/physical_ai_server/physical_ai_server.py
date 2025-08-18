@@ -790,11 +790,11 @@ class PhysicalAIServer(Node):
             self.data_manager.record_stop()
         elif joystick_mode == 'right_long_time':
             self.get_logger().info(
-                'Right long tact triggered - Finish recording')
+                'Right long tact triggered - Custom')
             # If you want, you can add custom functionality.
         elif joystick_mode == 'left_long_time':
             self.get_logger().info(
-                'Left long tact triggered - Stop recording')
+                'Left long tact triggered - Custom')
             # If you want, you can add custom functionality.
         else:
             self.get_logger().debug(f'Received joystick trigger: {msg.data}')

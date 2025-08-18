@@ -800,7 +800,9 @@ class PhysicalAIServer(Node):
                 'Left long tact triggered - Custom')
             # If you want, you can add custom functionality.
         else:
-            self.get_logger().debug(f'Received joystick trigger: {msg.data}')
+            self.get_logger().info(
+                f'Received joystick trigger: {joystick_mode}')
+
 
 def main(args=None):
     rclpy.init(args=args)

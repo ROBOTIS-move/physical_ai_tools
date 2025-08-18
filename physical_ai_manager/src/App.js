@@ -261,14 +261,14 @@ function App() {
               'outline-none',
               'w-24',
               {
-                'hover:bg-gray-200 active:bg-gray-400': page !== PageType.TRAINING,
-                'bg-gray-300': page === PageType.TRAINING,
+                'hover:bg-gray-200 active:bg-gray-400': page !== PageType.INFERENCE,
+                'bg-gray-300': page === PageType.INFERENCE,
               }
             )}
-            onClick={handleTrainingPageNavigation}
+            onClick={handleInferencePageNavigation}
           >
-            <GoGraph size={28} className="mb-1.5" />
-            <span className="mt-1 text-sm">Training</span>
+            <MdMemory size={32} className="mb-1.5" />
+            <span className="mt-1 text-sm">Inference</span>
           </button>
           <button
             className={clsx(
@@ -287,14 +287,14 @@ function App() {
               'outline-none',
               'w-24',
               {
-                'hover:bg-gray-200 active:bg-gray-400': page !== PageType.INFERENCE,
-                'bg-gray-300': page === PageType.INFERENCE,
+                'hover:bg-gray-200 active:bg-gray-400': page !== PageType.TRAINING,
+                'bg-gray-300': page === PageType.TRAINING,
               }
             )}
-            onClick={handleInferencePageNavigation}
+            onClick={handleTrainingPageNavigation}
           >
-            <MdMemory size={32} className="mb-1.5" />
-            <span className="mt-1 text-sm">Inference</span>
+            <GoGraph size={28} className="mb-1.5" />
+            <span className="mt-1 text-sm">Training</span>
           </button>
         </div>
       </aside>

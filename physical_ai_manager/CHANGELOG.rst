@@ -5,7 +5,6 @@ Changelog for package physical_ai_manager
 0.6.7 (2025-08-18)
 ------------------
 * Added a beep sound to signal the start of recording.
-* Changed the left page navigation buttons to the order of Record, Training, and Inference.
 * Contributors: Dongyun Kim
 
 0.6.6 (2025-08-13)

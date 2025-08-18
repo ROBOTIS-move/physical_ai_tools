@@ -52,7 +52,6 @@ from physical_ai_server.utils.parameter_utils import (
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
 
 
 class PhysicalAIServer(Node):
@@ -84,38 +83,6 @@ class PhysicalAIServer(Node):
         self._init_ros_service()
 
         self._setup_timer_callbacks()
-
-        self.joystick_left_flag = 'stop'
-
-    def joystick_trigger_callback(self, msg):
-        if msg.data == 'right':
-            self.get_logger().info('Right tact triggered - Early save')
-            if self.data_manager is None:
-                self.get_logger().warning('Data manager is not initialized')
-                return
-            try:
-                self.data_manager.record_early_save()
-            except Exception as e:
-                self.get_logger().error(f'Error in record_early_save(): {str(e)}')
-                
-        elif msg.data == 'left':
-            if self.data_manager is None:
-                self.get_logger().warning('Data manager is not initialized')
-                return
-            try:
-                # DataManager의 현재 상태 확인
-                # if self.joystick_left_flag == 'start':
-                    # self.get_logger().info('Left tact triggered - Re-record (previous state was stop)')
-                self.data_manager.re_record()
-                    # self.joystick_left_flag = 'stop'
-                # else:
-                #     self.get_logger().info('Left tact triggered - Stop recording')
-                #     self.data_manager.record_stop()
-                #     self.joystick_left_flag = 'start'
-            except Exception as e:
-                self.get_logger().error(f'Error in left trigger handling: {str(e)}')
-        else:
-            self.get_logger().debug(f'Received joystick trigger: {msg.data}')
 
     def _init_core_components(self):
         self.communicator: Optional[Communicator] = None
@@ -385,6 +352,11 @@ class PhysicalAIServer(Node):
             self.timer_manager.stop(timer_name=self.operation_mode)
             return
 
+        if self.communicator.joystick_state['updated']:
+            self.handle_joystick_trigger(
+                joystick_mode=self.communicator.joystick_state['mode'])
+            self.communicator.joystick_state['updated'] = False
+
         record_completed = self.data_manager.record(
             images=camera_data,
             state=follower_data,
@@ -585,14 +557,6 @@ class PhysicalAIServer(Node):
                 self.on_recording = True
                 response.success = True
                 response.message = 'Recording started'
-
-
-                self.joystick_trigger_subscriber = self.create_subscription(
-                    String,
-                    '/leader/joystick_controller/tact_trigger',
-                    self.joystick_trigger_callback,
-                    10
-                )
 
             elif request.command == SendCommand.Request.START_INFERENCE:
                 self.joint_topic_types = self.communicator.get_publisher_msg_types()
@@ -807,6 +771,33 @@ class PhysicalAIServer(Node):
             response.message = f'Failed to set robot type: {str(e)}'
             return response
 
+    def handle_joystick_trigger(self, joystick_mode):
+        self.get_logger().info(
+            f'Joystick mode updated: {joystick_mode}')
+
+        if self.data_manager is None:
+            self.get_logger().warning(
+                'Data manager is not initialized')
+            return
+
+        if joystick_mode == 'right':
+            self.get_logger().info(
+                'Right tact triggered - Early save')
+            self.data_manager.record_early_save()
+        elif joystick_mode == 'left':
+            self.get_logger().info(
+                'Left tact triggered - Re-record current episode')
+            self.data_manager.record_stop()
+        elif joystick_mode == 'right_long_time':
+            self.get_logger().info(
+                'Right long tact triggered - Finish recording')
+            # If you want, you can add custom functionality.
+        elif joystick_mode == 'left_long_time':
+            self.get_logger().info(
+                'Left long tact triggered - Stop recording')
+            # If you want, you can add custom functionality.
+        else:
+            self.get_logger().debug(f'Received joystick trigger: {msg.data}')
 
 def main(args=None):
     rclpy.init(args=args)

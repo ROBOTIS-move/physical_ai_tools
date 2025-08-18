@@ -42,20 +42,18 @@ export function useRosTopicSubscription() {
   const taskStatusTopicRef = useRef(null);
   const heartbeatTopicRef = useRef(null);
   const trainingStatusTopicRef = useRef(null);
-  const previousPhaseRef = useRef(null); // 이전 phase 상태 추적
-  const audioContextRef = useRef(null); // AudioContext 유지
+  const previousPhaseRef = useRef(null);
+  const audioContextRef = useRef(null);
 
   const dispatch = useDispatch();
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
   const [connected, setConnected] = useState(false);
 
-  // AudioContext 초기화 및 활성화
   const initializeAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
-    
-    // 모바일에서 AudioContext 활성화
+
     if (audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume().then(() => {
         console.log('AudioContext resumed for mobile compatibility');
@@ -67,12 +65,10 @@ export function useRosTopicSubscription() {
     return audioContextRef.current;
   }, []);
 
-  // 신호음 재생 함수 (모바일 호환성 개선)
   const playBeep = useCallback(async (frequency = 1000, duration = 400) => {
     try {
       const audioContext = initializeAudioContext();
-      
-      // AudioContext가 suspended 상태면 활성화 시도
+
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
       }
@@ -95,11 +91,9 @@ export function useRosTopicSubscription() {
       console.log('🔊 Beep played successfully');
     } catch (error) {
       console.warn('Audio playback failed:', error);
-      // 폴백: 브라우저 기본 알림음 시도
       try {
-        // 모바일에서도 작동할 수 있는 대안
         if (window.navigator && window.navigator.vibrate) {
-          window.navigator.vibrate([200, 100, 200]); // 진동으로 대체
+          window.navigator.vibrate([200, 100, 200]);
           console.log('📳 Fallback to vibration');
         }
       } catch (vibrationError) {
@@ -130,7 +124,6 @@ export function useRosTopicSubscription() {
     // Reset previous phase tracking
     previousPhaseRef.current = null;
     
-    // AudioContext 정리
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close();
       audioContextRef.current = null;
@@ -141,7 +134,6 @@ export function useRosTopicSubscription() {
     console.log('ROS task status cleanup completed');
   }, [dispatch]);
 
-  // 사용자 제스처로 오디오 권한 활성화 (전역 이벤트 리스너)
   useEffect(() => {
     const enableAudioOnUserGesture = () => {
       if (!audioContextRef.current || audioContextRef.current.state === 'suspended') {
@@ -150,7 +142,6 @@ export function useRosTopicSubscription() {
       }
     };
 
-    // 사용자의 첫 번째 상호작용에서 오디오 활성화
     const events = ['touchstart', 'touchend', 'mousedown', 'keydown', 'click'];
     events.forEach(event => {
       document.addEventListener(event, enableAudioOnUserGesture, { once: true, passive: true });
@@ -192,22 +183,19 @@ export function useRosTopicSubscription() {
           return;
         }
 
-        // RECORDING 상태가 처음 시작될 때만 신호음 재생
         const currentPhase = msg.phase;
         const previousPhase = previousPhaseRef.current;
         
         if (currentPhase === TaskPhase.RECORDING && previousPhase !== TaskPhase.RECORDING) {
           console.log('🔊 Recording started - playing beep sound');
           
-          // 모바일에서도 확실히 들리도록 약간의 지연 후 재생
           setTimeout(() => {
-            playBeep(1000, 400); // 높은 톤의 긴 신호음
+            playBeep(1000, 400);
           }, 100);
           
           toast.success('Recording started! 🎬');
         }
         
-        // 이전 phase 상태 업데이트
         previousPhaseRef.current = currentPhase;
 
         // Calculate progress percentage

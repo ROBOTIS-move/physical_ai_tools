@@ -790,7 +790,7 @@ class PhysicalAIServer(Node):
         elif joystick_mode == 'left':
             self.get_logger().info(
                 'Left tact triggered - Re-record current episode')
-            self.data_manager.record_stop()
+            self.data_manager.re_record()
         elif joystick_mode == 'right_long_time':
             self.get_logger().info(
                 'Right long tact triggered - Custom')

@@ -5,7 +5,7 @@ Changelog for package physical_ai_server
 0.6.7 (2025-08-18)
 ------------------
 * Improved the convenience of data acquisition by using the AI Worker's buttons.
-* The right button now moves to the next episode, and the left button is for cancellation.
+* The right button moves to the next episode, and the left button is for cancellation.
 * Contributors: Dongyun Kim
 
 0.6.6 (2025-08-13)

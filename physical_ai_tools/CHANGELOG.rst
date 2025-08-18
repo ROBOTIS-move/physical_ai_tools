@@ -6,7 +6,7 @@ Changelog for package physical_ai_tools
 ------------------
 * Added a beep sound to signal the start of recording.
 * Improved the convenience of data acquisition by using the AI Worker's buttons.
-* The right button now moves to the next episode, and the left button is for cancellation.
+* The right button moves to the next episode, and the left button is for cancellation.
 * Contributors: Dongyun Kim
 
 0.6.6 (2025-08-13)

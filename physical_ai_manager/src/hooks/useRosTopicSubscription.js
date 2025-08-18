@@ -54,19 +54,14 @@ export function useRosTopicSubscription() {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
-
-    if (audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume().then(() => {
-        console.log('AudioContext resumed for mobile compatibility');
-      }).catch(error => {
-        console.warn('Failed to resume AudioContext:', error);
-      });
-    }
-    
     return audioContextRef.current;
   }, []);
 
   const playBeep = useCallback(async (frequency = 1000, duration = 400) => {
+    const INITIAL_GAIN = 1.0;
+    const FINAL_GAIN = 0.01;
+    const FALLBACK_VIBRATION_PATTERN = [200, 100, 200];
+
     try {
       const audioContext = initializeAudioContext();
 
@@ -83,8 +78,8 @@ export function useRosTopicSubscription() {
       oscillator.frequency.value = frequency;
       oscillator.type = 'sine';
 
-      gainNode.gain.setValueAtTime(1.0, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+      gainNode.gain.setValueAtTime(INITIAL_GAIN, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(FINAL_GAIN, audioContext.currentTime + duration / 1000);
 
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + duration / 1000);
@@ -94,7 +89,7 @@ export function useRosTopicSubscription() {
       console.warn('Audio playback failed:', error);
       try {
         if (window.navigator && window.navigator.vibrate) {
-          window.navigator.vibrate([200, 100, 200]);
+          window.navigator.vibrate(FALLBACK_VIBRATION_PATTERN);
           console.log('📳 Fallback to vibration');
         }
       } catch (vibrationError) {
@@ -137,9 +132,13 @@ export function useRosTopicSubscription() {
 
   useEffect(() => {
     const enableAudioOnUserGesture = () => {
-      if (!audioContextRef.current || audioContextRef.current.state === 'suspended') {
-        initializeAudioContext();
-        console.log('🎵 Audio enabled by user gesture');
+      const audioContext = initializeAudioContext();
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          console.log('🎵 Audio enabled by user gesture');
+        }).catch(error => {
+          console.warn('Failed to resume AudioContext on user gesture:', error);
+        });
       }
     };
 
@@ -157,6 +156,10 @@ export function useRosTopicSubscription() {
 
   const subscribeToTaskStatus = useCallback(async () => {
     try {
+      const RECORDING_BEEP_FREQUENCY = 1000;
+      const RECORDING_BEEP_DURATION = 400;
+      const BEEP_DELAY = 100;
+
       const ros = await rosConnectionManager.getConnection(rosbridgeUrl);
       if (!ros) return;
 
@@ -191,8 +194,8 @@ export function useRosTopicSubscription() {
           console.log('🔊 Recording started - playing beep sound');
           
           setTimeout(() => {
-            playBeep(1000, 400);
-          }, 100);
+            playBeep(RECORDING_BEEP_FREQUENCY, RECORDING_BEEP_DURATION);
+          }, BEEP_DELAY);
           
           toast.success('Recording started! 🎬');
         }

@@ -397,7 +397,7 @@ class Communicator:
     def publish_training_status(self, status: TrainingStatus):
         self.training_status_publisher.publish(status)
 
-    def joystick_trigger_callback(self, msg):
+    def joystick_trigger_callback(self, msg: String):
         self.node.get_logger().info(f'Received joystick trigger: {msg.data}')
         self.joystick_state['updated'] = True
         self.joystick_state['mode'] = msg.data

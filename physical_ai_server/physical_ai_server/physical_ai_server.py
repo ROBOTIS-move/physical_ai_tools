@@ -782,10 +782,15 @@ class PhysicalAIServer(Node):
                 'Data manager is not initialized')
             return
 
+        if not self.on_recording:
+            self.get_logger().warning(
+                'Not currently recording')
+            return
+
         if joystick_mode == 'right':
             self.get_logger().info(
                 'Right tact triggered - Moving to next episode')
-            if len(self.data_manager._task_info.task_instruction) > 1:
+            if len(self.data_manager.get_task_info().task_instruction) > 1:
                 self.data_manager.record_next_episode()
             else:
                 self.data_manager.record_early_save()

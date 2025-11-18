@@ -85,6 +85,7 @@ class PhysicalAIServer(Node):
         self.total_joint_order = None
         self.on_recording = False
         self.on_inference = False
+        self.inference_paused = False
 
         self.hf_cancel_on_progress = False
 
@@ -558,6 +559,12 @@ class PhysicalAIServer(Node):
                 self.communicator.publish_status(status=current_status)
                 self.inference_manager.clear_policy()
                 self.timer_manager.stop(timer_name=self.operation_mode)
+                return
+
+            if self.inference_paused:
+                current_status = self.data_manager.get_current_record_status()
+                current_status.phase = TaskStatus.READY
+                self.communicator.publish_status(status=current_status)
                 return
 
             action = self.inference_manager.predict(
@@ -1334,7 +1341,6 @@ class PhysicalAIServer(Node):
         When BT is not running, action publishing is always enabled.
         """
         try:
-            # Only allow disabling if we're in inference mode
             if not self.on_inference:
                 response.success = False
                 response.message = 'Cannot control action publish: inference not active'
@@ -1342,6 +1348,7 @@ class PhysicalAIServer(Node):
                 return response
 
             self.communicator.action_publish_enabled = request.enable
+            self.inference_paused = request.pause_inference
             status = "enabled" if request.enable else "disabled"
             self.get_logger().info(f'Action publishing {status} by external control')
             response.success = True

@@ -21,30 +21,30 @@
 from typing import TYPE_CHECKING
 
 from physical_ai_bt.actions.base_action import NodeStatus, BaseAction
-from physical_ai_interfaces.srv import ControlInference
+from physical_ai_interfaces.srv import SendCommand
+from physical_ai_interfaces.msg import TaskInfo
 
 if TYPE_CHECKING:
     from rclpy.node import Node
 
-
-
-
 class PauseInference(BaseAction):
     """Action to pause inference and action publishing from AI Server."""
 
-    def __init__(self, node: 'Node'):
+    def __init__(self, node: 'Node', inference_fps: int = 5):
         """
         Initialize pause inference action.
 
         Args:
             node: ROS2 node reference
+            inference_fps: FPS for inference (default: 5)
         """
         super().__init__(node, name="PauseInference")
+        self.inference_fps = inference_fps
 
-        # Service client for controlling action publish
+        # Service client for controlling action publish (direct to AI Server)
         self.control_client = self.node.create_client(
-            ControlInference,
-            '/control_inference'
+            SendCommand,
+            '/ai_server/task/command'
         )
 
         # State tracking
@@ -59,9 +59,10 @@ class PauseInference(BaseAction):
                 self.log_error("Control action publish service not available")
                 return NodeStatus.FAILURE
 
-            request = ControlInference.Request()
-            request.enable = False
-            request.pause_inference = True
+            request = SendCommand.Request()
+            request.command = SendCommand.Request.STOP
+            request.task_info = TaskInfo()
+            request.task_info.fps = self.inference_fps
 
             try:
                 self.future = self.control_client.call_async(request)
@@ -76,10 +77,10 @@ class PauseInference(BaseAction):
             try:
                 response = self.future.result()
                 if response.success:
-                    self.log_info("Inference and action publishing paused")
+                    self.log_info("Inference stopped (stop_inference=True)")
                     return NodeStatus.SUCCESS
                 else:
-                    self.log_error(f"Failed to pause inference/action publish: {response.message}")
+                    self.log_error(f"Failed to stop inference: {response.message}")
                     return NodeStatus.FAILURE
             except Exception as e:
                 self.log_error(f"Exception while getting pause response: {str(e)}")
@@ -98,19 +99,21 @@ class PauseInference(BaseAction):
 class ResumeInference(BaseAction):
     """Action to resume inference and action publishing from AI Server."""
 
-    def __init__(self, node: 'Node'):
+    def __init__(self, node: 'Node', inference_fps: int = 5):
         """
         Initialize resume inference action.
 
         Args:
             node: ROS2 node reference
+            inference_fps: FPS for inference (default: 5)
         """
         super().__init__(node, name="ResumeInference")
+        self.inference_fps = inference_fps
 
-        # Service client for controlling action publish
+        # Service client for controlling action publish (direct to AI Server)
         self.control_client = self.node.create_client(
-            ControlInference,
-            '/control_inference'
+            SendCommand,
+            '/ai_server/task/command'
         )
 
         # State tracking
@@ -125,9 +128,10 @@ class ResumeInference(BaseAction):
                 self.log_error("Control action publish service not available")
                 return NodeStatus.FAILURE
 
-            request = ControlInference.Request()
-            request.enable = True
-            request.pause_inference = False
+            request = SendCommand.Request()
+            request.command = SendCommand.Request.START_INFERENCE
+            request.task_info = TaskInfo()
+            request.task_info.fps = self.inference_fps
 
             try:
                 self.future = self.control_client.call_async(request)
@@ -142,10 +146,10 @@ class ResumeInference(BaseAction):
             try:
                 response = self.future.result()
                 if response.success:
-                    self.log_info("Inference and action publishing resumed")
+                    self.log_info("Inference resumed (stop_inference=False)")
                     return NodeStatus.SUCCESS
                 else:
-                    self.log_error(f"Failed to resume inference/action publish: {response.message}")
+                    self.log_error(f"Failed to resume inference: {response.message}")
                     return NodeStatus.FAILURE
             except Exception as e:
                 self.log_error(f"Exception while getting resume response: {str(e)}")

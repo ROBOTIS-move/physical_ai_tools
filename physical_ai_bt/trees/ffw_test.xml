@@ -2,37 +2,127 @@
 <root BTCPP_format="3" main_tree_to_execute="RobotControlSequence">
   <BehaviorTree ID="RobotControlSequence">
     <Sequence name="RobotControlSequence">
-      <PauseInference name="Pause_Publishing_1"/>
-      <RuleArms name="ArmsControl_1"
+      <MoveArms name="ArmsControl_1"
         left_positions="0.75, 0.0, 0.0, -2.3, 0.0, 0.0, 0.0, 0.0"
         right_positions="0.75, 0.0, 0.0, -2.3, 0.0, 0.0, 0.0, 0.0"/>
-      <RuleSwerve name="Rule_Based_Rotation_1" angle_deg="180.0"/>
-      <RuleSwerve name="Rule_Based_Rotation_2" angle_deg="-90"/>
-      <RuleHeadLift name="HeadLiftControl_1"
+      <ResumeInference name="Resume_Publishing_1"/>
+
+      <!-- Dynamic iteration over task_instruction_list -->
+      <ForEach name="TaskIteration" list_key="task_instruction_list">
+        <Sequence name="PerTaskSequence">
+          <UpdateTaskInstruction name="UpdateTask"/>
+          <InferenceUntilGesture name="InferUntilStable"
+            position_change_threshold="0.05"
+            static_duration="3.0"
+            history_window="1.0"/>
+        </Sequence>
+      </ForEach>
+
+      <SetTaskInstruction name="SetTaskInstruction_1" instruction="Grasp the handle of the crate."/>
+      <InferenceUntilGesture name="VLA_Inference_2"
+        position_change_threshold="0.05"
+        static_duration="3.0"
+        history_window="1.0"/>
+      <PauseInference name="Pause_Publishing_1"/>
+      <MoveLift name="LiftControl_1" lift_position="0.0"/>
+      <Rotate name="Rule_Based_Rotation_1" angle_deg="-90.0"/>
+      <MoveLift name="LiftControl_1" lift_position="-0.1"/>
+      <ResumeInference name="Resume_Publishing_2"/>
+      <SetTaskInstruction name="SetTaskInstruction_2" instruction="Place the crate onto the table."/>
+      <InferenceUntilGesture name="VLA_Inference_3"/>
+      <PauseInference name="Pause_Publishing_2"/>
+      <Rotate name="Rule_Based_Rotation_1" angle_deg="90.0"/>
+      <!-- <MoveArms name="ArmsControl_1"
+        left_positions="0.75, 0.0, 0.0, -2.3, 0.0, 0.0, 0.0, 0.0"
+        right_positions="0.75, 0.0, 0.0, -2.3, 0.0, 0.0, 0.0, 0.0"/>
+      <MoveHeadLift name="HeadLiftControl_1"
         head_positions="0.695,0.0"
         lift_position="-0.1"/>
       <ResumeInference name="Resume_Publishing_1"/>
-      <Inference name="VLA_Inference_1"/>
+      <InferenceUntilGesture name="VLA_Inference_1"
+        left_positions="0.313, 0.095, -0.023, -1.613, 0.185, -0.291, -0.134, 0.128"
+        right_positions="0.413, -0.003, -0.108, -1.798, -0.121, -0.236, 0.238, 0.132"/>
+      <PauseInference name="Pause_Publishing_2"/>
+      <Rotate name="Rule_Based_Rotation_1" angle_deg="90.0"/>
+      <SetTaskInstruction name="ChangeInstruction_1" instruction="stay"/>
+      <Rotate name="Rule_Based_Rotation_2" angle_deg="-90"/>
+      <MoveArms name="ArmsControl_2"
+        left_positions="0.75, 0.0, 0.0, -2.3, 0.0, 0.0, 0.0, 0.0"
+        right_positions="0.75, 0.0, 0.0, -2.3, 0.0, 0.0, 0.0, 0.0"/>
+      <MoveHeadLift name="HeadLiftControl_2"
+        head_positions="0.695,0.0"
+        lift_position="-0.1"/>
+      <ResumeInference name="Resume_Publishing_2"/>
+      <InferenceUntilGesture name="VLA_Inference_2"
+        left_positions="0.313, 0.095, -0.023, -1.613, 0.185, -0.291, -0.134, 0.128"
+        right_positions="0.413, -0.003, -0.108, -1.798, -0.121, -0.236, 0.238, 0.132"/> -->
     </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Action ID="Inference"/>
+    <Control ID="ForEach">
+      <input_port name="list_key" default="task_instruction_list">
+        Blackboard key for the list to iterate over.
+      </input_port>
+      <description>
+        Iterates children once for each element in a list from blackboard.
+        Sets 'current_task_index' for children to access current position.
+        Children execute as Sequence for each element.
+      </description>
+    </Control>
+    <Action ID="InferenceUntilGesture">
+      <input_port name="position_change_threshold" default="0.05">
+        Maximum position change (radians) over time window to be considered stable.
+      </input_port>
+      <input_port name="static_duration" default="3.0">
+        How long (seconds) to hold stable state before ending inference.
+      </input_port>
+      <input_port name="history_window" default="1.0">
+        Time window (seconds) for measuring position changes.
+      </input_port>
+      <description>
+        Runs inference until both arms stabilize (position changes become minimal).
+        Returns SUCCESS when all joints change less than threshold for specified duration.
+        Works regardless of movement speed - only measures position change magnitude.
+      </description>
+    </Action>
+    <Action ID="TimedInference">
+      <input_port name="duration" default="20.0">
+        Duration in seconds to run inference.
+      </input_port>
+    </Action>
     <Action ID="PauseInference"/>
     <Action ID="ResumeInference"/>
-    <Action ID="RuleSwerve">
+    <Action ID="Rotate">
       <input_port name="angle_deg" default="90.0">
         Desired rotation angle in degrees.
         Positive for CCW, negative for CW.
       </input_port>
+    </Action>
+    <Action ID="RotateLidar">
+      <input_port name="face_tape" default="true">
+        Rotation mode: true = face reflective tape, false = rotate 90° left
+      </input_port>
+      <input_port name="lift_position" default="0.0">
+        Target position for lift joint (executed simultaneously with rotation)
+      </input_port>
+      <input_port name="position_threshold" default="0.01">
+        Position tolerance for lift completion
+      </input_port>
+      <description>
+        Coordinates LIDAR-based rotation and lift movement simultaneously.
+        Rotation: Sends trigger to /rotation_trigger, waits for /rotation_finish signal.
+        Lift: Moves lift joint to target position via trajectory control.
+        Returns SUCCESS only when BOTH rotation and lift are complete.
+      </description>
     </Action>
     <Action ID="CameraDepth">
       <input_port name="depth_topic" default="/camera/depth/image_raw">
         ROS topic for depth image (sensor_msgs/Image)
       </input_port>
     </Action>
-    <Action ID="RuleHeadLift">
+    <Action ID="MoveHeadLift">
       <input_port name="head_positions" default="0.0,0.0">
         Target positions for head joints (comma-separated).
       </input_port>
@@ -40,7 +130,7 @@
         Target position for lift joint.
       </input_port>
     </Action>
-    <Action ID="RuleArms">
+    <Action ID="MoveArms">
       <input_port name="left_positions" default="0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0">
         Target positions for left arm joints (comma-separated).
       </input_port>
@@ -48,8 +138,47 @@
         Target positions for right arm joints (comma-separated).
       </input_port>
     </Action>
-    <Action ID="SendLanguageInstruction">
-      <input_port name="instruction" default=""/>
+    <Action ID="UpdateTaskInstruction">
+      <description>
+        Updates task instruction from blackboard value.
+        Requires 'task_instruction' to be set in blackboard.
+      </description>
+    </Action>
+    <Action ID="MoveLift">
+      <input_port name="lift_position" default="0.0">
+        Target position for lift joint.
+      </input_port>
+      <input_port name="position_threshold" default="0.01">
+        Position tolerance for completion.
+      </input_port>
+    </Action>
+    <Action ID="OpenGrippers">
+      <input_port name="closed_threshold" default="1.0">
+        Threshold to detect closed gripper (>= this value).
+      </input_port>
+      <input_port name="open_threshold" default="0.2">
+        Threshold to detect open gripper (&lt; this value).
+      </input_port>
+      <description>
+        Detects bidirectional gripper state changes (closed→open or open→closed).
+        Records initial state and returns SUCCESS when either gripper changes state.
+      </description>
+    </Action>
+    <Action ID="InferenceUntilPosition">
+      <input_port name="left_positions" default="0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0">
+        Target positions for left arm (8 values: 7 arm joints + gripper).
+      </input_port>
+      <input_port name="right_positions" default="0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0">
+        Target positions for right arm (8 values: 7 arm joints + gripper).
+      </input_port>
+      <input_port name="tolerance" default="0.1">
+        Euclidean distance tolerance (radians) for position matching.
+      </input_port>
+      <description>
+        Runs inference until both arms reach target positions.
+        Returns SUCCESS when Euclidean distance across all 16 joints is within tolerance.
+        Does NOT pause inference - use PauseInference action after this node.
+      </description>
     </Action>
   </TreeNodesModel>
 

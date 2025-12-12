@@ -19,21 +19,38 @@
 """Behavior Tree Actions for Physical AI."""
 
 from physical_ai_bt.actions.base_action import BaseAction
-from physical_ai_bt.actions.inference import Inference
-from physical_ai_bt.actions.rule_swerve import RuleSwerve
+from physical_ai_bt.actions.inference_until_gesture import InferenceUntilGesture
+from physical_ai_bt.actions.inference_until_gesture_with_gripper import InferenceUntilGestureWithGripper
+from physical_ai_bt.actions.inference_until_position import InferenceUntilPosition
+from physical_ai_bt.actions.inference_until_position_with_gripper import InferenceUntilPositionWithGripper
+from physical_ai_bt.actions.timed_inference import TimedInference
+from physical_ai_bt.actions.rotate import Rotate
+from physical_ai_bt.actions.rotate_lidar import RotateLidar
 from physical_ai_bt.actions.control_inference import PauseInference, ResumeInference
 from physical_ai_bt.actions.camera_depth import CameraDepth
-from physical_ai_bt.actions.rule_head_lift import RuleHeadLift
-
-from physical_ai_bt.actions.rule_arms import RuleArms
+from physical_ai_bt.actions.move_head_lift import MoveHeadLift
+from physical_ai_bt.actions.move_arms import MoveArms
+from physical_ai_bt.actions.move_lift import MoveLift
+from physical_ai_bt.actions.open_grippers import OpenGrippers
+from physical_ai_bt.actions.update_task_instruction import UpdateTaskInstruction
+from physical_ai_bt.actions.set_task_instruction import SetTaskInstruction
 
 __all__ = [
     'BaseAction',
-    'Inference',
-    'RuleSwerve',
+    'InferenceUntilGesture',
+    'InferenceUntilGestureWithGripper',
+    'InferenceUntilPosition',
+    'InferenceUntilPositionWithGripper',
+    'TimedInference',
+    'Rotate',
+    'RotateLidar',
     'PauseInference',
     'ResumeInference',
     'CameraDepth',
-    'RuleHeadLift',
-    'RuleArms',
+    'MoveHeadLift',
+    'MoveArms',
+    'MoveLift',
+    'OpenGrippers',
+    'UpdateTaskInstruction',
+    'SetTaskInstruction',
 ]

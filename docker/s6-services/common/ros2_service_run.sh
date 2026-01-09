@@ -21,6 +21,7 @@ export ROS_DISTRO=${ROS_DISTRO:-jazzy}
 export COLCON_WS=${COLCON_WS:-/root/ros2_ws}
 export PATH=/opt/venv/bin:${PATH}
 export PYTHONPATH=/opt/venv/lib/python3.12/site-packages:${PYTHONPATH}
+export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:${PYTHONPATH}
 
 # Enable s6-overlay debug logging (set S6_VERBOSITY=1 for more verbose output)
 export S6_VERBOSITY=${S6_VERBOSITY:-1}

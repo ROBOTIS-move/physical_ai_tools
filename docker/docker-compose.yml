@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
   physical_ai_server:
     container_name: physical_ai_server
-    image: robotis/physical-ai-server:latest
+    image: robotis/physical-ai-server:system-manager-dev
     build:
       context: ..
       dockerfile: physical_ai_server/Dockerfile.arm64

@@ -12,7 +12,7 @@ services:
     image: robotis/physical-ai-server:latest
     build:
       context: ..
-      dockerfile: physical_ai_server/Dockerfile.amd64
+      dockerfile: physical_ai_server/Dockerfile.arm64
     tty: true
     restart: always
     cap_add:
@@ -34,7 +34,7 @@ services:
       - ./huggingface:/root/.cache/huggingface
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-      - ./agent_sockets/physical_ai_server:/var/run/agent
+      - /var/run/robotis/agent_sockets/physical_ai_server:/var/run/agent
       - ./s6-agent:/etc/s6-overlay/s6-rc.d/s6-agent
       - ./s6-services/physical_ai_server:/etc/s6-overlay/s6-rc.d/physical_ai_server
       - ./s6-services/physical_ai_server-log:/etc/s6-overlay/s6-rc.d/physical_ai_server-log

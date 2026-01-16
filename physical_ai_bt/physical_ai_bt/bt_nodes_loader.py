@@ -24,8 +24,7 @@ from typing import TYPE_CHECKING, Dict, Type
 from physical_ai_bt.actions import (
     MoveArms,
     MoveLift,
-    MoveHeadLift,
-    OpenGrippers,
+    MoveHead,
     Rotate,
     RotateLidar,
 )
@@ -62,10 +61,9 @@ class TreeLoader:
         self.action_types: Dict[str, Type[BaseAction]] = {
             'Rotate': Rotate,
             'RotateLidar': RotateLidar,
-            'MoveHeadLift': MoveHeadLift,
+            'MoveHead': MoveHead,
             'MoveArms': MoveArms,
             'MoveLift': MoveLift,
-            'OpenGrippers': OpenGrippers,
         }
 
     def load_tree_from_file(self, xml_path: str, main_tree_id: str = None) -> BTNode:
@@ -213,11 +211,10 @@ class TreeLoader:
                 position_threshold=params.get('position_threshold', 0.01)
             )
 
-        elif action_class == MoveHeadLift:
+        elif action_class == MoveHead:
             return action_class(
                 node=self.node,
                 head_positions=params.get('head_positions', [0.0, 0.0]),
-                lift_position=params.get('lift_position', 0.0),
             )
 
         elif action_class == MoveArms:
@@ -232,13 +229,6 @@ class TreeLoader:
                 node=self.node,
                 lift_position=params.get('lift_position', 0.0),
                 position_threshold=params.get('position_threshold', 0.01)
-            )
-
-        elif action_class == OpenGrippers:
-            return action_class(
-                node=self.node,
-                closed_threshold=params.get('closed_threshold', 1.0),
-                open_threshold=params.get('open_threshold', 0.2)
             )
 
         else:

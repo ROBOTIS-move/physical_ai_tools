@@ -21,8 +21,7 @@
 from physical_ai_bt.actions.base_action import BaseAction
 from physical_ai_bt.actions.move_arms import MoveArms
 from physical_ai_bt.actions.move_lift import MoveLift
-from physical_ai_bt.actions.move_head_lift import MoveHeadLift
-from physical_ai_bt.actions.open_grippers import OpenGrippers
+from physical_ai_bt.actions.move_head import MoveHead
 from physical_ai_bt.actions.rotate import Rotate
 from physical_ai_bt.actions.rotate_lidar import RotateLidar
 
@@ -30,8 +29,7 @@ __all__ = [
     'BaseAction',
     'MoveArms',
     'MoveLift',
-    'MoveHeadLift',
-    'OpenGrippers',
+    'MoveHead',
     'Rotate',
     'RotateLidar',
 ]

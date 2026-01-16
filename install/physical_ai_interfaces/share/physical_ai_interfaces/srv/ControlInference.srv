@@ -1,0 +1,7 @@
+bool enable
+bool pause_inference
+
+---
+
+bool success
+string message

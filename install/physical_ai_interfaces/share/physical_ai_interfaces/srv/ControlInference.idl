@@ -1,0 +1,19 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from physical_ai_interfaces/srv/ControlInference.srv
+// generated code does not contain a copyright notice
+
+
+module physical_ai_interfaces {
+  module srv {
+    struct ControlInference_Request {
+      boolean enable;
+
+      boolean pause_inference;
+    };
+    struct ControlInference_Response {
+      boolean success;
+
+      string message;
+    };
+  };
+};

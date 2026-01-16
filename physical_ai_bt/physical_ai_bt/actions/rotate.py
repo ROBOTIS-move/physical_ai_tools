@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2025 ROBOTIS CO., LTD.
+# Copyright 2026 ROBOTIS CO., LTD.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
 # limitations under the License.
 #
 # Author: Seongwoo Kim
-
-"""Action to rotate the robot to a target angle."""
 
 import math
 import threading
@@ -36,7 +34,6 @@ if TYPE_CHECKING:
 class Rotate(BaseAction):
     @staticmethod
     def angle_diff_deg(a, b):
-        """Return minimal difference between two angles in degrees (-180~180)."""
         d = a - b
         while d > 180:
             d -= 360
@@ -78,7 +75,6 @@ class Rotate(BaseAction):
                 qos_profile
             )
 
-        # Odom subscription
         self.odom_sub = self.node.create_subscription(
             Odometry,
             '/odom',
@@ -88,14 +84,12 @@ class Rotate(BaseAction):
         self.odom_start_yaw = None
         self.odom_last_yaw = None
 
-        # Thread control
         self._thread = None
         self._thread_done = False
         self._thread_success = False
         self._control_rate = 100  # Hz
 
     def _odom_callback(self, msg):
-        """Extract yaw from odometry quaternion."""
         q = msg.pose.pose.orientation
         siny_cosp = 2 * (q.w * q.z + q.x * q.y)
         cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
@@ -105,10 +99,8 @@ class Rotate(BaseAction):
         self.odom_last_yaw = yaw
 
     def _control_loop(self):
-        """Independent control loop running in separate thread."""
         rate_sleep = 1.0 / self._control_rate
 
-        # Wait for first odom
         timeout_count = 0
         while self.odom_start_yaw is None and timeout_count < 500:
             time.sleep(0.01)
@@ -125,7 +117,6 @@ class Rotate(BaseAction):
                 time.sleep(rate_sleep)
                 continue
 
-            # Calculate error
             start_deg = math.degrees(self.odom_start_yaw)
             last_deg = math.degrees(self.odom_last_yaw)
             delta_deg = self.angle_diff_deg(last_deg, start_deg)
@@ -135,14 +126,12 @@ class Rotate(BaseAction):
             error = self.angle_deg - delta_deg_norm
 
             if abs(error) <= tolerance:
-                # Target reached
                 self._stop_mobile()
                 self.log_info(f"[Thread] Rotation complete: {delta_deg_norm:.2f} deg (target: {self.angle_deg} deg)")
                 self._thread_success = True
                 self._thread_done = True
                 break
 
-            # Publish command
             angular_z = self.angular_velocity if error > 0 else -self.angular_velocity
             if 'leader_mobile' in self.publishers:
                 twist_msg = Twist()
@@ -154,9 +143,7 @@ class Rotate(BaseAction):
             time.sleep(rate_sleep)
 
     def tick(self) -> NodeStatus:
-        """Check thread status - actual control runs in separate thread."""
         if self._thread is None:
-            # First tick - start control thread
             self.odom_start_yaw = None
             self.odom_last_yaw = None
             self._thread_done = False
@@ -167,7 +154,6 @@ class Rotate(BaseAction):
             self.log_info(f"Rotate thread started (target: {self.angle_deg} deg)")
             return NodeStatus.RUNNING
 
-        # Subsequent ticks - just check thread status
         if self._thread_done:
             if self._thread_success:
                 return NodeStatus.SUCCESS
@@ -177,16 +163,13 @@ class Rotate(BaseAction):
         return NodeStatus.RUNNING
 
     def _stop_mobile(self):
-        """Stop mobile base by publishing zero velocity."""
         if 'leader_mobile' in self.publishers:
             twist_msg = Twist()
             self.publishers['leader_mobile'].publish(twist_msg)
             self.log_info("Mobile base stopped")
 
     def reset(self):
-        """Reset action state for re-execution."""
         super().reset()
-        # Stop thread if running
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True
             self._thread.join(timeout=1.0)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2025 ROBOTIS CO., LTD.
+# Copyright 2026 ROBOTIS CO., LTD.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 #
 # Author: Seongwoo Kim
 
-"""Action to move only lift joint to target position."""
-
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -31,7 +29,6 @@ if TYPE_CHECKING:
 
 
 class MoveLift(BaseAction):
-    """Action to move lift joint to target position."""
 
     def __init__(
         self,
@@ -39,14 +36,7 @@ class MoveLift(BaseAction):
         lift_position: float = 0.0,
         position_threshold: float = 0.01,
     ):
-        """
-        Initialize MoveLift action.
 
-        Args:
-            node: ROS2 node reference
-            lift_position: Target position for lift joint
-            position_threshold: Position tolerance for completion
-        """
         super().__init__(node, name="MoveLift")
         self.lift_joint_name = "lift_joint"
         self.target_position = lift_position
@@ -54,14 +44,12 @@ class MoveLift(BaseAction):
 
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 
-        # Publisher for lift joint
         self.lift_pub = self.node.create_publisher(
             JointTrajectory,
             "/leader/joystick_controller_right/joint_trajectory",
             qos_profile
         )
 
-        # Joint state subscription
         self.joint_state = None
         self.joint_state_sub = self.node.create_subscription(
             JointState,
@@ -70,18 +58,15 @@ class MoveLift(BaseAction):
             qos_profile
         )
 
-        # Thread control
         self._thread = None
         self._thread_done = False
         self._thread_success = False
         self._control_rate = 100  # Hz
 
     def _joint_state_callback(self, msg):
-        """Callback for joint state updates."""
         self.joint_state = msg
 
     def _get_joint_position(self, joint_name: str):
-        """Get current position of a joint."""
         if self.joint_state is None:
             return None
 
@@ -92,10 +77,8 @@ class MoveLift(BaseAction):
             return None
 
     def _control_loop(self):
-        """Independent control loop running in separate thread."""
         rate_sleep = 1.0 / self._control_rate
 
-        # Publish lift trajectory command
         lift_traj = JointTrajectory()
         lift_traj.joint_names = [self.lift_joint_name]
         lift_point = JointTrajectoryPoint()
@@ -106,9 +89,8 @@ class MoveLift(BaseAction):
 
         self.log_info(f"Lift trajectory published: target={self.target_position}")
 
-        # Wait for position reached
         timeout_count = 0
-        while not self._thread_done and timeout_count < 2000:  # 20s timeout
+        while not self._thread_done and timeout_count < 2000:
             if self.joint_state is not None:
                 current_pos = self._get_joint_position(self.lift_joint_name)
                 if current_pos is not None:
@@ -126,7 +108,6 @@ class MoveLift(BaseAction):
             self._thread_done = True
 
     def tick(self) -> NodeStatus:
-        """Execute one tick of MoveLift action."""
         if self._thread is None:
             self.joint_state = None
             self._thread_done = False
@@ -143,7 +124,6 @@ class MoveLift(BaseAction):
         return NodeStatus.RUNNING
 
     def reset(self):
-        """Reset action state for re-execution."""
         super().reset()
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True

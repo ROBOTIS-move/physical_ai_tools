@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2025 ROBOTIS CO., LTD.
+# Copyright 2026 ROBOTIS CO., LTD.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 #
 # Author: Seongwoo Kim
 
-"""Action to move only head joints to target positions."""
 
 import threading
 import time
@@ -56,7 +55,6 @@ class MoveHead(BaseAction):
             qos_profile
         )
 
-        # Thread control
         self._thread = None
         self._thread_done = False
         self._thread_success = False
@@ -66,12 +64,10 @@ class MoveHead(BaseAction):
         self.joint_state = msg
 
     def _control_loop(self):
-        """Independent control loop running in separate thread."""
         rate_sleep = 1.0 / self._control_rate
 
         self.log_info(f'Publishing head trajectory: {self.head_positions}')
 
-        # Publish trajectory command once
         head_traj = JointTrajectory()
         head_traj.joint_names = self.head_joint_names
         head_point = JointTrajectoryPoint()
@@ -82,9 +78,8 @@ class MoveHead(BaseAction):
 
         self.log_info("Head trajectory published")
 
-        # Wait for joint_state and check positions
         timeout_count = 0
-        while not self._thread_done and timeout_count < 1000:  # 10s timeout
+        while not self._thread_done and timeout_count < 1000:
             if self.joint_state is None:
                 time.sleep(rate_sleep)
                 timeout_count += 1
@@ -93,7 +88,6 @@ class MoveHead(BaseAction):
             name_to_idx = {n: i for i, n in enumerate(self.joint_state.name)}
             all_reached = True
 
-            # Check head joints
             for jname, target in zip(self.head_joint_names, self.head_positions):
                 idx = name_to_idx.get(jname)
                 if idx is not None:
@@ -116,7 +110,6 @@ class MoveHead(BaseAction):
             self._thread_done = True
 
     def tick(self) -> NodeStatus:
-        """Check thread status - actual control runs in separate thread."""
         if self._thread is None:
             self.joint_state = None
             self._thread_done = False
@@ -133,7 +126,6 @@ class MoveHead(BaseAction):
         return NodeStatus.RUNNING
 
     def reset(self):
-        """Reset action state for re-execution."""
         super().reset()
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True

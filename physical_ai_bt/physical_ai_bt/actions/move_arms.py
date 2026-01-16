@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-# Copyright 2025 ROBOTIS CO., LTD.
+#
+# Copyright 2026 ROBOTIS CO., LTD.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 # Author: Seongwoo Kim
-
-"""Action to move both left and right arms to target positions."""
 
 import threading
 import time
@@ -65,7 +68,6 @@ class MoveArms(BaseAction):
             qos_profile
         )
 
-        # Thread control
         self._thread = None
         self._thread_done = False
         self._thread_success = False
@@ -75,10 +77,8 @@ class MoveArms(BaseAction):
         self.joint_state = msg
 
     def _control_loop(self):
-        """Independent control loop running in separate thread."""
         rate_sleep = 1.0 / self._control_rate
 
-        # Publish trajectory commands once
         left_traj = JointTrajectory()
         left_traj.joint_names = self.left_joint_names
         left_point = JointTrajectoryPoint()
@@ -97,7 +97,6 @@ class MoveArms(BaseAction):
 
         self.log_info("Arms trajectory published")
 
-        # Wait for joint_state and check positions
         timeout_count = 0
         while not self._thread_done and timeout_count < 1500:  # 30s timeout
             if self.joint_state is None:
@@ -108,7 +107,6 @@ class MoveArms(BaseAction):
             name_to_idx = {n: i for i, n in enumerate(self.joint_state.name)}
             all_reached = True
 
-            # Check left arm joints
             for jname, target in zip(self.left_joint_names, self.left_positions):
                 idx = name_to_idx.get(jname)
                 if idx is not None:
@@ -120,7 +118,6 @@ class MoveArms(BaseAction):
                     all_reached = False
                     break
 
-            # Check right arm joints
             if all_reached:
                 for jname, target in zip(self.right_joint_names, self.right_positions):
                     idx = name_to_idx.get(jname)
@@ -147,7 +144,6 @@ class MoveArms(BaseAction):
             self._thread_done = True
 
     def tick(self) -> NodeStatus:
-        """Check thread status - actual control runs in separate thread."""
         if self._thread is None:
             self.joint_state = None
             self._thread_done = False
@@ -164,7 +160,6 @@ class MoveArms(BaseAction):
         return NodeStatus.RUNNING
 
     def reset(self):
-        """Reset action state for re-execution."""
         super().reset()
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True

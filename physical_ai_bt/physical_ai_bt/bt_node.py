@@ -25,8 +25,8 @@ from physical_ai_bt.bt_nodes_loader import TreeLoader
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
+
 class BehaviorTreeNode(Node):
-    """Generic ROS2 node for Behavior Tree execution."""
 
     def __init__(self):
         super().__init__('physical_ai_bt_node')
@@ -91,7 +91,6 @@ class BehaviorTreeNode(Node):
         self.get_logger().info(f'Tick rate: {tick_rate} Hz')
 
     def _load_joint_order(self, robot_type: str) -> list:
-        """Load joint order from ROS2 parameters (config file)."""
         self.declare_parameter(f'{robot_type}.joint_list', [''])
         joint_list_param = self.get_parameter(f'{robot_type}.joint_list').value
 
@@ -119,25 +118,7 @@ class BehaviorTreeNode(Node):
         return all_joint_order
 
     def _load_topic_config(self, robot_type: str) -> dict:
-        """
-        Load topic configuration for multi-publisher support.
 
-        Returns:
-            dict: {
-                'joint_list': ['leader_left', 'leader_right', ...],
-                'joint_topic_list': ['leader_left:/topic1', 'leader_right:/topic2', ...],
-                'topic_map': {
-                    'leader_left': '/topic1',
-                    'leader_right': '/topic2',
-                    ...
-                },
-                'joint_order': {
-                    'leader_left': ['arm_l_joint1', ...],
-                    'leader_right': ['arm_r_joint1', ...],
-                    ...
-                }
-            }
-        """
         joint_list = self.get_parameter(f'{robot_type}.joint_list').value
 
         self.declare_parameter(f'{robot_type}.joint_topic_list', [''])
@@ -168,7 +149,6 @@ class BehaviorTreeNode(Node):
 
 
     def tick_callback(self):
-        """Timer callback for BT tick execution."""
         if self.root is None:
             return
 
@@ -186,7 +166,6 @@ class BehaviorTreeNode(Node):
             self._handle_tree_completion(status)
 
     def _handle_tree_completion(self, status: NodeStatus):
-        """Handle tree completion (SUCCESS or FAILURE)."""
         if self.root is not None:
             self.root.reset()
 
@@ -195,7 +174,6 @@ class BehaviorTreeNode(Node):
 
 
 def main(args=None):
-    """Main entry point for the BT node."""
     rclpy.init(args=args)
 
     try:

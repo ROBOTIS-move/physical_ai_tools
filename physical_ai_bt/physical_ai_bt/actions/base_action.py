@@ -26,104 +26,67 @@ if TYPE_CHECKING:
 
 
 class NodeStatus(Enum):
-    """Status returned by node tick() method."""
     SUCCESS = 1
     FAILURE = 2
     RUNNING = 3
 
 
 class BTNode:
-    """Base class for all BT nodes (actions, controls, decorators)."""
 
     def __init__(self, node: 'Node', name: str):
-        """
-        Initialize BT node.
 
-        Args:
-            node: ROS2 node reference for logging and communication
-            name: Name of the node for logging
-        """
         self.node = node
         self.name = name
         self.status = NodeStatus.RUNNING
 
     def tick(self) -> NodeStatus:
-        """
-        Execute one tick of the node.
 
-        Returns:
-            NodeStatus: Current status of the node
-        """
         raise NotImplementedError("Subclasses must implement tick() method")
 
     def reset(self):
-        """Reset node state for re-execution."""
         self.status = NodeStatus.RUNNING
 
     def log_info(self, message: str):
-        """Log info message."""
         self.node.get_logger().info(f"[{self.name}] {message}")
 
     def log_warn(self, message: str):
-        """Log warning message."""
         self.node.get_logger().warn(f"[{self.name}] {message}")
 
     def log_error(self, message: str):
-        """Log error message."""
         self.node.get_logger().error(f"[{self.name}] {message}")
 
 
 class BaseAction(BTNode):
-    """Base class for BT action nodes (leaf nodes)."""
     pass
 
 
 class BaseControl(BTNode):
-    """Base class for BT control nodes (composite nodes)."""
 
     def __init__(self, node: 'Node', name: str):
-        """
-        Initialize control node.
 
-        Args:
-            node: ROS2 node reference
-            name: Name of the control node
-        """
         super().__init__(node, name)
         self.children: List[BTNode] = []
 
     def add_child(self, child: BTNode):
-        """Add a child node."""
         self.children.append(child)
 
     def reset(self):
-        """Reset this node and all children."""
         super().reset()
         for child in self.children:
             child.reset()
 
 
 class BaseDecorator(BTNode):
-    """Base class for BT decorator nodes."""
 
     def __init__(self, node: 'Node', name: str, child: BTNode = None):
-        """
-        Initialize decorator node.
 
-        Args:
-            node: ROS2 node reference
-            name: Name of the decorator
-            child: Child node to decorate
-        """
         super().__init__(node, name)
         self.child = child
 
     def set_child(self, child: BTNode):
-        """Set the child node."""
         self.child = child
 
     def reset(self):
-        """Reset this node and child."""
         super().reset()
         if self.child:
             self.child.reset()

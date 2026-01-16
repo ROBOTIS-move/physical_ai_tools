@@ -16,7 +16,6 @@
 #
 # Author: Seongwoo Kim
 
-"""Rule-based Behavior Tree Actions for Physical AI."""
 
 from physical_ai_bt.actions.base_action import BaseAction
 from physical_ai_bt.actions.move_arms import MoveArms

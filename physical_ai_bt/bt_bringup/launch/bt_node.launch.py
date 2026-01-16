@@ -26,7 +26,6 @@ from launch_ros.actions import Node
 
 
 def launch_setup(context, *args, **kwargs):
-    """Setup launch nodes with access to launch configurations."""
 
     robot_type = LaunchConfiguration('robot_type').perform(context)
 

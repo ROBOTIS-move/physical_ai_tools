@@ -21,21 +21,14 @@
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Dict, Type
 
-from physical_ai_bt.actions import InferenceUntilGesture, InferenceUntilPosition, Rotate, RotateLidar
-from physical_ai_bt.actions.inference_until_gesture_with_gripper import InferenceUntilGestureWithGripper
-from physical_ai_bt.actions.inference_until_position_with_gripper import InferenceUntilPositionWithGripper
-from physical_ai_bt.actions.timed_inference import TimedInference
-from physical_ai_bt.actions.control_inference import (
-    PauseInference,
-    ResumeInference
+from physical_ai_bt.actions import (
+    MoveArms,
+    MoveLift,
+    MoveHeadLift,
+    OpenGrippers,
+    Rotate,
+    RotateLidar,
 )
-from physical_ai_bt.actions.update_task_instruction import UpdateTaskInstruction
-from physical_ai_bt.actions.set_task_instruction import SetTaskInstruction
-from physical_ai_bt.actions.camera_depth import CameraDepth
-from physical_ai_bt.actions.move_head_lift import MoveHeadLift
-from physical_ai_bt.actions.move_arms import MoveArms
-from physical_ai_bt.actions.move_lift import MoveLift
-from physical_ai_bt.actions.open_grippers import OpenGrippers
 from physical_ai_bt.actions.base_action import BTNode, BaseAction, BaseControl
 from physical_ai_bt.controls import Sequence, RetryUntilSuccessful, ForEach
 
@@ -59,13 +52,6 @@ class TreeLoader:
         self.joint_names = joint_names or []
         self.topic_config = topic_config or {}
 
-        # Get inference_fps from node parameter
-        self.inference_fps = 5  # Default
-        try:
-            self.inference_fps = self.node.get_parameter('inference_fps').value
-        except:
-            self.node.get_logger().warn('inference_fps parameter not found, using default: 5')
-
         # Register available node types
         self.control_types: Dict[str, Type[BaseControl]] = {
             'Sequence': Sequence,
@@ -74,18 +60,8 @@ class TreeLoader:
         }
 
         self.action_types: Dict[str, Type[BaseAction]] = {
-            'InferenceUntilGesture': InferenceUntilGesture,
-            'InferenceUntilGestureWithGripper': InferenceUntilGestureWithGripper,
-            'InferenceUntilPosition': InferenceUntilPosition,
-            'InferenceUntilPositionWithGripper': InferenceUntilPositionWithGripper,
-            'TimedInference': TimedInference,
             'Rotate': Rotate,
             'RotateLidar': RotateLidar,
-            'PauseInference': PauseInference,
-            'ResumeInference': ResumeInference,
-            'UpdateTaskInstruction': UpdateTaskInstruction,
-            'SetTaskInstruction': SetTaskInstruction,
-            'CameraDepth': CameraDepth,
             'MoveHeadLift': MoveHeadLift,
             'MoveArms': MoveArms,
             'MoveLift': MoveLift,
@@ -222,25 +198,7 @@ class TreeLoader:
             BaseAction: Created action instance
         """
         # Map XML parameters to constructor arguments
-        if action_class == InferenceUntilGesture:
-            return action_class(
-                node=self.node,
-                position_change_threshold=params.get('position_change_threshold', 0.05),
-                static_duration=params.get('static_duration', 3.0),
-                history_window=params.get('history_window', 1.0)
-            )
-
-        elif action_class == InferenceUntilGestureWithGripper:
-            return action_class(
-                node=self.node,
-                position_change_threshold=params.get('position_change_threshold', 0.05),
-                static_duration=params.get('static_duration', 3.0),
-                history_window=params.get('history_window', 1.0),
-                gripper_closed_threshold=params.get('gripper_closed_threshold', 0.01),
-                gripper_open_threshold=params.get('gripper_open_threshold', 0.7)
-            )
-
-        elif action_class == Rotate:
+        if action_class == Rotate:
             return action_class(
                 node=self.node,
                 angle_deg=params.get('angle_deg', 90.0),
@@ -253,39 +211,6 @@ class TreeLoader:
                 face_tape=params.get('face_tape', True),
                 lift_position=params.get('lift_position', 0.0),
                 position_threshold=params.get('position_threshold', 0.01)
-            )
-
-        elif action_class == PauseInference:
-            return action_class(
-                node=self.node,
-                inference_fps=self.inference_fps
-            )
-
-        elif action_class == ResumeInference:
-            return action_class(
-                node=self.node,
-                inference_fps=self.inference_fps
-            )
-
-        elif action_class == UpdateTaskInstruction:
-            return action_class(
-                node=self.node,
-                inference_fps=self.inference_fps
-            )
-
-        elif action_class == SetTaskInstruction:
-            return action_class(
-                node=self.node,
-                instruction=params.get('instruction', ''),
-                inference_fps=self.inference_fps
-            )
-
-        elif action_class == CameraDepth:
-            return action_class(
-                node=self.node,
-                depth_topic=params.get('depth_topic', "/camera/depth/image_raw"),
-                success_threshold=params.get('success_threshold'),
-                failure_threshold=params.get('failure_threshold')
             )
 
         elif action_class == MoveHeadLift:
@@ -302,12 +227,6 @@ class TreeLoader:
                 right_positions=params.get('right_positions', [0.0]*8)
             )
 
-        elif action_class == TimedInference:
-            return action_class(
-                node=self.node,
-                duration=params.get('duration', 20.0)
-            )
-
         elif action_class == MoveLift:
             return action_class(
                 node=self.node,
@@ -322,22 +241,5 @@ class TreeLoader:
                 open_threshold=params.get('open_threshold', 0.2)
             )
 
-        elif action_class == InferenceUntilPosition:
-            return action_class(
-                node=self.node,
-                left_positions=params.get('left_positions', [0.0]*8),
-                right_positions=params.get('right_positions', [0.0]*8),
-                tolerance=params.get('tolerance', 0.1)
-            )
-
-        elif action_class == InferenceUntilPositionWithGripper:
-            return action_class(
-                node=self.node,
-                left_positions=params.get('left_positions', [0.0]*8),
-                right_positions=params.get('right_positions', [0.0]*8),
-                tolerance=params.get('tolerance', 0.1),
-                gripper_closed_threshold=params.get('gripper_closed_threshold', 0.01),
-                gripper_open_threshold=params.get('gripper_open_threshold', 0.7)
-            )
         else:
             raise ValueError(f"Unknown action class: {action_class}")

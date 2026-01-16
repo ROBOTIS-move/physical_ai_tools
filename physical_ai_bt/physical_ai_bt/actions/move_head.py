@@ -75,7 +75,6 @@ class MoveHead(BaseAction):
         head_point = JointTrajectoryPoint()
         head_point.positions = self.head_positions
         head_point.time_from_start.sec = int(self.duration)
-        head_point.time_from_start.nanosec = int((self.duration % 1) * 1e9)
         head_traj.points.append(head_point)
         self.head_pub.publish(head_traj)
 

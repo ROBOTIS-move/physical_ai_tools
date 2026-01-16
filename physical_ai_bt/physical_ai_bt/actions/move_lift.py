@@ -86,7 +86,6 @@ class MoveLift(BaseAction):
         lift_point = JointTrajectoryPoint()
         lift_point.positions = [self.target_position]
         lift_point.time_from_start.sec = int(self.duration)
-        lift_point.time_from_start.nanosec = int((self.duration % 1) * 1e9)
         lift_traj.points.append(lift_point)
         self.lift_pub.publish(lift_traj)
 

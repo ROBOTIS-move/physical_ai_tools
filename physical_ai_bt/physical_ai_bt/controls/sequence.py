@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2025 ROBOTIS CO., LTD.
+# Copyright 2026 ROBOTIS CO., LTD.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 #
 # Author: Seongwoo Kim
 
-"""Sequence control node."""
-
 from typing import TYPE_CHECKING
 
 from physical_ai_bt.actions.base_action import BaseControl, NodeStatus
@@ -27,28 +25,12 @@ if TYPE_CHECKING:
 
 
 class Sequence(BaseControl):
-    """
-    Sequence control node.
-
-    Executes children in order until one fails or all succeed.
-    Returns SUCCESS if all children succeed.
-    Returns FAILURE if any child fails.
-    Returns RUNNING if current child is still running.
-    """
 
     def __init__(self, node: 'Node', name: str = "Sequence"):
-        """
-        Initialize sequence node.
-
-        Args:
-            node: ROS2 node reference
-            name: Name of the sequence node
-        """
         super().__init__(node, name)
         self.current_child_index = 0
 
     def tick(self) -> NodeStatus:
-        """Execute sequence logic."""
         while self.current_child_index < len(self.children):
             current_child = self.children[self.current_child_index]
             status = current_child.tick()
@@ -57,16 +39,16 @@ class Sequence(BaseControl):
                 return NodeStatus.RUNNING
             elif status == NodeStatus.FAILURE:
                 self.log_warn(f"Child {current_child.name} failed")
+                current_child.reset()
                 return NodeStatus.FAILURE
-            else:  # SUCCESS
+            else:
                 self.log_info(f"Child {current_child.name} succeeded")
+                current_child.reset()
                 self.current_child_index += 1
 
-        # All children succeeded
         self.log_info("All children succeeded")
         return NodeStatus.SUCCESS
 
     def reset(self):
-        """Reset sequence and all children."""
         super().reset()
         self.current_child_index = 0

@@ -28,7 +28,7 @@ from physical_ai_bt.actions import (
     Rotate,
 )
 from physical_ai_bt.actions.base_action import BTNode, BaseAction, BaseControl
-from physical_ai_bt.controls import Sequence, RetryUntilSuccessful, ForEach
+from physical_ai_bt.controls import Sequence
 
 if TYPE_CHECKING:
     from rclpy.node import Node
@@ -53,8 +53,6 @@ class TreeLoader:
         # Register available node types
         self.control_types: Dict[str, Type[BaseControl]] = {
             'Sequence': Sequence,
-            'RetryUntilSuccessful': RetryUntilSuccessful,
-            'ForEach': ForEach,
         }
 
         self.action_types: Dict[str, Type[BaseAction]] = {
@@ -109,16 +107,7 @@ class TreeLoader:
         # Load Control nodes
         if node_type in self.control_types:
             control_class = self.control_types[node_type]
-
-            # Parse parameters for parameterized control nodes
-            if node_type == 'RetryUntilSuccessful':
-                max_retries = int(xml_node.get('max_retries', '3'))
-                control_node = control_class(self.node, name=node_name, max_retries=max_retries)
-            elif node_type == 'ForEach':
-                list_key = xml_node.get('list_key', 'task_instruction_list')
-                control_node = control_class(self.node, name=node_name, list_key=list_key)
-            else:
-                control_node = control_class(self.node, name=node_name)
+            control_node = control_class(self.node, name=node_name)
 
             # Load children
             for child_xml in xml_node:

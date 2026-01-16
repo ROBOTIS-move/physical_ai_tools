@@ -16,24 +16,30 @@
 #
 # Author: Seongwoo Kim
 
+"""ROS 2 node for executing behavior trees."""
+
 import os
-import rclpy
+
 from ament_index_python.packages import get_package_share_directory
-from physical_ai_bt.actions.base_action import BTNode, NodeStatus
-from physical_ai_bt.blackboard import Blackboard
-from physical_ai_bt.bt_nodes_loader import TreeLoader
+import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
+from physical_ai_bt.actions.base_action import NodeStatus  # noqa: I100
+from physical_ai_bt.blackboard import Blackboard  # noqa: I100
+from physical_ai_bt.bt_nodes_loader import TreeLoader  # noqa: I100
+
 
 class BehaviorTreeNode(Node):
+    """ROS 2 node that loads and executes behavior trees."""
 
     def __init__(self):
+        """Initialize the behavior tree node."""
         super().__init__('physical_ai_bt_node')
 
         self.blackboard = Blackboard()
 
-        self.tree_execution_mode = 'stopped'  # 'stopped', 'running', 'stopping'
+        self.tree_execution_mode = 'stopped'
         self.main_tree_path = None
 
         self.declare_parameter('robot_type', 'ffw_sg2_rev1')
@@ -66,13 +72,20 @@ class BehaviorTreeNode(Node):
 
         self.root = None
         try:
-            self.get_logger().info(f'Loading main tree: {self.main_tree_path}')
+            self.get_logger().info(
+                f'Loading main tree: {self.main_tree_path}'
+            )
             if os.path.exists(self.main_tree_path):
-                self.root = self.tree_loader.load_tree_from_file(self.main_tree_path)
+                tree_file = self.main_tree_path
+                self.root = self.tree_loader.load_tree_from_file(tree_file)
                 self.tree_execution_mode = 'running'
-                self.get_logger().info(f'Main tree loaded successfully: {self.root.name}')
+                self.get_logger().info(
+                    f'Main tree loaded successfully: {self.root.name}'
+                )
             else:
-                self.get_logger().error(f'Main tree file not found: {self.main_tree_path}')
+                self.get_logger().error(
+                    f'Main tree file not found: {self.main_tree_path}'
+                )
                 self.tree_execution_mode = 'stopped'
         except Exception as e:
             self.get_logger().error(f'Failed to load main tree: {str(e)}')
@@ -85,18 +98,22 @@ class BehaviorTreeNode(Node):
         self.get_logger().info(f'Robot type: {robot_type}')
         self.get_logger().info(f'Main tree XML: {tree_xml}')
         if self.root:
-            self.get_logger().info(f'Tree auto-loaded and executing')
+            self.get_logger().info('Tree auto-loaded and executing')
         else:
-            self.get_logger().error(f'Tree failed to load')
+            self.get_logger().error('Tree failed to load')
         self.get_logger().info(f'Tick rate: {tick_rate} Hz')
 
     def _load_joint_order(self, robot_type: str) -> list:
+        """Load joint order configuration for the robot type."""
         self.declare_parameter(f'{robot_type}.joint_list', [''])
-        joint_list_param = self.get_parameter(f'{robot_type}.joint_list').value
+        joint_list_param = self.get_parameter(
+            f'{robot_type}.joint_list'
+        ).value
 
         if not joint_list_param or joint_list_param == ['']:
             self.get_logger().warn(
-                f'No joint_list found in config for {robot_type}, using default'
+                f'No joint_list found in config for {robot_type}, '
+                'using default'
             )
             return []
 
@@ -108,21 +125,28 @@ class BehaviorTreeNode(Node):
 
             if joint_order and joint_order != ['']:
                 all_joint_order.extend(joint_order)
-                self.get_logger().info(f'Loaded {len(joint_order)} joints from {joint_name}')
+                num_joints = len(joint_order)
+                self.get_logger().info(
+                    f'Loaded {num_joints} joints from {joint_name}'
+                )
 
         if not all_joint_order:
-            self.get_logger().error(f'No joint_order found for any joint group')
+            self.get_logger().error(
+                'No joint_order found for any joint group'
+            )
             return []
 
         self.get_logger().info(f'Total joints loaded: {len(all_joint_order)}')
         return all_joint_order
 
     def _load_topic_config(self, robot_type: str) -> dict:
-
+        """Load topic configuration for the robot type."""
         joint_list = self.get_parameter(f'{robot_type}.joint_list').value
 
         self.declare_parameter(f'{robot_type}.joint_topic_list', [''])
-        joint_topic_list = self.get_parameter(f'{robot_type}.joint_topic_list').value
+        joint_topic_list = self.get_parameter(
+            f'{robot_type}.joint_topic_list'
+        ).value
 
         topic_map = {}
         for topic_entry in joint_topic_list:
@@ -144,11 +168,14 @@ class BehaviorTreeNode(Node):
             'joint_order': joint_order
         }
 
-        self.get_logger().info(f'Loaded topic config for {len(topic_map)} joint groups')
+        num_groups = len(topic_map)
+        self.get_logger().info(
+            f'Loaded topic config for {num_groups} joint groups'
+        )
         return config
 
-
     def tick_callback(self):
+        """Execute one tick of the behavior tree."""
         if self.root is None:
             return
 
@@ -161,11 +188,17 @@ class BehaviorTreeNode(Node):
         status = self.root.tick()
 
         if status in [NodeStatus.SUCCESS, NodeStatus.FAILURE]:
-            status_name = 'successfully' if status == NodeStatus.SUCCESS else 'with failure'
-            self.get_logger().info(f'Behavior Tree completed {status_name}')
+            if status == NodeStatus.SUCCESS:
+                status_name = 'successfully'
+            else:
+                status_name = 'with failure'
+            self.get_logger().info(
+                f'Behavior Tree completed {status_name}'
+            )
             self._handle_tree_completion(status)
 
     def _handle_tree_completion(self, status: NodeStatus):
+        """Handle the completion of a behavior tree execution."""
         if self.root is not None:
             self.root.reset()
 
@@ -174,6 +207,7 @@ class BehaviorTreeNode(Node):
 
 
 def main(args=None):
+    """Run the behavior tree node."""
     rclpy.init(args=args)
 
     try:

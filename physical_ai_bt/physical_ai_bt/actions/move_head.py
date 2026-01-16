@@ -16,35 +16,52 @@
 #
 # Author: Seongwoo Kim
 
+"""Action node for moving the robot head to specified positions."""
 
 import threading
 import time
-from typing import TYPE_CHECKING, List
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from physical_ai_bt.actions.base_action import NodeStatus, BaseAction
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from typing import List
+from typing import TYPE_CHECKING
+
+from physical_ai_bt.actions.base_action import BaseAction
+from physical_ai_bt.actions.base_action import NodeStatus
+from rclpy.qos import QoSProfile
+from rclpy.qos import ReliabilityPolicy
+from trajectory_msgs.msg import JointTrajectory
+from trajectory_msgs.msg import JointTrajectoryPoint
 
 if TYPE_CHECKING:
     from rclpy.node import Node
 
+
 class MoveHead(BaseAction):
+    """Action to move the robot head to target joint positions."""
+
     def __init__(
             self,
             node: 'Node',
             head_positions: List[float] = None,
             position_threshold: float = 0.01,
             duration: float = 5.0,
-        ):
-        super().__init__(node, name="MoveHead")
-        self.head_joint_names = ["head_joint1", "head_joint2"]
-        self.head_positions = head_positions if head_positions else [0.0, 0.0]
+    ):
+        """Initialize the MoveHead action."""
+        super().__init__(node, name='MoveHead')
+        self.head_joint_names = ['head_joint1', 'head_joint2']
+        self.head_positions = (
+            head_positions if head_positions else [0.0, 0.0]
+        )
         self.position_threshold = position_threshold
         self.duration = duration
 
-        qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        qos_profile = QoSProfile(
+            depth=10, reliability=ReliabilityPolicy.RELIABLE
+        )
+        topic_head = (
+            '/leader/joystick_controller_left/joint_trajectory'
+        )
         self.head_pub = self.node.create_publisher(
             JointTrajectory,
-            "/leader/joystick_controller_left/joint_trajectory",
+            topic_head,
             qos_profile
         )
 
@@ -52,7 +69,7 @@ class MoveHead(BaseAction):
         from sensor_msgs.msg import JointState
         self.joint_state_sub = self.node.create_subscription(
             JointState,
-            "/joint_states",
+            '/joint_states',
             self._joint_state_callback,
             qos_profile
         )
@@ -63,12 +80,15 @@ class MoveHead(BaseAction):
         self._control_rate = 100  # Hz
 
     def _joint_state_callback(self, msg):
+        """Receive joint state updates."""
         self.joint_state = msg
 
     def _control_loop(self):
+        """Control loop that publishes trajectories and monitors progress."""
         rate_sleep = 1.0 / self._control_rate
 
-        self.log_info(f'Publishing head trajectory: {self.head_positions}')
+        pos_str = str(self.head_positions)
+        self.log_info(f'Publishing head trajectory: {pos_str}')
 
         head_traj = JointTrajectory()
         head_traj.joint_names = self.head_joint_names
@@ -78,19 +98,24 @@ class MoveHead(BaseAction):
         head_traj.points.append(head_point)
         self.head_pub.publish(head_traj)
 
-        self.log_info("Head trajectory published")
+        self.log_info('Head trajectory published')
 
         timeout_count = 0
-        while not self._thread_done and timeout_count < 1000:
+        max_timeout = 1000
+        while not self._thread_done and timeout_count < max_timeout:
             if self.joint_state is None:
                 time.sleep(rate_sleep)
                 timeout_count += 1
                 continue
 
-            name_to_idx = {n: i for i, n in enumerate(self.joint_state.name)}
+            name_to_idx = {
+                n: i for i, n in enumerate(self.joint_state.name)
+            }
             all_reached = True
 
-            for jname, target in zip(self.head_joint_names, self.head_positions):
+            for jname, target in zip(
+                self.head_joint_names, self.head_positions
+            ):
                 idx = name_to_idx.get(jname)
                 if idx is not None:
                     pos = self.joint_state.position[idx]
@@ -99,7 +124,7 @@ class MoveHead(BaseAction):
                         break
 
             if all_reached:
-                self.log_info("Head reached target positions")
+                self.log_info('Head reached target positions')
                 self._thread_success = True
                 self._thread_done = True
                 break
@@ -108,26 +133,34 @@ class MoveHead(BaseAction):
             timeout_count += 1
 
         if not self._thread_success and not self._thread_done:
-            self.log_error("Head timeout waiting for target positions")
+            self.log_error('Head timeout waiting for target positions')
             self._thread_done = True
 
     def tick(self) -> NodeStatus:
+        """Execute the action and return its status."""
         if self._thread is None:
             self.joint_state = None
             self._thread_done = False
             self._thread_success = False
 
-            self._thread = threading.Thread(target=self._control_loop, daemon=True)
+            self._thread = threading.Thread(
+                target=self._control_loop, daemon=True
+            )
             self._thread.start()
-            self.log_info(f"MoveHead started with positions: {self.head_positions}")
+            pos_str = str(self.head_positions)
+            self.log_info(f'MoveHead started with positions: {pos_str}')
             return NodeStatus.RUNNING
 
         if self._thread_done:
-            return NodeStatus.SUCCESS if self._thread_success else NodeStatus.FAILURE
+            if self._thread_success:
+                return NodeStatus.SUCCESS
+            else:
+                return NodeStatus.FAILURE
 
         return NodeStatus.RUNNING
 
     def reset(self):
+        """Reset the action to its initial state."""
         super().reset()
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True

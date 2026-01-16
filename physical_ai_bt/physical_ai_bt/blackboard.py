@@ -16,24 +16,37 @@
 #
 # Author: Seongwoo Kim
 
+"""Singleton blackboard for sharing data across behavior tree nodes."""
+
 
 class Blackboard:
+    """Singleton blackboard for shared data storage."""
+
     _instance = None
 
     def __new__(cls):
+        """Create or return the singleton instance."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._data = {}
         return cls._instance
 
-    def set(self, key: str, value):
+    def set_value(self, key: str, value):
+        """Set a value in the blackboard."""
         self._data[key] = value
 
+    def set(self, key: str, value):  # noqa: A003
+        """Set a value in the blackboard (deprecated, use set_value)."""
+        return self.set_value(key, value)
+
     def get(self, key: str, default=None):
+        """Get a value from the blackboard."""
         return self._data.get(key, default)
 
     def has(self, key: str) -> bool:
+        """Check if a key exists in the blackboard."""
         return key in self._data
 
     def clear(self):
+        """Clear all data from the blackboard."""
         self._data.clear()

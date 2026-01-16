@@ -16,21 +16,27 @@
 #
 # Author: Seongwoo Kim
 
+"""Sequence control node for behavior trees."""
+
 from typing import TYPE_CHECKING
 
-from physical_ai_bt.actions.base_action import BaseControl, NodeStatus
+from physical_ai_bt.actions.base_action import BaseControl
+from physical_ai_bt.actions.base_action import NodeStatus
 
 if TYPE_CHECKING:
     from rclpy.node import Node
 
 
 class Sequence(BaseControl):
+    """Execute children sequentially until one fails or all succeed."""
 
-    def __init__(self, node: 'Node', name: str = "Sequence"):
+    def __init__(self, node: 'Node', name: str = 'Sequence'):
+        """Initialize the Sequence control node."""
         super().__init__(node, name)
         self.current_child_index = 0
 
     def tick(self) -> NodeStatus:
+        """Execute children in sequence."""
         while self.current_child_index < len(self.children):
             current_child = self.children[self.current_child_index]
             status = current_child.tick()
@@ -38,17 +44,18 @@ class Sequence(BaseControl):
             if status == NodeStatus.RUNNING:
                 return NodeStatus.RUNNING
             elif status == NodeStatus.FAILURE:
-                self.log_warn(f"Child {current_child.name} failed")
+                self.log_warn(f'Child {current_child.name} failed')
                 current_child.reset()
                 return NodeStatus.FAILURE
             else:
-                self.log_info(f"Child {current_child.name} succeeded")
+                self.log_info(f'Child {current_child.name} succeeded')
                 current_child.reset()
                 self.current_child_index += 1
 
-        self.log_info("All children succeeded")
+        self.log_info('All children succeeded')
         return NodeStatus.SUCCESS
 
     def reset(self):
+        """Reset the sequence to start from the first child."""
         super().reset()
         self.current_child_index = 0

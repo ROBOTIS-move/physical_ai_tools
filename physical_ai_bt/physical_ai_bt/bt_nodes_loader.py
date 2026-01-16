@@ -16,16 +16,20 @@
 #
 # Author: Seongwoo Kim
 
-import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING, Dict, Type
+"""Loader for behavior trees from XML files."""
 
-from physical_ai_bt.actions import (
-    MoveArms,
-    MoveLift,
-    MoveHead,
-    Rotate,
-)
-from physical_ai_bt.actions.base_action import BTNode, BaseAction, BaseControl
+import xml.etree.ElementTree as ET  # noqa: I100
+from typing import Dict  # noqa: I100
+from typing import TYPE_CHECKING  # noqa: I100
+from typing import Type  # noqa: I100
+
+from physical_ai_bt.actions import MoveArms
+from physical_ai_bt.actions import MoveHead
+from physical_ai_bt.actions import MoveLift
+from physical_ai_bt.actions import Rotate
+from physical_ai_bt.actions.base_action import BaseAction
+from physical_ai_bt.actions.base_action import BaseControl
+from physical_ai_bt.actions.base_action import BTNode
 from physical_ai_bt.controls import Sequence
 
 if TYPE_CHECKING:
@@ -33,9 +37,12 @@ if TYPE_CHECKING:
 
 
 class TreeLoader:
+    """Loads behavior trees from XML files and instantiates nodes."""
 
-    def __init__(self, node: 'Node', joint_names: list = None, topic_config: dict = None):
-
+    def __init__(
+        self, node: 'Node', joint_names: list = None, topic_config: dict = None
+    ):
+        """Initialize the tree loader."""
         self.node = node
         self.joint_names = joint_names or []
         self.topic_config = topic_config or {}
@@ -51,24 +58,30 @@ class TreeLoader:
             'MoveLift': MoveLift,
         }
 
-    def load_tree_from_file(self, xml_path: str, main_tree_id: str = None) -> BTNode:
-
+    def load_tree_from_file(
+        self, xml_path: str, main_tree_id: str = None
+    ) -> BTNode:
+        """Load a behavior tree from an XML file."""
         tree = ET.parse(xml_path)
         root = tree.getroot()
 
         if main_tree_id is None:
             main_tree_id = root.get('main_tree_to_execute')
             if not main_tree_id:
-                raise ValueError("No main_tree_to_execute specified in XML")
+                raise ValueError(
+                    'No main_tree_to_execute specified in XML'
+                )
 
         for behavior_tree in root.findall('BehaviorTree'):
             if behavior_tree.get('ID') == main_tree_id:
                 return self._load_node(behavior_tree[0])
 
-        raise ValueError(f"BehaviorTree with ID '{main_tree_id}' not found")
+        raise ValueError(
+            f"BehaviorTree with ID '{main_tree_id}' not found"
+        )
 
     def _load_node(self, xml_node: ET.Element) -> BTNode:
-
+        """Load a behavior tree node from an XML element."""
         node_type = xml_node.tag
         node_id = xml_node.get('ID', node_type)
         node_name = xml_node.get('name', node_id)
@@ -89,7 +102,7 @@ class TreeLoader:
             return self._create_action(action_class, node_name, params)
 
     def _parse_node_params(self, xml_node: ET.Element) -> Dict:
-
+        """Parse parameters from XML node attributes."""
         params = {}
 
         for key, value in xml_node.attrib.items():
@@ -99,6 +112,7 @@ class TreeLoader:
         return params
 
     def _convert_value(self, value: str):
+        """Convert string value to appropriate Python type."""
         if value.lower() in ('true', 'false'):
             return value.lower() == 'true'
 
@@ -118,8 +132,10 @@ class TreeLoader:
 
         return value
 
-    def _create_action(self, action_class: Type[BaseAction], name: str, params: Dict) -> BaseAction:
-
+    def _create_action(
+        self, action_class: Type[BaseAction], name: str, params: Dict
+    ) -> BaseAction:
+        """Create an action node instance with the given parameters."""
         if action_class == Rotate:
             return action_class(
                 node=self.node,
@@ -136,10 +152,13 @@ class TreeLoader:
             )
 
         elif action_class == MoveArms:
+            default_positions = [0.0] * 8
             return action_class(
                 node=self.node,
-                left_positions=params.get('left_positions', [0.0]*8),
-                right_positions=params.get('right_positions', [0.0]*8),
+                left_positions=params.get('left_positions', default_positions),
+                right_positions=params.get(
+                    'right_positions', default_positions
+                ),
                 position_threshold=params.get('position_threshold', 0.01),
                 duration=params.get('duration', 2.0)
             )
@@ -153,4 +172,4 @@ class TreeLoader:
             )
 
         else:
-            raise ValueError(f"Unknown action class: {action_class}")
+            raise ValueError(f'Unknown action class: {action_class}')

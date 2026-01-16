@@ -20,7 +20,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument
+from launch.actions import OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -29,23 +30,30 @@ def launch_setup(context, *args, **kwargs):
 
     robot_type = LaunchConfiguration('robot_type').perform(context)
 
-    physical_ai_server_pkg_share = get_package_share_directory('physical_ai_server')
-    physical_ai_bt_pkg_share = get_package_share_directory('physical_ai_bt')
+    server_pkg_share = get_package_share_directory('physical_ai_server')
+    bt_pkg_share = get_package_share_directory('physical_ai_bt')
 
-    server_config_dir = os.path.join(physical_ai_server_pkg_share, 'config')
-    bt_params_path = os.path.join(physical_ai_bt_pkg_share, 'bt_bringup', 'params', 'bt_node_params.yaml')
-    robot_config_path = os.path.join(server_config_dir, f'{robot_type}_config.yaml')
+    server_config_dir = os.path.join(server_pkg_share, 'config')
+    bt_params_file = 'bt_node_params.yaml'
+    bt_params_path = os.path.join(
+        bt_pkg_share, 'bt_bringup', 'params', bt_params_file
+    )
+    robot_config = f'{robot_type}_config.yaml'
+    robot_config_path = os.path.join(server_config_dir, robot_config)
 
     if not os.path.exists(robot_config_path):
-        print(f"Warning: Config file not found: {robot_config_path}")
-        print(f"Falling back to ffw_sg2_rev1_config.yaml")
-        robot_config_path = os.path.join(server_config_dir, 'ffw_sg2_rev1_config.yaml')
+        print(f'Warning: Config file not found: {robot_config_path}')
+        print('Falling back to ffw_sg2_rev1_config.yaml')
+        fallback_config = 'ffw_sg2_rev1_config.yaml'
+        robot_config_path = os.path.join(server_config_dir, fallback_config)
 
     import yaml
     with open(robot_config_path, 'r') as f:
         config = yaml.safe_load(f)
 
-    server_config = config.get('physical_ai_server', {}).get('ros__parameters', {}).get(robot_type, {})
+    server_config = config.get(
+        'physical_ai_server', {}
+    ).get('ros__parameters', {}).get(robot_type, {})
     joint_list = server_config.get('joint_list', [])
     joint_order = server_config.get('joint_order', {})
     joint_topic_list = server_config.get('joint_topic_list', [])

@@ -16,17 +16,27 @@
 #
 # Author: Seongwoo Kim
 
+"""Action node for moving both robot arms to specified joint positions."""
+
 import threading
 import time
-from typing import TYPE_CHECKING, List
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from physical_ai_bt.actions.base_action import NodeStatus, BaseAction
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from typing import List
+from typing import TYPE_CHECKING
+
+from physical_ai_bt.actions.base_action import BaseAction
+from physical_ai_bt.actions.base_action import NodeStatus
+from rclpy.qos import QoSProfile
+from rclpy.qos import ReliabilityPolicy
+from trajectory_msgs.msg import JointTrajectory
+from trajectory_msgs.msg import JointTrajectoryPoint
 
 if TYPE_CHECKING:
     from rclpy.node import Node
 
+
 class MoveArms(BaseAction):
+    """Action to move both robot arms to target joint positions."""
+
     def __init__(
             self,
             node: 'Node',
@@ -34,29 +44,42 @@ class MoveArms(BaseAction):
             right_positions: List[float],
             position_threshold: float = 0.01,
             duration: float = 2.0,
-        ):
-        super().__init__(node, name="MoveArms")
+    ):
+        """Initialize the MoveArms action."""
+        super().__init__(node, name='MoveArms')
         self.left_joint_names = [
-            "arm_l_joint1", "arm_l_joint2", "arm_l_joint3", "arm_l_joint4",
-            "arm_l_joint5", "arm_l_joint6", "arm_l_joint7", "gripper_l_joint1"
+            'arm_l_joint1', 'arm_l_joint2', 'arm_l_joint3', 'arm_l_joint4',
+            'arm_l_joint5', 'arm_l_joint6', 'arm_l_joint7',
+            'gripper_l_joint1'
         ]
         self.right_joint_names = [
-            "arm_r_joint1", "arm_r_joint2", "arm_r_joint3", "arm_r_joint4",
-            "arm_r_joint5", "arm_r_joint6", "arm_r_joint7", "gripper_r_joint1"
+            'arm_r_joint1', 'arm_r_joint2', 'arm_r_joint3', 'arm_r_joint4',
+            'arm_r_joint5', 'arm_r_joint6', 'arm_r_joint7',
+            'gripper_r_joint1'
         ]
         self.left_positions = left_positions
         self.right_positions = right_positions
         self.position_threshold = position_threshold
         self.duration = duration
-        qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        qos_profile = QoSProfile(
+            depth=10, reliability=ReliabilityPolicy.RELIABLE
+        )
+        topic_left = (
+            '/leader/joint_trajectory_command_broadcaster_left/'
+            'joint_trajectory'
+        )
         self.left_pub = self.node.create_publisher(
             JointTrajectory,
-            "/leader/joint_trajectory_command_broadcaster_left/joint_trajectory",
+            topic_left,
             qos_profile
+        )
+        topic_right = (
+            '/leader/joint_trajectory_command_broadcaster_right/'
+            'joint_trajectory'
         )
         self.right_pub = self.node.create_publisher(
             JointTrajectory,
-            "/leader/joint_trajectory_command_broadcaster_right/joint_trajectory",
+            topic_right,
             qos_profile
         )
         self.command_sent = False
@@ -65,7 +88,7 @@ class MoveArms(BaseAction):
         from sensor_msgs.msg import JointState
         self.joint_state_sub = self.node.create_subscription(
             JointState,
-            "/joint_states",
+            '/joint_states',
             self._joint_state_callback,
             qos_profile
         )
@@ -76,9 +99,11 @@ class MoveArms(BaseAction):
         self._control_rate = 100  # Hz
 
     def _joint_state_callback(self, msg):
+        """Receive joint state updates."""
         self.joint_state = msg
 
     def _control_loop(self):
+        """Control loop that publishes trajectories and monitors progress."""
         rate_sleep = 1.0 / self._control_rate
 
         left_traj = JointTrajectory()
@@ -97,7 +122,7 @@ class MoveArms(BaseAction):
         right_traj.points.append(right_point)
         self.right_pub.publish(right_traj)
 
-        self.log_info("Arms trajectory published")
+        self.log_info('Arms trajectory published')
 
         timeout_count = 0
         while not self._thread_done and timeout_count < 1500:  # 30s timeout
@@ -106,10 +131,14 @@ class MoveArms(BaseAction):
                 timeout_count += 1
                 continue
 
-            name_to_idx = {n: i for i, n in enumerate(self.joint_state.name)}
+            name_to_idx = {
+                n: i for i, n in enumerate(self.joint_state.name)
+            }
             all_reached = True
 
-            for jname, target in zip(self.left_joint_names, self.left_positions):
+            for jname, target in zip(
+                self.left_joint_names, self.left_positions
+            ):
                 idx = name_to_idx.get(jname)
                 if idx is not None:
                     pos = self.joint_state.position[idx]
@@ -121,7 +150,9 @@ class MoveArms(BaseAction):
                     break
 
             if all_reached:
-                for jname, target in zip(self.right_joint_names, self.right_positions):
+                for jname, target in zip(
+                    self.right_joint_names, self.right_positions
+                ):
                     idx = name_to_idx.get(jname)
                     if idx is not None:
                         pos = self.joint_state.position[idx]
@@ -133,7 +164,7 @@ class MoveArms(BaseAction):
                         break
 
             if all_reached:
-                self.log_info("Arms reached target positions")
+                self.log_info('Arms reached target positions')
                 self._thread_success = True
                 self._thread_done = True
                 break
@@ -142,26 +173,33 @@ class MoveArms(BaseAction):
             timeout_count += 1
 
         if not self._thread_success and not self._thread_done:
-            self.log_error("Arms timeout waiting for target positions")
+            self.log_error('Arms timeout waiting for target positions')
             self._thread_done = True
 
     def tick(self) -> NodeStatus:
+        """Execute the action and return its status."""
         if self._thread is None:
             self.joint_state = None
             self._thread_done = False
             self._thread_success = False
 
-            self._thread = threading.Thread(target=self._control_loop, daemon=True)
+            self._thread = threading.Thread(
+                target=self._control_loop, daemon=True
+            )
             self._thread.start()
-            self.log_info("Arms thread started")
+            self.log_info('Arms thread started')
             return NodeStatus.RUNNING
 
         if self._thread_done:
-            return NodeStatus.SUCCESS if self._thread_success else NodeStatus.FAILURE
+            if self._thread_success:
+                return NodeStatus.SUCCESS
+            else:
+                return NodeStatus.FAILURE
 
         return NodeStatus.RUNNING
 
     def reset(self):
+        """Reset the action to its initial state."""
         super().reset()
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True

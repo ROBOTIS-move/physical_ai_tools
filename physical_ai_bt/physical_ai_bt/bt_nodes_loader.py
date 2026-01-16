@@ -16,7 +16,7 @@
 #
 # Author: Seongwoo Kim
 
-"""XML-based behavior tree loader for Groot compatibility."""
+"""Behavior tree loader for Groot-compatible XML format."""
 
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Dict, Type
@@ -43,12 +43,12 @@ if TYPE_CHECKING:
     from rclpy.node import Node
 
 
-class XMLTreeLoader:
+class TreeLoader:
     """Load behavior tree from XML file (Groot format)."""
 
     def __init__(self, node: 'Node', joint_names: list = None, topic_config: dict = None):
         """
-        Initialize XML tree loader.
+        Initialize tree loader.
 
         Args:
             node: ROS2 node reference

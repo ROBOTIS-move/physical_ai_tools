@@ -26,7 +26,6 @@ from physical_ai_bt.actions import (
     MoveLift,
     MoveHead,
     Rotate,
-    RotateLidar,
 )
 from physical_ai_bt.actions.base_action import BTNode, BaseAction, BaseControl
 from physical_ai_bt.controls import Sequence, RetryUntilSuccessful, ForEach
@@ -60,7 +59,6 @@ class TreeLoader:
 
         self.action_types: Dict[str, Type[BaseAction]] = {
             'Rotate': Rotate,
-            'RotateLidar': RotateLidar,
             'MoveHead': MoveHead,
             'MoveArms': MoveArms,
             'MoveLift': MoveLift,
@@ -201,14 +199,6 @@ class TreeLoader:
                 node=self.node,
                 angle_deg=params.get('angle_deg', 90.0),
                 topic_config=self.topic_config
-            )
-
-        elif action_class == RotateLidar:
-            return action_class(
-                node=self.node,
-                face_tape=params.get('face_tape', True),
-                lift_position=params.get('lift_position', 0.0),
-                position_threshold=params.get('position_threshold', 0.01)
             )
 
         elif action_class == MoveHead:

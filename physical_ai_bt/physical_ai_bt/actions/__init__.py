@@ -23,7 +23,6 @@ from physical_ai_bt.actions.move_arms import MoveArms
 from physical_ai_bt.actions.move_lift import MoveLift
 from physical_ai_bt.actions.move_head import MoveHead
 from physical_ai_bt.actions.rotate import Rotate
-from physical_ai_bt.actions.rotate_lidar import RotateLidar
 
 __all__ = [
     'BaseAction',
@@ -31,5 +30,4 @@ __all__ = [
     'MoveLift',
     'MoveHead',
     'Rotate',
-    'RotateLidar',
 ]

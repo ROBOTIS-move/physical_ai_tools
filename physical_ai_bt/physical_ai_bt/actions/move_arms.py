@@ -32,7 +32,8 @@ class MoveArms(BaseAction):
             node: 'Node',
             left_positions: List[float],
             right_positions: List[float],
-            position_threshold: float = 0.01
+            position_threshold: float = 0.01,
+            duration: float = 2.0,
         ):
         super().__init__(node, name="MoveArms")
         self.left_joint_names = [
@@ -46,6 +47,7 @@ class MoveArms(BaseAction):
         self.left_positions = left_positions
         self.right_positions = right_positions
         self.position_threshold = position_threshold
+        self.duration = duration
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         self.left_pub = self.node.create_publisher(
             JointTrajectory,
@@ -83,7 +85,8 @@ class MoveArms(BaseAction):
         left_traj.joint_names = self.left_joint_names
         left_point = JointTrajectoryPoint()
         left_point.positions = self.left_positions
-        left_point.time_from_start.sec = 2
+        left_point.time_from_start.sec = int(self.duration)
+        left_point.time_from_start.nanosec = int((self.duration % 1) * 1e9)
         left_traj.points.append(left_point)
         self.left_pub.publish(left_traj)
 
@@ -91,7 +94,8 @@ class MoveArms(BaseAction):
         right_traj.joint_names = self.right_joint_names
         right_point = JointTrajectoryPoint()
         right_point.positions = self.right_positions
-        right_point.time_from_start.sec = 2
+        right_point.time_from_start.sec = int(self.duration)
+        right_point.time_from_start.nanosec = int((self.duration % 1) * 1e9)
         right_traj.points.append(right_point)
         self.right_pub.publish(right_traj)
 

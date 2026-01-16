@@ -35,12 +35,14 @@ class MoveLift(BaseAction):
         node: 'Node',
         lift_position: float = 0.0,
         position_threshold: float = 0.01,
+        duration: float = 5.0,
     ):
 
         super().__init__(node, name="MoveLift")
         self.lift_joint_name = "lift_joint"
         self.target_position = lift_position
         self.position_threshold = position_threshold
+        self.duration = duration
 
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 
@@ -83,7 +85,8 @@ class MoveLift(BaseAction):
         lift_traj.joint_names = [self.lift_joint_name]
         lift_point = JointTrajectoryPoint()
         lift_point.positions = [self.target_position]
-        lift_point.time_from_start.sec = 5
+        lift_point.time_from_start.sec = int(self.duration)
+        lift_point.time_from_start.nanosec = int((self.duration % 1) * 1e9)
         lift_traj.points.append(lift_point)
         self.lift_pub.publish(lift_traj)
 

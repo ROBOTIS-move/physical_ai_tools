@@ -33,11 +33,13 @@ class MoveHead(BaseAction):
             node: 'Node',
             head_positions: List[float] = None,
             position_threshold: float = 0.01,
+            duration: float = 5.0,
         ):
         super().__init__(node, name="MoveHead")
         self.head_joint_names = ["head_joint1", "head_joint2"]
         self.head_positions = head_positions if head_positions else [0.0, 0.0]
         self.position_threshold = position_threshold
+        self.duration = duration
 
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         self.head_pub = self.node.create_publisher(
@@ -72,7 +74,8 @@ class MoveHead(BaseAction):
         head_traj.joint_names = self.head_joint_names
         head_point = JointTrajectoryPoint()
         head_point.positions = self.head_positions
-        head_point.time_from_start.sec = 5
+        head_point.time_from_start.sec = int(self.duration)
+        head_point.time_from_start.nanosec = int((self.duration % 1) * 1e9)
         head_traj.points.append(head_point)
         self.head_pub.publish(head_traj)
 

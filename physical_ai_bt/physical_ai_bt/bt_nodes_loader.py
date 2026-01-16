@@ -131,20 +131,25 @@ class TreeLoader:
             return action_class(
                 node=self.node,
                 head_positions=params.get('head_positions', [0.0, 0.0]),
+                position_threshold=params.get('position_threshold', 0.01),
+                duration=params.get('duration', 5.0)
             )
 
         elif action_class == MoveArms:
             return action_class(
                 node=self.node,
                 left_positions=params.get('left_positions', [0.0]*8),
-                right_positions=params.get('right_positions', [0.0]*8)
+                right_positions=params.get('right_positions', [0.0]*8),
+                position_threshold=params.get('position_threshold', 0.01),
+                duration=params.get('duration', 2.0)
             )
 
         elif action_class == MoveLift:
             return action_class(
                 node=self.node,
                 lift_position=params.get('lift_position', 0.0),
-                position_threshold=params.get('position_threshold', 0.01)
+                position_threshold=params.get('position_threshold', 0.01),
+                duration=params.get('duration', 5.0)
             )
 
         else:

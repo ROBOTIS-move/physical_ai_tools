@@ -6,8 +6,8 @@
         left_positions="0.75, 0.0, 0.0, -2.3, 0.0, 0.0, 0.0, 0.0"
         right_positions="0.75, 0.0, 0.0, -2.3, 0.0, 0.0, 0.0, 0.0"/>
       <MoveLift name="LiftControl_1" lift_position="0.0"/>
-      <Rotate name="Rule_Based_Rotation_1" angle_deg="-90.0"/>
       <MoveHead name="HeadControl_1" head_positions="0.0, 0.0"/>
+      <Rotate name="Rule_Based_Rotation_1" angle_deg="-90.0"/>
     </Sequence>
   </BehaviorTree>
 

@@ -35,7 +35,7 @@ class Blackboard:
         """Set a value in the blackboard."""
         self._data[key] = value
 
-    def set(self, key: str, value):  # noqa: A003
+    def set(self, key: str, value):
         """Set a value in the blackboard (deprecated, use set_value)."""
         return self.set_value(key, value)
 

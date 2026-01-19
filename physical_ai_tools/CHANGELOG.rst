@@ -2,10 +2,9 @@
 Changelog for package physical_ai_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.7.3 (2026-01-08)
+0.7.3 (2026-01-19)
 ------------------
-* Added FFmpeg-based image compression to MP4 in rosbag_recorder
-* Image topics now store metadata in MCAP, frames in MP4 videos
+* Modified to record /tf, /robot_description, /camera_info topics in rosbag2
 * Contributors: Dongyun Kim
 
 0.7.2 (2025-12-01)

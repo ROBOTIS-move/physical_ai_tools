@@ -72,6 +72,8 @@ private:
   void create_subscriptions();
   bool is_image_topic(const std::string & topic_type) const;
   bool is_compressed_image_topic(const std::string & topic_type) const;
+  rclcpp::QoS get_qos_for_topic(const std::string & topic);
+  void flush_latched_messages();
 
   rclcpp::Service<rosbag_recorder::srv::SendCommand>::SharedPtr send_command_srv_;
 
@@ -87,6 +89,17 @@ private:
   std::vector<std::string> image_topics_;
   std::vector<std::string> compressed_image_topics_;
   std::vector<std::string> non_image_topics_;
+
+  // Cache of latched topic names to avoid repeated publisher info lookups
+  std::unordered_set<std::string> latched_topics_;
+
+  // Buffer for latched messages received before recording starts
+  struct BufferedMessage
+  {
+    std::shared_ptr<rclcpp::SerializedMessage> msg;
+    rclcpp::Time timestamp;
+  };
+  std::unordered_map<std::string, BufferedMessage> latched_message_buffer_;
 
   bool is_recording_{false};
   bool compress_images_{true};

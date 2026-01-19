@@ -28,6 +28,18 @@ physical_ai_server:
         - leader_lift
         - leader_mobile
 
+      rosbag_extra_topic_list:
+        - /tf
+        - /tf_static
+        - /robot_description
+        - /odom
+        - /cmd_vel
+        - /zed/zed_node/rgb/camera_info
+        - /zed/zed_node/left/camera_info
+        - /zed/zed_node/right/camera_info
+        - /camera_left/camera_left/color/camera_info
+        - /camera_right/camera_right/color/camera_info
+
       joint_order:
         leader_left:
           - arm_l_joint1

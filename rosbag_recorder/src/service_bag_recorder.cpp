@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// Author: Woojin Wie, Kiwoong Park, Dongyun Kim
+// Author: Woojin Wie, Kiwoong Park
 
 
-#include <algorithm>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -26,11 +25,8 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/generic_subscription.hpp"
-#include "rclcpp/serialization.hpp"
 #include "rosbag2_cpp/writer.hpp"
 #include "rosbag2_storage/topic_metadata.hpp"
-#include "cv_bridge/cv_bridge.hpp"
-#include "opencv2/opencv.hpp"
 
 #include "rosbag_recorder/service_bag_recorder.hpp"
 
@@ -38,15 +34,7 @@
 ServiceBagRecorder::ServiceBagRecorder()
 : rclcpp::Node("service_bag_recorder")
 {
-  RCLCPP_INFO(this->get_logger(), "Starting rosbag recorder node with image compression");
-
-  // Declare parameter for image compression
-  this->declare_parameter<bool>("compress_images", true);
-  compress_images_ = this->get_parameter("compress_images").as_bool();
-
-  RCLCPP_INFO(
-    this->get_logger(), "Image compression: %s",
-    compress_images_ ? "enabled" : "disabled");
+  RCLCPP_INFO(this->get_logger(), "Starting rosbag recorder node");
 
   send_command_srv_ = this->create_service<rosbag_recorder::srv::SendCommand>(
     "rosbag_recorder/send_command",
@@ -104,16 +92,6 @@ void ServiceBagRecorder::handle_send_command(
   }
 }
 
-bool ServiceBagRecorder::is_image_topic(const std::string & topic_type) const
-{
-  return topic_type == "sensor_msgs/msg/Image";
-}
-
-bool ServiceBagRecorder::is_compressed_image_topic(const std::string & topic_type) const
-{
-  return topic_type == "sensor_msgs/msg/CompressedImage";
-}
-
 void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
 {
   RCLCPP_INFO(this->get_logger(), "Prepare Rosbag recording");
@@ -128,39 +106,24 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
 
   try {
     topics_to_record_ = topics;
-    image_topics_.clear();
-    compressed_image_topics_.clear();
-    non_image_topics_.clear();
 
     auto names_and_types = this->get_topic_names_and_types();
 
     for (const auto & topic : topics_to_record_) {
       auto it = names_and_types.find(topic);
-      if (it == names_and_types.end()) {
-        continue;
-      }
-
       const std::string & type = it->second.front();
-      type_for_topic_[topic] = type;
 
-      if (compress_images_ && is_image_topic(type)) {
-        image_topics_.push_back(topic);
-      } else if (compress_images_ && is_compressed_image_topic(type)) {
-        compressed_image_topics_.push_back(topic);
-      } else {
-        non_image_topics_.push_back(topic);
-      }
+      type_for_topic_[topic] = type;
     }
 
+    // Create subscriptions early to avoid data loss
+    // Latched messages will be buffered until recording starts
     create_subscriptions();
 
     RCLCPP_INFO(
       this->get_logger(),
-      "Recording prepared: topics=%zu (image=%zu, compressed=%zu, other=%zu)",
-      topics_to_record_.size(),
-      image_topics_.size(),
-      compressed_image_topics_.size(),
-      non_image_topics_.size());
+      "Recording prepared: topics=%zu",
+      topics_to_record_.size());
   } catch (const std::exception & e) {
     writer_.reset();
     throw std::runtime_error(std::string("Failed to prepare recording: ") + e.what());
@@ -188,21 +151,11 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     writer_ = std::make_unique<rosbag2_cpp::Writer>();
     writer_->open(current_bag_uri_);
 
-    // Create image compressor for MP4 videos if image compression is enabled
-    if (compress_images_ && (!image_topics_.empty() || !compressed_image_topics_.empty())) {
-      std::string video_output_dir = current_bag_uri_ + "/videos";
-      image_compressor_ = std::make_unique<rosbag_recorder::ImageCompressor>(video_output_dir);
-      RCLCPP_INFO(
-        this->get_logger(), "Image compressor initialized: %s",
-        video_output_dir.c_str());
-    }
-
     auto names_and_types = this->get_topic_names_and_types();
     auto missing_topics = get_missing_topics(names_and_types);
 
     if (!missing_topics.empty()) {
       writer_.reset();
-      image_compressor_.reset();
       type_for_topic_.clear();
 
       // Delete the bag folder since we can't record the requested topics
@@ -229,7 +182,9 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     throw std::runtime_error(std::string("Failed to start recording: ") + e.what());
   }
 
+  // Set recording flag and flush buffered latched messages
   is_recording_ = true;
+  flush_latched_messages();
 
   RCLCPP_INFO(
     this->get_logger(), "Recording started: uri=%s topics=%zu",
@@ -245,13 +200,6 @@ void ServiceBagRecorder::handle_stop()
   }
 
   try {
-    // Finalize all video writers
-    if (image_compressor_) {
-      image_compressor_->finalize_all();
-      image_compressor_.reset();
-      RCLCPP_INFO(this->get_logger(), "Image compressor finalized");
-    }
-
     writer_.reset();
     type_for_topic_.clear();
     current_bag_uri_.clear();
@@ -273,11 +221,6 @@ void ServiceBagRecorder::handle_stop_and_delete()
   try {
     is_recording_ = false;
 
-    if (image_compressor_) {
-      image_compressor_->finalize_all();
-      image_compressor_.reset();
-    }
-
     writer_.reset();
     type_for_topic_.clear();
 
@@ -295,9 +238,7 @@ void ServiceBagRecorder::handle_finish()
 {
   RCLCPP_INFO(this->get_logger(), "Finish Rosbag recording");
 
-  generic_subscriptions_.clear();
-  image_subscriptions_.clear();
-  compressed_image_subscriptions_.clear();
+  subscriptions_.clear();
 
   if (is_recording_) {
     handle_stop();
@@ -307,7 +248,7 @@ void ServiceBagRecorder::handle_finish()
 std::vector<std::string> ServiceBagRecorder::get_missing_topics(
   const std::map<std::string, std::vector<std::string>> & names_and_types)
 {
-  // Resolve types for requested topics
+// Resolve types for requested topics
   std::vector<std::string> missing_topics;
 
   for (const auto & topic : topics_to_record_) {
@@ -336,25 +277,15 @@ void ServiceBagRecorder::create_topics_in_bag(
 
   for (const auto & topic : topics_to_record_) {
     auto it = names_and_types.find(topic);
-    if (it == names_and_types.end()) {
-      continue;
-    }
     const std::string & type = it->second.front();
 
     type_for_topic_[topic] = type;
 
     rosbag2_storage::TopicMetadata meta;
-
-    // For image topics with compression enabled, store metadata instead
-    if (compress_images_ && (is_image_topic(type) || is_compressed_image_topic(type))) {
-      meta.name = topic + "/metadata";
-      meta.type = "rosbag_recorder/msg/ImageMetadata";
-    } else {
-      meta.name = topic;
-      meta.type = type;
-    }
-
+    meta.name = topic;
+    meta.type = type;
     meta.serialization_format = rmw_get_serialization_format();
+
     writer_->create_topic(meta);
   }
 }
@@ -378,51 +309,84 @@ void ServiceBagRecorder::create_subscriptions()
 {
   RCLCPP_INFO(this->get_logger(), "Creating subscriptions");
 
-  generic_subscriptions_.clear();
-  image_subscriptions_.clear();
-  compressed_image_subscriptions_.clear();
+  subscriptions_.clear();
+  latched_topics_.clear();
 
-  // Create generic subscriptions for non-image topics
-  for (const auto & topic : non_image_topics_) {
-    auto it = type_for_topic_.find(topic);
-    if (it == type_for_topic_.end()) {
-      continue;
-    }
-
-    const std::string & type = it->second;
+  // Create generic subscriptions for all topics
+  for (const auto & [topic, type] : type_for_topic_) {
     auto options = rclcpp::SubscriptionOptions();
+    auto qos = get_qos_for_topic(topic);
+    
+    // Cache whether this topic is latched to avoid repeated publisher lookups
+    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      latched_topics_.insert(topic);
+    }
+    
     auto sub = this->create_generic_subscription(
       topic,
       type,
-      rclcpp::QoS(100),
+      qos,
       [this, topic](std::shared_ptr<rclcpp::SerializedMessage> serialized_msg) {
         this->handle_serialized_message(topic, serialized_msg);
       },
       options);
-    generic_subscriptions_.push_back(sub);
+    subscriptions_.push_back(sub);
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Subscribed to topic: %s",
+      topic.c_str());
+  }
+}
+
+rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(
+  const std::string & topic)
+{
+  // Get publisher info to determine QoS settings
+  auto publishers_info = this->get_publishers_info_by_topic(topic);
+
+  if (!publishers_info.empty()) {
+    // Check if any publisher uses TRANSIENT_LOCAL durability
+    for (const auto & pub_info : publishers_info) {
+      if (pub_info.qos_profile().durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+        RCLCPP_INFO(
+          this->get_logger(),
+          "Topic '%s' uses TRANSIENT_LOCAL durability, using matching QoS",
+          topic.c_str());
+        // Use smaller queue size (10) for latched topics as they typically publish once
+        // and rely on durability rather than queue depth
+        return rclcpp::QoS(rclcpp::KeepLast(10))
+               .reliable()
+               .transient_local();
+      }
+    }
   }
 
-  // Create typed subscriptions for Image topics
-  for (const auto & topic : image_topics_) {
-    auto sub = this->create_subscription<sensor_msgs::msg::Image>(
-      topic,
-      rclcpp::QoS(100),
-      [this, topic](const sensor_msgs::msg::Image::SharedPtr msg) {
-        this->handle_image_message(topic, msg);
-      });
-    image_subscriptions_.push_back(sub);
+  // Use default QoS for other topics
+  return rclcpp::QoS(100);
+}
+
+void ServiceBagRecorder::flush_latched_messages()
+{
+  if (latched_message_buffer_.empty()) {
+    return;
   }
 
-  // Create typed subscriptions for CompressedImage topics
-  for (const auto & topic : compressed_image_topics_) {
-    auto sub = this->create_subscription<sensor_msgs::msg::CompressedImage>(
-      topic,
-      rclcpp::QoS(100),
-      [this, topic](const sensor_msgs::msg::CompressedImage::SharedPtr msg) {
-        this->handle_compressed_image_message(topic, msg);
-      });
-    compressed_image_subscriptions_.push_back(sub);
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Flushing %zu buffered latched messages",
+    latched_message_buffer_.size());
+
+  for (const auto & [topic, buffered] : latched_message_buffer_) {
+    if (writer_) {
+      const auto it = type_for_topic_.find(topic);
+      if (it != type_for_topic_.end()) {
+        writer_->write(buffered.msg, topic, it->second, buffered.timestamp);
+        RCLCPP_DEBUG(this->get_logger(), "Flushed latched message from: %s", topic.c_str());
+      }
+    }
   }
+
+  latched_message_buffer_.clear();
 }
 
 void ServiceBagRecorder::handle_serialized_message(
@@ -431,139 +395,23 @@ void ServiceBagRecorder::handle_serialized_message(
 {
   std::scoped_lock<std::mutex> lock(mutex_);
 
-  if (!is_recording_ || !writer_) {
-    return;
-  }
-
   const auto it = type_for_topic_.find(topic);
   if (it == type_for_topic_.end()) {
     return;
   }
   const std::string & type = it->second;
-  writer_->write(serialized_msg, topic, type, this->now());
-}
 
-void ServiceBagRecorder::handle_image_message(
-  const std::string & topic,
-  const sensor_msgs::msg::Image::SharedPtr & image_msg)
-{
-  std::scoped_lock<std::mutex> lock(mutex_);
-
-  if (!is_recording_ || !writer_ || !image_compressor_) {
+  // If recording, write directly to bag
+  if (is_recording_ && writer_) {
+    writer_->write(serialized_msg, topic, type, this->now());
     return;
   }
 
-  try {
-    // Add frame to MP4 and get metadata
-    auto metadata_info = image_compressor_->add_frame(topic, image_msg);
-
-    // Create metadata message
-    rosbag_recorder::msg::ImageMetadata metadata_msg;
-    metadata_msg.header = image_msg->header;
-    metadata_msg.frame_index = metadata_info.frame_index;
-    metadata_msg.width = metadata_info.width;
-    metadata_msg.height = metadata_info.height;
-    metadata_msg.encoding = metadata_info.encoding;
-    metadata_msg.source_topic = topic;
-
-    // Generate relative path to video file
-    std::string sanitized = topic;
-    std::replace(sanitized.begin(), sanitized.end(), '/', '_');
-    if (!sanitized.empty() && sanitized[0] == '_') {
-      sanitized = sanitized.substr(1);
-    }
-    metadata_msg.video_file_path = "videos/" + sanitized + ".mp4";
-
-    // Serialize and write metadata to bag
-    rclcpp::Serialization<rosbag_recorder::msg::ImageMetadata> serializer;
-    rclcpp::SerializedMessage serialized_msg;
-    serializer.serialize_message(&metadata_msg, &serialized_msg);
-
-    std::string metadata_topic = topic + "/metadata";
-    std::string metadata_type = "rosbag_recorder/msg/ImageMetadata";
-
-    writer_->write(
-      std::make_shared<rclcpp::SerializedMessage>(serialized_msg),
-      metadata_topic,
-      metadata_type,
-      this->now());
-  } catch (const std::exception & e) {
-    RCLCPP_ERROR(
-      this->get_logger(),
-      "Failed to process image from topic %s: %s",
-      topic.c_str(), e.what());
-  }
-}
-
-void ServiceBagRecorder::handle_compressed_image_message(
-  const std::string & topic,
-  const sensor_msgs::msg::CompressedImage::SharedPtr & compressed_msg)
-{
-  std::scoped_lock<std::mutex> lock(mutex_);
-
-  if (!is_recording_ || !writer_ || !image_compressor_) {
-    return;
-  }
-
-  try {
-    // Decompress the image
-    cv::Mat frame = cv::imdecode(
-      cv::Mat(compressed_msg->data), cv::IMREAD_COLOR);
-
-    if (frame.empty()) {
-      RCLCPP_WARN(
-        this->get_logger(),
-        "Failed to decompress image from topic %s", topic.c_str());
-      return;
-    }
-
-    // Create a temporary Image message for the compressor
-    auto image_msg = std::make_shared<sensor_msgs::msg::Image>();
-    image_msg->header = compressed_msg->header;
-    image_msg->width = frame.cols;
-    image_msg->height = frame.rows;
-    image_msg->encoding = "bgr8";
-    image_msg->step = frame.cols * 3;
-    image_msg->data.assign(frame.data, frame.data + frame.total() * frame.elemSize());
-
-    // Add frame to MP4 and get metadata
-    auto metadata_info = image_compressor_->add_frame(topic, image_msg);
-
-    // Create metadata message
-    rosbag_recorder::msg::ImageMetadata metadata_msg;
-    metadata_msg.header = compressed_msg->header;
-    metadata_msg.frame_index = metadata_info.frame_index;
-    metadata_msg.width = image_msg->width;
-    metadata_msg.height = image_msg->height;
-    metadata_msg.encoding = compressed_msg->format;
-    metadata_msg.source_topic = topic;
-
-    // Generate relative path to video file
-    std::string sanitized = topic;
-    std::replace(sanitized.begin(), sanitized.end(), '/', '_');
-    if (!sanitized.empty() && sanitized[0] == '_') {
-      sanitized = sanitized.substr(1);
-    }
-    metadata_msg.video_file_path = "videos/" + sanitized + ".mp4";
-
-    // Serialize and write metadata to bag
-    rclcpp::Serialization<rosbag_recorder::msg::ImageMetadata> serializer;
-    rclcpp::SerializedMessage serialized_msg;
-    serializer.serialize_message(&metadata_msg, &serialized_msg);
-
-    std::string metadata_topic = topic + "/metadata";
-    std::string metadata_type = "rosbag_recorder/msg/ImageMetadata";
-
-    writer_->write(
-      std::make_shared<rclcpp::SerializedMessage>(serialized_msg),
-      metadata_topic,
-      metadata_type,
-      this->now());
-  } catch (const std::exception & e) {
-    RCLCPP_ERROR(
-      this->get_logger(),
-      "Failed to process compressed image from topic %s: %s",
-      topic.c_str(), e.what());
+  // If not recording yet but this is a latched topic, buffer it
+  // Use cached latched topic status to avoid repeated publisher info lookups
+  if (!is_recording_ && latched_topics_.count(topic)) {
+    latched_message_buffer_[topic] = {serialized_msg, this->now()};
+    RCLCPP_DEBUG(this->get_logger(), "Buffered latched message from topic: %s", topic.c_str());
   }
 }
 

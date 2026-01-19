@@ -310,11 +310,18 @@ void ServiceBagRecorder::create_subscriptions()
   RCLCPP_INFO(this->get_logger(), "Creating subscriptions");
 
   subscriptions_.clear();
+  latched_topics_.clear();
 
   // Create generic subscriptions for all topics
   for (const auto & [topic, type] : type_for_topic_) {
     auto options = rclcpp::SubscriptionOptions();
     auto qos = get_qos_for_topic(topic);
+    
+    // Cache whether this topic is latched to avoid repeated publisher lookups
+    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      latched_topics_.insert(topic);
+    }
+    
     auto sub = this->create_generic_subscription(
       topic,
       type,
@@ -345,27 +352,17 @@ rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(
           this->get_logger(),
           "Topic '%s' uses TRANSIENT_LOCAL durability, using matching QoS",
           topic.c_str());
+        // Use smaller queue size (10) for latched topics as they typically publish once
+        // and rely on durability rather than queue depth
         return rclcpp::QoS(rclcpp::KeepLast(10))
-          .reliable()
-          .transient_local();
+               .reliable()
+               .transient_local();
       }
     }
   }
 
   // Use default QoS for other topics
   return rclcpp::QoS(100);
-}
-
-bool ServiceBagRecorder::is_latched_topic(const std::string & topic)
-{
-  auto publishers_info = this->get_publishers_info_by_topic(topic);
-
-  for (const auto & pub_info : publishers_info) {
-    if (pub_info.qos_profile().durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-      return true;
-    }
-  }
-  return false;
 }
 
 void ServiceBagRecorder::flush_latched_messages()
@@ -384,7 +381,7 @@ void ServiceBagRecorder::flush_latched_messages()
       const auto it = type_for_topic_.find(topic);
       if (it != type_for_topic_.end()) {
         writer_->write(buffered.msg, topic, it->second, buffered.timestamp);
-        RCLCPP_INFO(this->get_logger(), "Flushed latched message from: %s", topic.c_str());
+        RCLCPP_DEBUG(this->get_logger(), "Flushed latched message from: %s", topic.c_str());
       }
     }
   }
@@ -411,7 +408,8 @@ void ServiceBagRecorder::handle_serialized_message(
   }
 
   // If not recording yet but this is a latched topic, buffer it
-  if (!is_recording_ && is_latched_topic(topic)) {
+  // Use cached latched topic status to avoid repeated publisher info lookups
+  if (!is_recording_ && latched_topics_.count(topic)) {
     latched_message_buffer_[topic] = {serialized_msg, this->now()};
     RCLCPP_DEBUG(this->get_logger(), "Buffered latched message from topic: %s", topic.c_str());
   }

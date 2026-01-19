@@ -59,7 +59,6 @@ private:
   void delete_bag_directory(const std::string & bag_uri);
   void create_subscriptions();
   rclcpp::QoS get_qos_for_topic(const std::string & topic);
-  bool is_latched_topic(const std::string & topic);
   void flush_latched_messages();
 
   rclcpp::Service<rosbag_recorder::srv::SendCommand>::SharedPtr send_command_srv_;
@@ -68,8 +67,12 @@ private:
   std::unique_ptr<rosbag2_cpp::Writer> writer_;
   std::unordered_map<std::string, std::string> type_for_topic_;
 
+  // Cache of latched topic names to avoid repeated publisher info lookups
+  std::unordered_set<std::string> latched_topics_;
+
   // Buffer for latched messages received before recording starts
-  struct BufferedMessage {
+  struct BufferedMessage
+  {
     std::shared_ptr<rclcpp::SerializedMessage> msg;
     rclcpp::Time timestamp;
   };

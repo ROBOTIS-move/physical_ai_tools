@@ -324,15 +324,19 @@ void ServiceBagRecorder::create_subscriptions()
       },
       options);
     subscriptions_.push_back(sub);
-    RCLCPP_INFO(this->get_logger(), "Subscribed to topic: %s", topic.c_str());
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Subscribed to topic: %s",
+      topic.c_str());
   }
 }
 
-rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(const std::string & topic)
+rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(
+  const std::string & topic)
 {
   // Get publisher info to determine QoS settings
   auto publishers_info = this->get_publishers_info_by_topic(topic);
-  
+
   if (!publishers_info.empty()) {
     // Check if any publisher uses TRANSIENT_LOCAL durability
     for (const auto & pub_info : publishers_info) {
@@ -347,7 +351,7 @@ rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(const std::string & topic)
       }
     }
   }
-  
+
   // Use default QoS for other topics
   return rclcpp::QoS(100);
 }
@@ -355,7 +359,7 @@ rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(const std::string & topic)
 bool ServiceBagRecorder::is_latched_topic(const std::string & topic)
 {
   auto publishers_info = this->get_publishers_info_by_topic(topic);
-  
+
   for (const auto & pub_info : publishers_info) {
     if (pub_info.qos_profile().durability() == rclcpp::DurabilityPolicy::TransientLocal) {
       return true;

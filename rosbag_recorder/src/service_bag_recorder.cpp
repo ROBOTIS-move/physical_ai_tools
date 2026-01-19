@@ -116,6 +116,8 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
       type_for_topic_[topic] = type;
     }
 
+    // Create subscriptions early to avoid data loss
+    // Latched messages will be buffered until recording starts
     create_subscriptions();
 
     RCLCPP_INFO(
@@ -180,7 +182,9 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     throw std::runtime_error(std::string("Failed to start recording: ") + e.what());
   }
 
+  // Set recording flag and flush buffered latched messages
   is_recording_ = true;
+  flush_latched_messages();
 
   RCLCPP_INFO(
     this->get_logger(), "Recording started: uri=%s topics=%zu",
@@ -310,16 +314,78 @@ void ServiceBagRecorder::create_subscriptions()
   // Create generic subscriptions for all topics
   for (const auto & [topic, type] : type_for_topic_) {
     auto options = rclcpp::SubscriptionOptions();
+    auto qos = get_qos_for_topic(topic);
     auto sub = this->create_generic_subscription(
       topic,
       type,
-      rclcpp::QoS(100),
+      qos,
       [this, topic](std::shared_ptr<rclcpp::SerializedMessage> serialized_msg) {
         this->handle_serialized_message(topic, serialized_msg);
       },
       options);
     subscriptions_.push_back(sub);
+    RCLCPP_INFO(this->get_logger(), "Subscribed to topic: %s", topic.c_str());
   }
+}
+
+rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(const std::string & topic)
+{
+  // Get publisher info to determine QoS settings
+  auto publishers_info = this->get_publishers_info_by_topic(topic);
+  
+  if (!publishers_info.empty()) {
+    // Check if any publisher uses TRANSIENT_LOCAL durability
+    for (const auto & pub_info : publishers_info) {
+      if (pub_info.qos_profile().durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+        RCLCPP_INFO(
+          this->get_logger(),
+          "Topic '%s' uses TRANSIENT_LOCAL durability, using matching QoS",
+          topic.c_str());
+        return rclcpp::QoS(rclcpp::KeepLast(10))
+          .reliable()
+          .transient_local();
+      }
+    }
+  }
+  
+  // Use default QoS for other topics
+  return rclcpp::QoS(100);
+}
+
+bool ServiceBagRecorder::is_latched_topic(const std::string & topic)
+{
+  auto publishers_info = this->get_publishers_info_by_topic(topic);
+  
+  for (const auto & pub_info : publishers_info) {
+    if (pub_info.qos_profile().durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void ServiceBagRecorder::flush_latched_messages()
+{
+  if (latched_message_buffer_.empty()) {
+    return;
+  }
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Flushing %zu buffered latched messages",
+    latched_message_buffer_.size());
+
+  for (const auto & [topic, buffered] : latched_message_buffer_) {
+    if (writer_) {
+      const auto it = type_for_topic_.find(topic);
+      if (it != type_for_topic_.end()) {
+        writer_->write(buffered.msg, topic, it->second, buffered.timestamp);
+        RCLCPP_INFO(this->get_logger(), "Flushed latched message from: %s", topic.c_str());
+      }
+    }
+  }
+
+  latched_message_buffer_.clear();
 }
 
 void ServiceBagRecorder::handle_serialized_message(
@@ -328,17 +394,23 @@ void ServiceBagRecorder::handle_serialized_message(
 {
   std::scoped_lock<std::mutex> lock(mutex_);
 
-  if (!is_recording_ || !writer_) {
-    return;
-  }
-
-
   const auto it = type_for_topic_.find(topic);
   if (it == type_for_topic_.end()) {
     return;
   }
   const std::string & type = it->second;
-  writer_->write(serialized_msg, topic, type, this->now());
+
+  // If recording, write directly to bag
+  if (is_recording_ && writer_) {
+    writer_->write(serialized_msg, topic, type, this->now());
+    return;
+  }
+
+  // If not recording yet but this is a latched topic, buffer it
+  if (!is_recording_ && is_latched_topic(topic)) {
+    latched_message_buffer_[topic] = {serialized_msg, this->now()};
+    RCLCPP_DEBUG(this->get_logger(), "Buffered latched message from topic: %s", topic.c_str());
+  }
 }
 
 int main(int argc, char ** argv)

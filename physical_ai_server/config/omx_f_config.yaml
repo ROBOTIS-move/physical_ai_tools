@@ -17,6 +17,11 @@ physical_ai_server:
       joint_list:
         - leader
 
+      rosbag_extra_topic_list:
+        - /tf
+        - /tf_static
+        - /robot_description
+
       joint_order:
         leader:
           - joint1

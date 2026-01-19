@@ -67,7 +67,7 @@ private:
   std::vector<rclcpp::GenericSubscription::SharedPtr> subscriptions_;
   std::unique_ptr<rosbag2_cpp::Writer> writer_;
   std::unordered_map<std::string, std::string> type_for_topic_;
-  
+
   // Buffer for latched messages received before recording starts
   struct BufferedMessage {
     std::shared_ptr<rclcpp::SerializedMessage> msg;

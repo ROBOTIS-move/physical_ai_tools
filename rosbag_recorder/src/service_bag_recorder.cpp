@@ -116,8 +116,8 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
       type_for_topic_[topic] = type;
     }
 
-    // Create subscriptions for non-latched topics only
-    // Latched topics will be subscribed in START to ensure they are recorded
+    // Create subscriptions early to avoid data loss
+    // Latched messages will be buffered until recording starts
     create_subscriptions();
 
     RCLCPP_INFO(
@@ -182,11 +182,9 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     throw std::runtime_error(std::string("Failed to start recording: ") + e.what());
   }
 
+  // Set recording flag and flush buffered latched messages
   is_recording_ = true;
-  
-  // Create subscriptions for latched topics after writer is ready
-  // TRANSIENT_LOCAL topics will immediately deliver their messages
-  create_latched_subscriptions();
+  flush_latched_messages();
 
   RCLCPP_INFO(
     this->get_logger(), "Recording started: uri=%s topics=%zu",
@@ -309,53 +307,36 @@ void ServiceBagRecorder::delete_bag_directory(const std::string & bag_uri)
 
 void ServiceBagRecorder::create_subscriptions()
 {
-  RCLCPP_INFO(this->get_logger(), "Creating subscriptions for non-latched topics");
+  RCLCPP_INFO(this->get_logger(), "Creating subscriptions");
 
-  // Create subscriptions for non-latched topics only
+  subscriptions_.clear();
+  latched_topics_.clear();
+
+  // Create generic subscriptions for all topics
   for (const auto & [topic, type] : type_for_topic_) {
-    // Skip latched topics - they will be subscribed in START
-    if (is_latched_topic(topic)) {
-      RCLCPP_INFO(this->get_logger(), "Skipping latched topic: %s", topic.c_str());
-      continue;
-    }
-
     auto options = rclcpp::SubscriptionOptions();
     auto qos = get_qos_for_topic(topic);
+    
+    // Cache whether this topic is latched to avoid repeated publisher lookups
+    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
+      latched_topics_.insert(topic);
+    }
+    
     auto sub = this->create_generic_subscription(
       topic,
       type,
       qos,
-      [this, topic](std::shared_ptr<rclcpp::SerializedMessage> serialized_msg) {
-        this->handle_serialized_message(topic, serialized_msg);
+      [this, topic](
+        std::shared_ptr<rclcpp::SerializedMessage> serialized_msg,
+        const rclcpp::MessageInfo & message_info) {
+        this->handle_serialized_message(topic, serialized_msg, message_info);
       },
       options);
     subscriptions_.push_back(sub);
-    RCLCPP_INFO(this->get_logger(), "Subscribed to non-latched topic: %s", topic.c_str());
-  }
-}
-
-void ServiceBagRecorder::create_latched_subscriptions()
-{
-  RCLCPP_INFO(this->get_logger(), "Creating subscriptions for latched topics");
-
-  // Create subscriptions for latched topics only
-  for (const auto & [topic, type] : type_for_topic_) {
-    if (!is_latched_topic(topic)) {
-      continue;
-    }
-
-    auto options = rclcpp::SubscriptionOptions();
-    auto qos = get_qos_for_topic(topic);
-    auto sub = this->create_generic_subscription(
-      topic,
-      type,
-      qos,
-      [this, topic](std::shared_ptr<rclcpp::SerializedMessage> serialized_msg) {
-        this->handle_serialized_message(topic, serialized_msg);
-      },
-      options);
-    subscriptions_.push_back(sub);
-    RCLCPP_INFO(this->get_logger(), "Subscribed to latched topic: %s", topic.c_str());
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Subscribed to topic: %s",
+      topic.c_str());
   }
 }
 
@@ -373,6 +354,8 @@ rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(
           this->get_logger(),
           "Topic '%s' uses TRANSIENT_LOCAL durability, using matching QoS",
           topic.c_str());
+        // Use smaller queue size (10) for latched topics as they typically publish once
+        // and rely on durability rather than queue depth
         return rclcpp::QoS(rclcpp::KeepLast(10))
                .reliable()
                .transient_local();
@@ -382,18 +365,6 @@ rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(
 
   // Use default QoS for other topics
   return rclcpp::QoS(100);
-}
-
-bool ServiceBagRecorder::is_latched_topic(const std::string & topic)
-{
-  auto publishers_info = this->get_publishers_info_by_topic(topic);
-
-  for (const auto & pub_info : publishers_info) {
-    if (pub_info.qos_profile().durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-      return true;
-    }
-  }
-  return false;
 }
 
 void ServiceBagRecorder::flush_latched_messages()
@@ -412,7 +383,7 @@ void ServiceBagRecorder::flush_latched_messages()
       const auto it = type_for_topic_.find(topic);
       if (it != type_for_topic_.end()) {
         writer_->write(buffered.msg, topic, it->second, buffered.timestamp);
-        RCLCPP_INFO(this->get_logger(), "Flushed latched message from: %s", topic.c_str());
+        RCLCPP_DEBUG(this->get_logger(), "Flushed latched message from: %s", topic.c_str());
       }
     }
   }
@@ -420,112 +391,36 @@ void ServiceBagRecorder::flush_latched_messages()
   latched_message_buffer_.clear();
 }
 
-rclcpp::Time ServiceBagRecorder::extract_timestamp(
-  const std::shared_ptr<rclcpp::SerializedMessage> & serialized_msg,
-  const std::string & message_type)
-{
-  const auto & rcl_msg = serialized_msg->get_rcl_serialized_message();
-  const uint8_t * buffer = rcl_msg.buffer;
-  size_t buffer_length = rcl_msg.buffer_length;
-
-  // Need at least 12 bytes for CDR header (4) + sec (4) + nanosec (4)
-  if (buffer_length < 12) {
-    return this->now();
-  }
-
-  try {
-    auto now_time = this->now();
-    auto now_sec = now_time.seconds();
-    
-    // Messages with direct header at the start (most sensor_msgs, nav_msgs, trajectory_msgs)
-    if (message_type == "sensor_msgs/msg/CompressedImage" ||
-        message_type == "sensor_msgs/msg/Image" ||
-        message_type == "sensor_msgs/msg/CameraInfo" ||
-        message_type == "sensor_msgs/msg/JointState" ||
-        message_type == "trajectory_msgs/msg/JointTrajectory" ||
-        message_type == "nav_msgs/msg/Odometry")
-    {
-      // CDR format: 4 bytes encapsulation + header.stamp (sec + nanosec)
-      // Assuming little-endian
-      int32_t sec = *reinterpret_cast<const int32_t *>(buffer + 4);
-      uint32_t nanosec = *reinterpret_cast<const uint32_t *>(buffer + 8);
-
-      // Strict sanity check: timestamp should be very recent (within 1 year past to 1 day future)
-      // Unix epoch: 1970-01-01, so reasonable timestamp > 1600000000 (2020-09-13)
-      if (sec > 1600000000 && 
-          sec >= (now_sec - 31536000) &&  // Within 1 year in past
-          sec <= (now_sec + 86400) &&      // Within 24 hours in future
-          nanosec < 1000000000)            // Valid nanoseconds
-      {
-        return rclcpp::Time(sec, nanosec);
-      } else {
-        RCLCPP_WARN_THROTTLE(
-          this->get_logger(), *this->get_clock(), 10000,
-          "Invalid timestamp in %s: sec=%d, nanosec=%u (now=%ld). Using reception time.",
-          message_type.c_str(), sec, nanosec, static_cast<long>(now_sec));
-      }
-    }
-    // TFMessage: has transforms[] array, need to extract first transform's header
-    else if (message_type == "tf2_msgs/msg/TFMessage")
-    {
-      // CDR: 4 bytes encapsulation + 4 bytes array length + first element
-      if (buffer_length < 16) {
-        return this->now();
-      }
-      uint32_t array_length = *reinterpret_cast<const uint32_t *>(buffer + 4);
-      if (array_length > 0) {
-        // First transform's header starts at offset 8
-        int32_t sec = *reinterpret_cast<const int32_t *>(buffer + 8);
-        uint32_t nanosec = *reinterpret_cast<const uint32_t *>(buffer + 12);
-
-        if (sec > 1600000000 && 
-            sec >= (now_sec - 31536000) &&
-            sec <= (now_sec + 86400) &&
-            nanosec < 1000000000)
-        {
-          return rclcpp::Time(sec, nanosec);
-        } else {
-          RCLCPP_WARN_THROTTLE(
-            this->get_logger(), *this->get_clock(), 10000,
-            "Invalid timestamp in %s: sec=%d, nanosec=%u (now=%ld). Using reception time.",
-            message_type.c_str(), sec, nanosec, static_cast<long>(now_sec));
-        }
-      }
-    }
-    // Messages without header: use reception time
-    // geometry_msgs/msg/Twist, std_msgs/msg/String
-  } catch (const std::exception & e) {
-    RCLCPP_WARN_THROTTLE(
-      this->get_logger(), *this->get_clock(), 5000,
-      "Failed to extract timestamp from %s: %s. Using reception time.",
-      message_type.c_str(), e.what());
-  }
-
-  // Fallback: use reception time
-  return this->now();
-}
-
 void ServiceBagRecorder::handle_serialized_message(
   const std::string & topic,
-  const std::shared_ptr<rclcpp::SerializedMessage> & serialized_msg)
+  const std::shared_ptr<rclcpp::SerializedMessage> & serialized_msg,
+  const rclcpp::MessageInfo & message_info)
 {
   std::scoped_lock<std::mutex> lock(mutex_);
-
-  // Only record if writer exists
-  if (!writer_) {
-    return;
-  }
 
   const auto it = type_for_topic_.find(topic);
   if (it == type_for_topic_.end()) {
     return;
   }
   const std::string & type = it->second;
-  
-  // Extract timestamp from message header if available, based on message type
-  rclcpp::Time timestamp = extract_timestamp(serialized_msg, type);
-  
-  writer_->write(serialized_msg, topic, type, timestamp);
+
+  // Use source_timestamp from RMW (closest to header.stamp)
+  const auto & rmw_info = message_info.get_rmw_message_info();
+  rclcpp::Time timestamp(rmw_info.source_timestamp, RCL_ROS_TIME);
+
+  // If recording, write directly to bag
+  if (is_recording_ && writer_) {
+    writer_->write(serialized_msg, topic, type, timestamp);
+    return;
+  }
+
+  // If not recording yet but this is a latched topic, buffer it
+  // Use cached latched topic status to avoid repeated publisher info lookups
+  // Note: latched messages just need timestamp after start, so this->now() is fine
+  if (!is_recording_ && latched_topics_.count(topic)) {
+    latched_message_buffer_[topic] = {serialized_msg, this->now()};
+    RCLCPP_DEBUG(this->get_logger(), "Buffered latched message from topic: %s", topic.c_str());
+  }
 }
 
 int main(int argc, char ** argv)

@@ -27,9 +27,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/generic_subscription.hpp>
-#include <rclcpp/serialization.hpp>
 #include <rosbag2_cpp/writer.hpp>
-#include <rosbag2_storage/storage_options.hpp>
 
 #include "rosbag_recorder/srv/send_command.hpp"
 
@@ -52,7 +50,8 @@ private:
 
   void handle_serialized_message(
     const std::string & topic,
-    const std::shared_ptr<rclcpp::SerializedMessage> & serialized_msg);
+    const std::shared_ptr<rclcpp::SerializedMessage> & serialized_msg,
+    const rclcpp::MessageInfo & message_info);
 
   std::vector<std::string> get_missing_topics(
     const std::map<std::string, std::vector<std::string>> & names_and_types);
@@ -60,19 +59,17 @@ private:
     const std::map<std::string, std::vector<std::string>> & names_and_types);
   void delete_bag_directory(const std::string & bag_uri);
   void create_subscriptions();
-  void create_latched_subscriptions();
   rclcpp::QoS get_qos_for_topic(const std::string & topic);
-  bool is_latched_topic(const std::string & topic);
   void flush_latched_messages();
-  rclcpp::Time extract_timestamp(
-    const std::shared_ptr<rclcpp::SerializedMessage> & serialized_msg,
-    const std::string & message_type);
 
   rclcpp::Service<rosbag_recorder::srv::SendCommand>::SharedPtr send_command_srv_;
 
   std::vector<rclcpp::GenericSubscription::SharedPtr> subscriptions_;
   std::unique_ptr<rosbag2_cpp::Writer> writer_;
   std::unordered_map<std::string, std::string> type_for_topic_;
+
+  // Cache of latched topic names to avoid repeated publisher info lookups
+  std::unordered_set<std::string> latched_topics_;
 
   // Buffer for latched messages received before recording starts
   struct BufferedMessage

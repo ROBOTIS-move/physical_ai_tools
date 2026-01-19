@@ -2,6 +2,11 @@
 Changelog for package rosbag_recorder
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.7.3 (2026-01-19)
+------------------
+* Modified to record /tf, /robot_description, /camera_info topics in rosbag2
+* Contributors: Dongyun Kim
+
 0.7.2 (2025-12-01)
 ------------------
 * None

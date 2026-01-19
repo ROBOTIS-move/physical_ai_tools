@@ -2,6 +2,11 @@
 Changelog for package physical_ai_tools
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.7.3 (2026-01-19)
+------------------
+* Modified to record /tf, /robot_description, /camera_info topics in rosbag2
+* Contributors: Dongyun Kim
+
 0.7.2 (2025-12-01)
 ------------------
 * Fixed an issue where the task_index was being merged based on the first episode when merging episodes in the *.parquet data.

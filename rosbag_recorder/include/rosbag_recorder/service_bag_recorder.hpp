@@ -58,12 +58,23 @@ private:
     const std::map<std::string, std::vector<std::string>> & names_and_types);
   void delete_bag_directory(const std::string & bag_uri);
   void create_subscriptions();
+  rclcpp::QoS get_qos_for_topic(const std::string & topic);
+  bool is_latched_topic(const std::string & topic);
+  void flush_latched_messages();
 
   rclcpp::Service<rosbag_recorder::srv::SendCommand>::SharedPtr send_command_srv_;
 
   std::vector<rclcpp::GenericSubscription::SharedPtr> subscriptions_;
   std::unique_ptr<rosbag2_cpp::Writer> writer_;
   std::unordered_map<std::string, std::string> type_for_topic_;
+  
+  // Buffer for latched messages received before recording starts
+  struct BufferedMessage {
+    std::shared_ptr<rclcpp::SerializedMessage> msg;
+    rclcpp::Time timestamp;
+  };
+  std::unordered_map<std::string, BufferedMessage> latched_message_buffer_;
+
   bool is_recording_ {false};
   std::string current_bag_uri_;
   std::vector<std::string> topics_to_record_ {};

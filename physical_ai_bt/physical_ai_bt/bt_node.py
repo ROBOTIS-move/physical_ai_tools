@@ -205,6 +205,10 @@ class BehaviorTreeNode(Node):
         self.tree_execution_mode = 'stopped'
         self.get_logger().info('Behavior tree completed')
 
+        # Shutdown the node after tree completion
+        self.get_logger().info('Shutting down BT node...')
+        rclpy.shutdown()
+
 
 def main(args=None):
     """Run the behavior tree node."""

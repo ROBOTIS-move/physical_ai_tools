@@ -38,16 +38,19 @@ if TYPE_CHECKING:
 class MoveLift(BaseAction):
     """Action to move the robot lift to a target position."""
 
+    DEFAULT_LIFT_JOINT = 'lift_joint'
+
     def __init__(
         self,
         node: 'Node',
         lift_position: float = ZERO_VELOCITY,  # noqa: F405
+        lift_joint_name: str = None,
         position_threshold: float = POSITION_THRESHOLD_RAD,  # noqa: F405
         duration: float = DEFAULT_MOVE_LIFT_DURATION_SEC,  # noqa: F405
     ):
         """Initialize the MoveLift action."""
         super().__init__(node, name='MoveLift')
-        self.lift_joint_name = 'lift_joint'
+        self.lift_joint_name = lift_joint_name or self.DEFAULT_LIFT_JOINT
         self.target_position = lift_position
         self.position_threshold = position_threshold
         self.duration = duration

@@ -38,26 +38,29 @@ if TYPE_CHECKING:
 class MoveArms(BaseAction):
     """Action to move both robot arms to target joint positions."""
 
+    DEFAULT_LEFT_JOINTS = [
+        'arm_l_joint1', 'arm_l_joint2', 'arm_l_joint3', 'arm_l_joint4',
+        'arm_l_joint5', 'arm_l_joint6', 'arm_l_joint7', 'gripper_l_joint1'
+    ]
+    DEFAULT_RIGHT_JOINTS = [
+        'arm_r_joint1', 'arm_r_joint2', 'arm_r_joint3', 'arm_r_joint4',
+        'arm_r_joint5', 'arm_r_joint6', 'arm_r_joint7', 'gripper_r_joint1'
+    ]
+
     def __init__(
             self,
             node: 'Node',
             left_positions: List[float],
             right_positions: List[float],
+            left_joint_names: List[str] = None,
+            right_joint_names: List[str] = None,
             position_threshold: float = POSITION_THRESHOLD_RAD,  # noqa: F405
             duration: float = DEFAULT_MOVE_ARMS_DURATION_SEC,  # noqa: F405
     ):
         """Initialize the MoveArms action."""
         super().__init__(node, name='MoveArms')
-        self.left_joint_names = [
-            'arm_l_joint1', 'arm_l_joint2', 'arm_l_joint3', 'arm_l_joint4',
-            'arm_l_joint5', 'arm_l_joint6', 'arm_l_joint7',
-            'gripper_l_joint1'
-        ]
-        self.right_joint_names = [
-            'arm_r_joint1', 'arm_r_joint2', 'arm_r_joint3', 'arm_r_joint4',
-            'arm_r_joint5', 'arm_r_joint6', 'arm_r_joint7',
-            'gripper_r_joint1'
-        ]
+        self.left_joint_names = left_joint_names or self.DEFAULT_LEFT_JOINTS
+        self.right_joint_names = right_joint_names or self.DEFAULT_RIGHT_JOINTS
         self.left_positions = left_positions
         self.right_positions = right_positions
         self.position_threshold = position_threshold

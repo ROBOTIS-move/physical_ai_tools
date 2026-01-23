@@ -38,16 +38,19 @@ if TYPE_CHECKING:
 class MoveHead(BaseAction):
     """Action to move the robot head to target joint positions."""
 
+    DEFAULT_HEAD_JOINTS = ['head_joint1', 'head_joint2']
+
     def __init__(
             self,
             node: 'Node',
             head_positions: List[float] = None,
+            head_joint_names: List[str] = None,
             position_threshold: float = POSITION_THRESHOLD_RAD,  # noqa: F405
             duration: float = DEFAULT_MOVE_HEAD_DURATION_SEC,  # noqa: F405
     ):
         """Initialize the MoveHead action."""
         super().__init__(node, name='MoveHead')
-        self.head_joint_names = ['head_joint1', 'head_joint2']
+        self.head_joint_names = head_joint_names or self.DEFAULT_HEAD_JOINTS
         self.head_positions = (
             head_positions if head_positions else [0.0, 0.0]
         )

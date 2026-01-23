@@ -137,6 +137,14 @@ class TreeLoader:
 
         return value
 
+    def _get_joint_names_for_group(self, group_name: str) -> list:
+        """Get joint names for a specific joint group from topic_config."""
+        if not self.topic_config or 'joint_order' not in self.topic_config:
+            return []
+
+        joint_order = self.topic_config['joint_order']
+        return joint_order.get(group_name, [])
+
     def _create_action(
         self, action_class: Type[BaseAction], name: str, params: Dict
     ) -> BaseAction:
@@ -149,29 +157,41 @@ class TreeLoader:
             )
 
         elif action_class == MoveHead:
+            head_joints = self._get_joint_names_for_group('leader_head')
+
             return action_class(
                 node=self.node,
                 head_positions=params.get('head_positions', [0.0, 0.0]),
+                head_joint_names=head_joints if head_joints else None,
                 position_threshold=params.get('position_threshold', 0.01),
                 duration=params.get('duration', 5.0)
             )
 
         elif action_class == MoveArms:
             default_positions = [0.0] * 8
+            left_joints = self._get_joint_names_for_group('leader_left')
+            right_joints = self._get_joint_names_for_group('leader_right')
+
             return action_class(
                 node=self.node,
                 left_positions=params.get('left_positions', default_positions),
                 right_positions=params.get(
                     'right_positions', default_positions
                 ),
+                left_joint_names=left_joints if left_joints else None,
+                right_joint_names=right_joints if right_joints else None,
                 position_threshold=params.get('position_threshold', 0.01),
                 duration=params.get('duration', 2.0)
             )
 
         elif action_class == MoveLift:
+            lift_joints = self._get_joint_names_for_group('leader_lift')
+            lift_joint_name = lift_joints[0] if lift_joints else None
+
             return action_class(
                 node=self.node,
                 lift_position=params.get('lift_position', 0.0),
+                lift_joint_name=lift_joint_name,
                 position_threshold=params.get('position_threshold', 0.01),
                 duration=params.get('duration', 5.0)
             )

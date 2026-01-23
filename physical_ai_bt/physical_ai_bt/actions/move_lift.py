@@ -122,6 +122,11 @@ class MoveLift(BaseAction):
                         self._thread_success = True
                         self._thread_done = True
                         break
+                else:
+                    self.log_warn(
+                        f"Joint '{self.lift_joint_name}' not found in "
+                        f'/joint_states'
+                    )
 
             time.sleep(rate_sleep)
             timeout_count += 1

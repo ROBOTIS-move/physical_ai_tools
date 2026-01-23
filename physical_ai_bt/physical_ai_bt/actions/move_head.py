@@ -122,6 +122,10 @@ class MoveHead(BaseAction):
                     if abs(pos - target) > self.position_threshold:
                         all_reached = False
                         break
+                else:
+                    self.log_warn(f"Joint '{jname}' not found in /joint_states")
+                    all_reached = False
+                    break
 
             if all_reached:
                 self.log_info('Head reached target positions')

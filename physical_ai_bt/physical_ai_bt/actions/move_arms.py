@@ -146,6 +146,7 @@ class MoveArms(BaseAction):
                         all_reached = False
                         break
                 else:
+                    self.log_warn(f"Joint '{jname}' not found in /joint_states")
                     all_reached = False
                     break
 
@@ -160,6 +161,7 @@ class MoveArms(BaseAction):
                             all_reached = False
                             break
                     else:
+                        self.log_warn(f"Joint '{jname}' not found in /joint_states")
                         all_reached = False
                         break
 

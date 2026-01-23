@@ -10,7 +10,7 @@ physical_ai_server:
       camera_topic_list:
         - cam_head:/zed/zed_node/left/image_rect_color/compressed
         - cam_wrist_left:/camera_left/camera_left/color/image_rect_raw/compressed
-        - cam_wrist_right:/camera/cam_wrist_right/color/image_rect_raw/compressed
+        - cam_wrist_right:/camera_right/camera_right/color/image_rect_raw/compressed
 
       joint_topic_list:
         - follower_upper_body:/joint_states

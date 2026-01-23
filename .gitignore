@@ -709,6 +709,13 @@ CATKIN_IGNORE
 AMENT_IGNORE
 COLCON_IGNORE
 
+## Build and install directories
+install/
+log/
+
+## Submodule directories (not tracked)
+Isaac-GR00T/
+
 
 ##############################
 # ETC.

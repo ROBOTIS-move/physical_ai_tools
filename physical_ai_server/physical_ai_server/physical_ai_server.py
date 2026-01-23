@@ -1335,7 +1335,8 @@ class PhysicalAIServer(Node):
             self.get_logger().error(f'Error cleaning up HF API Worker: {str(e)}')
 
     def control_action_publish_callback(self, request, response):
-        """Control action publishing during inference.
+        """
+        Control action publishing during inference.
 
         This service should only be used by external BT nodes.
         When BT is not running, action publishing is always enabled.

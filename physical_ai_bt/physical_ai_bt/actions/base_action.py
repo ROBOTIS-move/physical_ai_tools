@@ -87,22 +87,3 @@ class BaseControl(BTNode):
         super().reset()
         for child in self.children:
             child.reset()
-
-
-class BaseDecorator(BTNode):
-    """Base class for decorator nodes in the behavior tree."""
-
-    def __init__(self, node: 'Node', name: str, child: BTNode = None):
-        """Initialize a decorator node."""
-        super().__init__(node, name)
-        self.child = child
-
-    def set_child(self, child: BTNode):
-        """Set the child node for this decorator."""
-        self.child = child
-
-    def reset(self):
-        """Reset the decorator node and its child."""
-        super().reset()
-        if self.child:
-            self.child.reset()

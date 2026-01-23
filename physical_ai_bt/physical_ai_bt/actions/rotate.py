@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from physical_ai_bt.actions.base_action import BaseAction
-from physical_ai_bt.actions.base_action import NodeStatus
+from physical_ai_bt.bt_core import NodeStatus
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
 

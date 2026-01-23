@@ -28,9 +28,9 @@ from physical_ai_bt.actions import MoveHead
 from physical_ai_bt.actions import MoveLift
 from physical_ai_bt.actions import Rotate
 from physical_ai_bt.actions.base_action import BaseAction
-from physical_ai_bt.actions.base_action import BaseControl
-from physical_ai_bt.actions.base_action import BTNode
+from physical_ai_bt.bt_core import BTNode
 from physical_ai_bt.controls import Sequence
+from physical_ai_bt.controls.base_control import BaseControl
 
 if TYPE_CHECKING:
     from rclpy.node import Node

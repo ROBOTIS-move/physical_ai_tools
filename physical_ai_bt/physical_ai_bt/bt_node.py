@@ -25,8 +25,8 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
-from physical_ai_bt.actions.base_action import NodeStatus  # noqa: I100
 from physical_ai_bt.blackboard import Blackboard  # noqa: I100
+from physical_ai_bt.bt_core import NodeStatus  # noqa: I100
 from physical_ai_bt.bt_nodes_loader import TreeLoader  # noqa: I100
 
 

@@ -16,74 +16,12 @@
 #
 # Author: Seongwoo Kim
 
-"""Base classes for all Behavior Tree nodes."""
+"""Base class for action nodes in the behavior tree."""
 
-from enum import Enum
-from typing import List
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from rclpy.node import Node
-
-
-class NodeStatus(Enum):
-    """Enum representing the status of a behavior tree node."""
-
-    SUCCESS = 1
-    FAILURE = 2
-    RUNNING = 3
-
-
-class BTNode:
-    """Base class for all behavior tree nodes."""
-
-    def __init__(self, node: 'Node', name: str):
-        """Initialize a behavior tree node."""
-        self.node = node
-        self.name = name
-        self.status = NodeStatus.RUNNING
-
-    def tick(self) -> NodeStatus:
-        """Execute the node's behavior and return status."""
-        raise NotImplementedError('Subclasses must implement tick() method')
-
-    def reset(self):
-        """Reset the node to its initial state."""
-        self.status = NodeStatus.RUNNING
-
-    def log_info(self, message: str):
-        """Log an info message with the node name prefix."""
-        self.node.get_logger().info(f'[{self.name}] {message}')
-
-    def log_warn(self, message: str):
-        """Log a warning message with the node name prefix."""
-        self.node.get_logger().warn(f'[{self.name}] {message}')
-
-    def log_error(self, message: str):
-        """Log an error message with the node name prefix."""
-        self.node.get_logger().error(f'[{self.name}] {message}')
+from physical_ai_bt.bt_core import BTNode
 
 
 class BaseAction(BTNode):
     """Base class for action nodes in the behavior tree."""
 
     pass
-
-
-class BaseControl(BTNode):
-    """Base class for control nodes in the behavior tree."""
-
-    def __init__(self, node: 'Node', name: str):
-        """Initialize a control node."""
-        super().__init__(node, name)
-        self.children: List[BTNode] = []
-
-    def add_child(self, child: BTNode):
-        """Add a child node to this control node."""
-        self.children.append(child)
-
-    def reset(self):
-        """Reset the control node and all its children."""
-        super().reset()
-        for child in self.children:
-            child.reset()

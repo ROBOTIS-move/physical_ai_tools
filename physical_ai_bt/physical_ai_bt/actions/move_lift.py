@@ -23,7 +23,7 @@ import time
 from typing import TYPE_CHECKING
 
 from physical_ai_bt.actions.base_action import BaseAction
-from physical_ai_bt.actions.base_action import NodeStatus
+from physical_ai_bt.bt_core import NodeStatus
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
 from sensor_msgs.msg import JointState

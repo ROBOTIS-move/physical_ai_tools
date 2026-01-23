@@ -20,8 +20,8 @@
 
 from typing import TYPE_CHECKING
 
-from physical_ai_bt.actions.base_action import BaseControl
-from physical_ai_bt.actions.base_action import NodeStatus
+from physical_ai_bt.bt_core import NodeStatus
+from physical_ai_bt.controls.base_control import BaseControl
 
 if TYPE_CHECKING:
     from rclpy.node import Node

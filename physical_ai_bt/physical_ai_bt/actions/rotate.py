@@ -29,7 +29,6 @@ from physical_ai_bt.actions.base_action import BaseAction
 from physical_ai_bt.actions.base_action import NodeStatus
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
-from trajectory_msgs.msg import JointTrajectory
 
 if TYPE_CHECKING:
     from rclpy.node import Node
@@ -78,12 +77,6 @@ class Rotate(BaseAction):
                         qos_profile
                     )
                     self.publishers[joint_group] = pub
-        else:
-            self.trajectory_pub = self.node.create_publisher(
-                JointTrajectory,
-                '/leader/joint_trajectory',
-                qos_profile
-            )
 
         self.odom_sub = self.node.create_subscription(
             Odometry,

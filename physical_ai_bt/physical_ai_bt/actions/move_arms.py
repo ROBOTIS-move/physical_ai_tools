@@ -82,8 +82,6 @@ class MoveArms(BaseAction):
             topic_right,
             qos_profile
         )
-        self.command_sent = False
-        self.start_time = None
         self.joint_state = None
         from sensor_msgs.msg import JointState
         self.joint_state_sub = self.node.create_subscription(
@@ -125,7 +123,7 @@ class MoveArms(BaseAction):
         self.log_info('Arms trajectory published')
 
         timeout_count = 0
-        while not self._thread_done and timeout_count < 1500:  # 30s timeout
+        while not self._thread_done and timeout_count < 1500:  # 15s timeout
             if self.joint_state is None:
                 time.sleep(rate_sleep)
                 timeout_count += 1
@@ -136,9 +134,9 @@ class MoveArms(BaseAction):
             }
             all_reached = True
 
-            for jname, target in zip(
-                self.left_joint_names, self.left_positions
-            ):
+            all_joint_names = self.left_joint_names + self.right_joint_names
+            all_positions = self.left_positions + self.right_positions
+            for jname, target in zip(all_joint_names, all_positions):
                 idx = name_to_idx.get(jname)
                 if idx is not None:
                     pos = self.joint_state.position[idx]
@@ -149,21 +147,6 @@ class MoveArms(BaseAction):
                     self.log_warn(f"Joint '{jname}' not found in /joint_states")
                     all_reached = False
                     break
-
-            if all_reached:
-                for jname, target in zip(
-                    self.right_joint_names, self.right_positions
-                ):
-                    idx = name_to_idx.get(jname)
-                    if idx is not None:
-                        pos = self.joint_state.position[idx]
-                        if abs(pos - target) > self.position_threshold:
-                            all_reached = False
-                            break
-                    else:
-                        self.log_warn(f"Joint '{jname}' not found in /joint_states")
-                        all_reached = False
-                        break
 
             if all_reached:
                 self.log_info('Arms reached target positions')

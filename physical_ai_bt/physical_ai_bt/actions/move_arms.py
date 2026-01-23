@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from physical_ai_bt.actions.base_action import BaseAction
 from physical_ai_bt.bt_core import NodeStatus
+from physical_ai_bt.constants import *  # noqa: F403
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
 from trajectory_msgs.msg import JointTrajectory
@@ -42,8 +43,8 @@ class MoveArms(BaseAction):
             node: 'Node',
             left_positions: List[float],
             right_positions: List[float],
-            position_threshold: float = 0.01,
-            duration: float = 2.0,
+            position_threshold: float = POSITION_THRESHOLD_RAD,  # noqa: F405
+            duration: float = DEFAULT_MOVE_ARMS_DURATION_SEC,  # noqa: F405
     ):
         """Initialize the MoveArms action."""
         super().__init__(node, name='MoveArms')
@@ -62,7 +63,8 @@ class MoveArms(BaseAction):
         self.position_threshold = position_threshold
         self.duration = duration
         qos_profile = QoSProfile(
-            depth=10, reliability=ReliabilityPolicy.RELIABLE
+            depth=QOS_QUEUE_DEPTH,  # noqa: F405
+            reliability=ReliabilityPolicy.RELIABLE
         )
         topic_left = (
             '/leader/joint_trajectory_command_broadcaster_left/'
@@ -94,7 +96,7 @@ class MoveArms(BaseAction):
         self._thread = None
         self._thread_done = False
         self._thread_success = False
-        self._control_rate = 100  # Hz
+        self._control_rate = CONTROL_RATE_HZ  # noqa: F405
 
     def _joint_state_callback(self, msg):
         """Receive joint state updates."""
@@ -102,7 +104,7 @@ class MoveArms(BaseAction):
 
     def _control_loop(self):
         """Control loop that publishes trajectories and monitors progress."""
-        rate_sleep = 1.0 / self._control_rate
+        rate_sleep = RATE_SLEEP_SEC  # noqa: F405
 
         left_traj = JointTrajectory()
         left_traj.joint_names = self.left_joint_names
@@ -123,7 +125,7 @@ class MoveArms(BaseAction):
         self.log_info('Arms trajectory published')
 
         timeout_count = 0
-        while not self._thread_done and timeout_count < 1500:  # 15s timeout
+        while not self._thread_done and timeout_count < MOVE_ARMS_TIMEOUT_TICKS:  # noqa: F405, E501
             if self.joint_state is None:
                 time.sleep(rate_sleep)
                 timeout_count += 1
@@ -188,7 +190,7 @@ class MoveArms(BaseAction):
         super().reset()
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True
-            self._thread.join(timeout=1.0)
+            self._thread.join(timeout=THREAD_JOIN_TIMEOUT_SEC)  # noqa: F405
         self._thread = None
         self._thread_done = False
         self._thread_success = False

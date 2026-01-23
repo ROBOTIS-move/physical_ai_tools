@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from physical_ai_bt.actions.base_action import BaseAction
 from physical_ai_bt.bt_core import NodeStatus
+from physical_ai_bt.constants import *  # noqa: F403
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
 from trajectory_msgs.msg import JointTrajectory
@@ -41,8 +42,8 @@ class MoveHead(BaseAction):
             self,
             node: 'Node',
             head_positions: List[float] = None,
-            position_threshold: float = 0.01,
-            duration: float = 5.0,
+            position_threshold: float = POSITION_THRESHOLD_RAD,  # noqa: F405
+            duration: float = DEFAULT_MOVE_HEAD_DURATION_SEC,  # noqa: F405
     ):
         """Initialize the MoveHead action."""
         super().__init__(node, name='MoveHead')
@@ -54,7 +55,8 @@ class MoveHead(BaseAction):
         self.duration = duration
 
         qos_profile = QoSProfile(
-            depth=10, reliability=ReliabilityPolicy.RELIABLE
+            depth=QOS_QUEUE_DEPTH,  # noqa: F405
+            reliability=ReliabilityPolicy.RELIABLE
         )
         topic_head = (
             '/leader/joystick_controller_left/joint_trajectory'
@@ -77,7 +79,7 @@ class MoveHead(BaseAction):
         self._thread = None
         self._thread_done = False
         self._thread_success = False
-        self._control_rate = 100  # Hz
+        self._control_rate = CONTROL_RATE_HZ  # noqa: F405
 
     def _joint_state_callback(self, msg):
         """Receive joint state updates."""
@@ -85,7 +87,7 @@ class MoveHead(BaseAction):
 
     def _control_loop(self):
         """Control loop that publishes trajectories and monitors progress."""
-        rate_sleep = 1.0 / self._control_rate
+        rate_sleep = RATE_SLEEP_SEC  # noqa: F405
 
         pos_str = str(self.head_positions)
         self.log_info(f'Publishing head trajectory: {pos_str}')
@@ -101,7 +103,7 @@ class MoveHead(BaseAction):
         self.log_info('Head trajectory published')
 
         timeout_count = 0
-        max_timeout = 1000
+        max_timeout = MOVE_HEAD_TIMEOUT_TICKS  # noqa: F405
         while not self._thread_done and timeout_count < max_timeout:
             if self.joint_state is None:
                 time.sleep(rate_sleep)
@@ -168,7 +170,7 @@ class MoveHead(BaseAction):
         super().reset()
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True
-            self._thread.join(timeout=1.0)
+            self._thread.join(timeout=THREAD_JOIN_TIMEOUT_SEC)  # noqa: F405
         self._thread = None
         self._thread_done = False
         self._thread_success = False

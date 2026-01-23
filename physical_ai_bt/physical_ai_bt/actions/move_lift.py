@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 from physical_ai_bt.actions.base_action import BaseAction
 from physical_ai_bt.bt_core import NodeStatus
+from physical_ai_bt.constants import *  # noqa: F403
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
 from sensor_msgs.msg import JointState
@@ -40,9 +41,9 @@ class MoveLift(BaseAction):
     def __init__(
         self,
         node: 'Node',
-        lift_position: float = 0.0,
-        position_threshold: float = 0.01,
-        duration: float = 5.0,
+        lift_position: float = ZERO_VELOCITY,  # noqa: F405
+        position_threshold: float = POSITION_THRESHOLD_RAD,  # noqa: F405
+        duration: float = DEFAULT_MOVE_LIFT_DURATION_SEC,  # noqa: F405
     ):
         """Initialize the MoveLift action."""
         super().__init__(node, name='MoveLift')
@@ -52,7 +53,8 @@ class MoveLift(BaseAction):
         self.duration = duration
 
         qos_profile = QoSProfile(
-            depth=10, reliability=ReliabilityPolicy.RELIABLE
+            depth=QOS_QUEUE_DEPTH,  # noqa: F405
+            reliability=ReliabilityPolicy.RELIABLE
         )
 
         topic_lift = (
@@ -75,7 +77,7 @@ class MoveLift(BaseAction):
         self._thread = None
         self._thread_done = False
         self._thread_success = False
-        self._control_rate = 100  # Hz
+        self._control_rate = CONTROL_RATE_HZ  # noqa: F405
 
     def _joint_state_callback(self, msg):
         """Receive joint state updates."""
@@ -94,7 +96,7 @@ class MoveLift(BaseAction):
 
     def _control_loop(self):
         """Control loop that publishes trajectories and monitors progress."""
-        rate_sleep = 1.0 / self._control_rate
+        rate_sleep = RATE_SLEEP_SEC  # noqa: F405
 
         lift_traj = JointTrajectory()
         lift_traj.joint_names = [self.lift_joint_name]
@@ -108,7 +110,7 @@ class MoveLift(BaseAction):
         self.log_info(f'Lift trajectory published: target={target_str}')
 
         timeout_count = 0
-        max_timeout = 2000
+        max_timeout = MOVE_LIFT_TIMEOUT_TICKS  # noqa: F405
         while not self._thread_done and timeout_count < max_timeout:
             if self.joint_state is not None:
                 current_pos = self._get_joint_position(self.lift_joint_name)
@@ -163,7 +165,7 @@ class MoveLift(BaseAction):
         super().reset()
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True
-            self._thread.join(timeout=1.0)
+            self._thread.join(timeout=THREAD_JOIN_TIMEOUT_SEC)  # noqa: F405
         self._thread = None
         self._thread_done = False
         self._thread_success = False

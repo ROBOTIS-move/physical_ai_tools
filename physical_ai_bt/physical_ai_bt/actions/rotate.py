@@ -27,6 +27,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from physical_ai_bt.actions.base_action import BaseAction
 from physical_ai_bt.bt_core import NodeStatus
+from physical_ai_bt.constants import *  # noqa: F403
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
 
@@ -41,16 +42,16 @@ class Rotate(BaseAction):
     def angle_diff_deg(a, b):
         """Calculate the difference between two angles in degrees."""
         d = a - b
-        while d > 180:
-            d -= 360
-        while d < -180:
-            d += 360
+        while d > ANGLE_NORMALIZATION_180:  # noqa: F405
+            d -= ANGLE_NORMALIZATION_360  # noqa: F405
+        while d < -ANGLE_NORMALIZATION_180:  # noqa: F405
+            d += ANGLE_NORMALIZATION_360  # noqa: F405
         return d
 
     def __init__(
             self,
             node: 'Node',
-            angle_deg: float = 90.0,
+            angle_deg: float = DEFAULT_ROTATION_ANGLE_DEG,  # noqa: F405
             topic_config: dict = None
     ):
         """Initialize the Rotate action."""
@@ -59,10 +60,10 @@ class Rotate(BaseAction):
         self.topic_config = topic_config or {}
         if not isinstance(self.topic_config, dict):
             self.topic_config = {}
-        self.angular_velocity = 0.2
+        self.angular_velocity = ROTATION_ANGULAR_VELOCITY  # noqa: F405
 
         qos_profile = QoSProfile(
-            depth=10,
+            depth=QOS_QUEUE_DEPTH,  # noqa: F405
             reliability=ReliabilityPolicy.RELIABLE
         )
 
@@ -90,7 +91,7 @@ class Rotate(BaseAction):
         self._thread = None
         self._thread_done = False
         self._thread_success = False
-        self._control_rate = 100  # Hz
+        self._control_rate = CONTROL_RATE_HZ  # noqa: F405
 
     def _odom_callback(self, msg):
         """Receive odometry updates and compute yaw angle."""
@@ -104,10 +105,10 @@ class Rotate(BaseAction):
 
     def _control_loop(self):
         """Control loop that publishes velocity and monitors rotation."""
-        rate_sleep = 1.0 / self._control_rate
+        rate_sleep = RATE_SLEEP_SEC  # noqa: F405
 
         timeout_count = 0
-        max_init_timeout = 500
+        max_init_timeout = ROTATE_INIT_TIMEOUT_TICKS  # noqa: F405
         while (
             self.odom_start_yaw is None and timeout_count < max_init_timeout
         ):
@@ -128,9 +129,10 @@ class Rotate(BaseAction):
             start_deg = math.degrees(self.odom_start_yaw)
             last_deg = math.degrees(self.odom_last_yaw)
             delta_deg = self.angle_diff_deg(last_deg, start_deg)
-            delta_deg_norm = ((delta_deg + 180) % 360) - 180
+            delta_deg_norm = ((delta_deg + ANGLE_NORMALIZATION_180) %  # noqa: F405, E501
+                              ANGLE_NORMALIZATION_360) - ANGLE_NORMALIZATION_180  # noqa: F405, E501
 
-            tolerance = 0.1
+            tolerance = ROTATION_TOLERANCE_DEG  # noqa: F405
             error = self.angle_deg - delta_deg_norm
 
             if abs(error) <= tolerance:
@@ -153,8 +155,8 @@ class Rotate(BaseAction):
 
             if 'leader_mobile' in self.publishers:
                 twist_msg = Twist()
-                twist_msg.linear.x = 0.0
-                twist_msg.linear.y = 0.0
+                twist_msg.linear.x = ZERO_VELOCITY  # noqa: F405
+                twist_msg.linear.y = ZERO_VELOCITY  # noqa: F405
                 twist_msg.angular.z = angular_z
                 self.publishers['leader_mobile'].publish(twist_msg)
 
@@ -188,6 +190,9 @@ class Rotate(BaseAction):
         """Stop the mobile base by publishing zero velocity."""
         if 'leader_mobile' in self.publishers:
             twist_msg = Twist()
+            twist_msg.linear.x = ZERO_VELOCITY  # noqa: F405
+            twist_msg.linear.y = ZERO_VELOCITY  # noqa: F405
+            twist_msg.angular.z = ZERO_VELOCITY  # noqa: F405
             self.publishers['leader_mobile'].publish(twist_msg)
             self.log_info('Mobile base stopped')
 
@@ -196,7 +201,7 @@ class Rotate(BaseAction):
         super().reset()
         if self._thread is not None and self._thread.is_alive():
             self._thread_done = True
-            self._thread.join(timeout=1.0)
+            self._thread.join(timeout=THREAD_JOIN_TIMEOUT_SEC)  # noqa: F405
         self._thread = None
         self._thread_done = False
         self._thread_success = False

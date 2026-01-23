@@ -101,6 +101,11 @@ class TreeLoader:
             params = self._parse_node_params(xml_node)
             return self._create_action(action_class, node_name, params)
 
+        else:
+            raise ValueError(
+                f"Unknown node type '{node_type}' with ID '{node_id}'"
+            )
+
     def _parse_node_params(self, xml_node: ET.Element) -> Dict:
         """Parse parameters from XML node attributes."""
         params = {}

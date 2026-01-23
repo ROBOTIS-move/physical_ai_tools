@@ -33,6 +33,7 @@ from physical_ai_interfaces.msg import (
 )
 from physical_ai_interfaces.srv import (
     ControlHfServer,
+    ControlInference,
     GetDatasetList,
     GetHFUser,
     GetModelWeightList,
@@ -45,7 +46,6 @@ from physical_ai_interfaces.srv import (
     SendTrainingCommand,
     SetHFUser,
     SetRobotType,
-    ControlInference,
 )
 
 from physical_ai_server.communication.communicator import Communicator
@@ -1350,7 +1350,7 @@ class PhysicalAIServer(Node):
 
             self.communicator.action_publish_enabled = request.enable
             self.inference_paused = request.pause_inference
-            status = "enabled" if request.enable else "disabled"
+            status = 'enabled' if request.enable else 'disabled'
             self.get_logger().info(f'Action publishing {status} by external control')
             response.success = True
             response.message = f'Action publishing {status} successfully'

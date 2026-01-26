@@ -18,16 +18,19 @@
 #ifndef ROSBAG_RECORDER__SERVICE_BAG_RECORDER_HPP_
 #define ROSBAG_RECORDER__SERVICE_BAG_RECORDER_HPP_
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <map>
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/generic_subscription.hpp>
 #include <rosbag2_cpp/writer.hpp>
+#include <rosbag2_storage/storage_options.hpp>
 
 #include "rosbag_recorder/srv/send_command.hpp"
 
@@ -36,6 +39,12 @@ class ServiceBagRecorder : public rclcpp::Node
 {
 public:
   ServiceBagRecorder();
+
+  // Callback groups for parallel processing with MultiThreadedExecutor
+  rclcpp::CallbackGroup::SharedPtr camera_callback_group_;
+  rclcpp::CallbackGroup::SharedPtr joint_callback_group_;
+  rclcpp::CallbackGroup::SharedPtr other_callback_group_;
+  rclcpp::CallbackGroup::SharedPtr service_callback_group_;
 
 private:
   void handle_send_command(
@@ -60,7 +69,8 @@ private:
   void delete_bag_directory(const std::string & bag_uri);
   void create_subscriptions();
   rclcpp::QoS get_qos_for_topic(const std::string & topic);
-  void flush_latched_messages();
+  rclcpp::CallbackGroup::SharedPtr get_callback_group_for_topic(const std::string & topic);
+  void log_statistics();
 
   rclcpp::Service<rosbag_recorder::srv::SendCommand>::SharedPtr send_command_srv_;
 
@@ -68,21 +78,22 @@ private:
   std::unique_ptr<rosbag2_cpp::Writer> writer_;
   std::unordered_map<std::string, std::string> type_for_topic_;
 
-  // Cache of latched topic names to avoid repeated publisher info lookups
-  std::unordered_set<std::string> latched_topics_;
-
-  // Buffer for latched messages received before recording starts
-  struct BufferedMessage
-  {
-    std::shared_ptr<rclcpp::SerializedMessage> msg;
-    rclcpp::Time timestamp;
-  };
-  std::unordered_map<std::string, BufferedMessage> latched_message_buffer_;
+  // Track which topics are camera topics for callback group assignment
+  std::unordered_set<std::string> camera_topics_;
+  std::unordered_set<std::string> joint_topics_;
 
   bool is_recording_ {false};
   std::string current_bag_uri_;
   std::vector<std::string> topics_to_record_ {};
   std::mutex mutex_;
+
+  // Statistics for monitoring
+  std::atomic<uint64_t> messages_received_{0};
+  std::atomic<uint64_t> messages_written_{0};
+
+  // Storage configuration
+  static constexpr size_t CACHE_SIZE_BYTES = 1024 * 1024 * 1024;  // 1GB
+  static constexpr const char * STORAGE_ID = "mcap";
 };
 
 #endif  // ROSBAG_RECORDER__SERVICE_BAG_RECORDER_HPP_

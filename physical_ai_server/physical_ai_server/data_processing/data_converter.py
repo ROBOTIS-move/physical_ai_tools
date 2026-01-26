@@ -172,7 +172,14 @@ class DataConverter:
             start_idx += count
             if key.startswith('joint_order.'):
                 key = key.replace('joint_order.', '')
-            if leader_topic_types[key] == JointTrajectory:
+            # Scale AI requirement: Use JointState instead of JointTrajectory
+            if leader_topic_types[key] == JointState:
+                joint_state_msg = JointState()
+                joint_state_msg.name = value
+                joint_state_msg.position = [float(p) for p in action_slice]
+                joint_pub_msgs[key] = joint_state_msg
+            elif leader_topic_types[key] == JointTrajectory:
+                # Legacy support for JointTrajectory (deprecated)
                 joint_pub_msgs[key] = JointTrajectory(
                     joint_names=value,
                     points=[JointTrajectoryPoint(

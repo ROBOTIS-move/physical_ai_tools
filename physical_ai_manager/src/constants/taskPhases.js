@@ -15,7 +15,7 @@
 // Author: Kiwoong Park
 
 // TaskPhase enum-like object for task status phases
-// Use this for better code readability and maintainability
+// Must match values from physical_ai_interfaces/msg/TaskStatus.msg
 
 const TaskPhase = {
   READY: 0,
@@ -25,7 +25,8 @@ const TaskPhase = {
   SAVING: 4,
   STOPPED: 5,
   INFERENCING: 6,
-  // Add more phases as needed
+  // Alias for backward compatibility
+  IDLE: 0,
 };
 
 export default TaskPhase;

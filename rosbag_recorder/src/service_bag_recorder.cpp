@@ -25,8 +25,9 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/generic_subscription.hpp"
+#include "rclcpp/executors/multi_threaded_executor.hpp"
 #include "rosbag2_cpp/writer.hpp"
-#include "rosbag2_storage/topic_metadata.hpp"
+#include "rosbag2_storage/storage_options.hpp"
 
 #include "rosbag_recorder/service_bag_recorder.hpp"
 
@@ -36,11 +37,26 @@ ServiceBagRecorder::ServiceBagRecorder()
 {
   RCLCPP_INFO(this->get_logger(), "Starting rosbag recorder node");
 
+  // Create callback groups for parallel processing
+  camera_callback_group_ = this->create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive);
+  joint_callback_group_ = this->create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive);
+  other_callback_group_ = this->create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive);
+  service_callback_group_ = this->create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive);
+
+  // Create service with dedicated callback group
   send_command_srv_ = this->create_service<rosbag_recorder::srv::SendCommand>(
     "rosbag_recorder/send_command",
     std::bind(
       &ServiceBagRecorder::handle_send_command, this, std::placeholders::_1,
-      std::placeholders::_2));
+      std::placeholders::_2),
+    rmw_qos_profile_services_default,
+    service_callback_group_);
+
+  RCLCPP_INFO(this->get_logger(), "Rosbag recorder initialized with MultiThreadedExecutor support");
 }
 
 void ServiceBagRecorder::handle_send_command(
@@ -109,21 +125,44 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
 
     auto names_and_types = this->get_topic_names_and_types();
 
+    // Categorize topics for callback group assignment
+    camera_topics_.clear();
+    joint_topics_.clear();
+
     for (const auto & topic : topics_to_record_) {
       auto it = names_and_types.find(topic);
-      const std::string & type = it->second.front();
+      if (it != names_and_types.end() && !it->second.empty()) {
+        const std::string & type = it->second.front();
+        type_for_topic_[topic] = type;
 
-      type_for_topic_[topic] = type;
+        // Categorize by topic name
+        if (topic.find("image") != std::string::npos ||
+          topic.find("camera") != std::string::npos)
+        {
+          camera_topics_.insert(topic);
+        } else if (topic.find("joint") != std::string::npos ||
+          topic.find("arm") != std::string::npos ||
+          topic.find("head") != std::string::npos ||
+          topic.find("lift") != std::string::npos)
+        {
+          joint_topics_.insert(topic);
+        }
+      }
     }
 
-    // Create subscriptions early to avoid data loss
-    // Latched messages will be buffered until recording starts
+    // Create subscriptions early to start receiving data
     create_subscriptions();
+
+    // Reset statistics
+    messages_received_ = 0;
+    messages_written_ = 0;
 
     RCLCPP_INFO(
       this->get_logger(),
-      "Recording prepared: topics=%zu",
-      topics_to_record_.size());
+      "Recording prepared: total=%zu, camera=%zu, joint=%zu",
+      topics_to_record_.size(),
+      camera_topics_.size(),
+      joint_topics_.size());
   } catch (const std::exception & e) {
     writer_.reset();
     throw std::runtime_error(std::string("Failed to prepare recording: ") + e.what());
@@ -132,7 +171,10 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
 
 void ServiceBagRecorder::handle_start(const std::string & uri)
 {
-  RCLCPP_INFO(this->get_logger(), "Start Rosbag recording");
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Start Rosbag recording: uri=%s topics_to_record=%zu subscriptions=%zu",
+    uri.c_str(), topics_to_record_.size(), subscriptions_.size());
 
   if (is_recording_) {
     throw std::runtime_error("Already recording");
@@ -142,16 +184,29 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     throw std::runtime_error("Bag URI is required");
   }
 
+  if (topics_to_record_.empty()) {
+    throw std::runtime_error("No topics configured - PREPARE must be called first");
+  }
+
   try {
     current_bag_uri_ = uri;
 
     // Check if a bag already exists at the specified path and delete it
     delete_bag_directory(current_bag_uri_);
 
+    // Configure storage options for MCAP with optimized settings
+    rosbag2_storage::StorageOptions storage_options;
+    storage_options.uri = current_bag_uri_;
+    storage_options.storage_id = STORAGE_ID;  // "mcap"
+    storage_options.max_cache_size = CACHE_SIZE_BYTES;  // 500MB
+    storage_options.max_bagfile_size = 0;  // No splitting to prevent message loss
+
     writer_ = std::make_unique<rosbag2_cpp::Writer>();
-    writer_->open(current_bag_uri_);
+    writer_->open(storage_options);
 
     auto names_and_types = this->get_topic_names_and_types();
+    RCLCPP_INFO(this->get_logger(), "Found %zu active topics in system", names_and_types.size());
+
     auto missing_topics = get_missing_topics(names_and_types);
 
     if (!missing_topics.empty()) {
@@ -182,28 +237,35 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     throw std::runtime_error(std::string("Failed to start recording: ") + e.what());
   }
 
-  // Set recording flag and flush buffered latched messages
+  // Set recording flag - messages will now be written to bag
   is_recording_ = true;
-  flush_latched_messages();
 
   RCLCPP_INFO(
-    this->get_logger(), "Recording started: uri=%s topics=%zu",
-    current_bag_uri_.c_str(), topics_to_record_.size());
+    this->get_logger(), "Recording started: uri=%s topics=%zu storage=%s cache=%zuMB",
+    current_bag_uri_.c_str(), topics_to_record_.size(), STORAGE_ID,
+    CACHE_SIZE_BYTES / (1024 * 1024));
 }
 
 void ServiceBagRecorder::handle_stop()
 {
   RCLCPP_INFO(this->get_logger(), "Stop Rosbag recording");
 
+  // Handle gracefully when not recording (e.g., if START failed)
   if (!is_recording_) {
-    throw std::runtime_error("Not recording");
+    RCLCPP_WARN(this->get_logger(), "Stop called but not recording - nothing to stop");
+    return;
   }
 
   try {
+    is_recording_ = false;
+
+    // Log statistics before closing
+    log_statistics();
+
     writer_.reset();
     type_for_topic_.clear();
     current_bag_uri_.clear();
-    is_recording_ = false;
+
     RCLCPP_INFO(this->get_logger(), "Recording stopped");
   } catch (const std::exception & e) {
     throw std::runtime_error(std::string("Failed to stop recording: ") + e.what());
@@ -214,12 +276,17 @@ void ServiceBagRecorder::handle_stop_and_delete()
 {
   RCLCPP_INFO(this->get_logger(), "Stop and delete Rosbag recording");
 
+  // Handle gracefully when not recording (e.g., Cancel pressed before recording started)
   if (!is_recording_) {
-    throw std::runtime_error("Not recording");
+    RCLCPP_INFO(this->get_logger(), "Not recording, nothing to delete");
+    return;
   }
 
   try {
     is_recording_ = false;
+
+    // Log statistics
+    log_statistics();
 
     writer_.reset();
     type_for_topic_.clear();
@@ -238,10 +305,18 @@ void ServiceBagRecorder::handle_finish()
 {
   RCLCPP_INFO(this->get_logger(), "Finish Rosbag recording");
 
-  subscriptions_.clear();
+  // Log final statistics
+  log_statistics();
+
+  // Note: Don't clear subscriptions here - keep them for next episode recording
+  // Subscriptions will only be cleared when:
+  // 1. A new PREPARE command is received (robot type changed)
+  // 2. The node is destroyed (program shutdown)
 
   if (is_recording_) {
-    handle_stop();
+    is_recording_ = false;
+    writer_.reset();
+    current_bag_uri_.clear();
   }
 }
 
@@ -307,21 +382,17 @@ void ServiceBagRecorder::delete_bag_directory(const std::string & bag_uri)
 
 void ServiceBagRecorder::create_subscriptions()
 {
-  RCLCPP_INFO(this->get_logger(), "Creating subscriptions");
+  RCLCPP_INFO(this->get_logger(), "Creating subscriptions with callback groups");
 
   subscriptions_.clear();
-  latched_topics_.clear();
 
   // Create generic subscriptions for all topics
   for (const auto & [topic, type] : type_for_topic_) {
     auto options = rclcpp::SubscriptionOptions();
+    options.callback_group = get_callback_group_for_topic(topic);
+
     auto qos = get_qos_for_topic(topic);
-    
-    // Cache whether this topic is latched to avoid repeated publisher lookups
-    if (qos.durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-      latched_topics_.insert(topic);
-    }
-    
+
     auto sub = this->create_generic_subscription(
       topic,
       type,
@@ -332,63 +403,73 @@ void ServiceBagRecorder::create_subscriptions()
         this->handle_serialized_message(topic, serialized_msg, message_info);
       },
       options);
+
     subscriptions_.push_back(sub);
+
+    std::string group_name = "other";
+    if (camera_topics_.count(topic)) {
+      group_name = "camera";
+    } else if (joint_topics_.count(topic)) {
+      group_name = "joint";
+    }
+
     RCLCPP_INFO(
       this->get_logger(),
-      "Subscribed to topic: %s",
-      topic.c_str());
+      "Subscribed to topic: %s (group: %s, depth: %zu)",
+      topic.c_str(), group_name.c_str(), qos.depth());
   }
 }
 
-rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(
+rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(const std::string & topic)
+{
+  // Camera topics: large buffer for high-bandwidth data
+  if (camera_topics_.count(topic)) {
+    return rclcpp::QoS(rclcpp::KeepLast(2000))
+           .reliable()
+           .durability_volatile();
+  }
+
+  // Joint topics: medium buffer
+  if (joint_topics_.count(topic)) {
+    return rclcpp::QoS(rclcpp::KeepLast(1000))
+           .reliable()
+           .durability_volatile();
+  }
+
+  // Other topics (tf, etc.): standard buffer
+  return rclcpp::QoS(rclcpp::KeepLast(500))
+         .reliable()
+         .durability_volatile();
+}
+
+rclcpp::CallbackGroup::SharedPtr ServiceBagRecorder::get_callback_group_for_topic(
   const std::string & topic)
 {
-  // Get publisher info to determine QoS settings
-  auto publishers_info = this->get_publishers_info_by_topic(topic);
-
-  if (!publishers_info.empty()) {
-    // Check if any publisher uses TRANSIENT_LOCAL durability
-    for (const auto & pub_info : publishers_info) {
-      if (pub_info.qos_profile().durability() == rclcpp::DurabilityPolicy::TransientLocal) {
-        RCLCPP_INFO(
-          this->get_logger(),
-          "Topic '%s' uses TRANSIENT_LOCAL durability, using matching QoS",
-          topic.c_str());
-        // Use smaller queue size (10) for latched topics as they typically publish once
-        // and rely on durability rather than queue depth
-        return rclcpp::QoS(rclcpp::KeepLast(10))
-               .reliable()
-               .transient_local();
-      }
-    }
+  if (camera_topics_.count(topic)) {
+    return camera_callback_group_;
   }
-
-  // Use default QoS for other topics
-  return rclcpp::QoS(100);
+  if (joint_topics_.count(topic)) {
+    return joint_callback_group_;
+  }
+  return other_callback_group_;
 }
 
-void ServiceBagRecorder::flush_latched_messages()
+void ServiceBagRecorder::log_statistics()
 {
-  if (latched_message_buffer_.empty()) {
-    return;
-  }
+  uint64_t received = messages_received_.load();
+  uint64_t written = messages_written_.load();
+  uint64_t dropped = (received > written) ? (received - written) : 0;
 
   RCLCPP_INFO(
     this->get_logger(),
-    "Flushing %zu buffered latched messages",
-    latched_message_buffer_.size());
+    "Recording statistics - Received: %lu, Written: %lu, Dropped: %lu",
+    received, written, dropped);
 
-  for (const auto & [topic, buffered] : latched_message_buffer_) {
-    if (writer_) {
-      const auto it = type_for_topic_.find(topic);
-      if (it != type_for_topic_.end()) {
-        writer_->write(buffered.msg, topic, it->second, buffered.timestamp);
-        RCLCPP_DEBUG(this->get_logger(), "Flushed latched message from: %s", topic.c_str());
-      }
-    }
+  if (dropped > 0) {
+    RCLCPP_WARN(
+      this->get_logger(),
+      "WARNING: %lu messages were dropped during recording!", dropped);
   }
-
-  latched_message_buffer_.clear();
 }
 
 void ServiceBagRecorder::handle_serialized_message(
@@ -396,7 +477,13 @@ void ServiceBagRecorder::handle_serialized_message(
   const std::shared_ptr<rclcpp::SerializedMessage> & serialized_msg,
   const rclcpp::MessageInfo & message_info)
 {
-  std::scoped_lock<std::mutex> lock(mutex_);
+  // If not recording, discard the message (no buffering)
+  // Don't count as received to avoid false "dropped" counts
+  if (!is_recording_ || !writer_) {
+    return;
+  }
+
+  messages_received_++;
 
   const auto it = type_for_topic_.find(topic);
   if (it == type_for_topic_.end()) {
@@ -404,29 +491,40 @@ void ServiceBagRecorder::handle_serialized_message(
   }
   const std::string & type = it->second;
 
-  // Use source_timestamp from RMW (closest to header.stamp)
+  // Get timestamps from RMW
   const auto & rmw_info = message_info.get_rmw_message_info();
-  rclcpp::Time timestamp(rmw_info.source_timestamp, RCL_ROS_TIME);
 
-  // If recording, write directly to bag
-  if (is_recording_ && writer_) {
-    writer_->write(serialized_msg, topic, type, timestamp);
-    return;
+  // Use source_timestamp (when message was published) for rosbag timeline
+  rclcpp::Time source_timestamp(rmw_info.source_timestamp, RCL_ROS_TIME);
+
+  // Note: received_timestamp is also available via rmw_info.received_timestamp
+  // MCAP format stores both: publishTime (source) and logTime (received)
+
+  // Write to bag with minimal locking
+  {
+    std::scoped_lock<std::mutex> lock(mutex_);
+    writer_->write(serialized_msg, topic, type, source_timestamp);
   }
 
-  // If not recording yet but this is a latched topic, buffer it
-  // Use cached latched topic status to avoid repeated publisher info lookups
-  // Note: latched messages just need timestamp after start, so this->now() is fine
-  if (!is_recording_ && latched_topics_.count(topic)) {
-    latched_message_buffer_[topic] = {serialized_msg, this->now()};
-    RCLCPP_DEBUG(this->get_logger(), "Buffered latched message from topic: %s", topic.c_str());
-  }
+  messages_written_++;
 }
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<ServiceBagRecorder>());
+
+  // Use MultiThreadedExecutor for parallel callback processing
+  rclcpp::executors::MultiThreadedExecutor executor(
+    rclcpp::ExecutorOptions(),
+    4  // 4 threads: camera, joint, other, service
+  );
+
+  auto node = std::make_shared<ServiceBagRecorder>();
+  executor.add_node(node);
+
+  RCLCPP_INFO(node->get_logger(), "Running with MultiThreadedExecutor (4 threads)");
+
+  executor.spin();
   rclcpp::shutdown();
   return 0;
 }

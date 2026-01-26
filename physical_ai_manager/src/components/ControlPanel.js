@@ -18,7 +18,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
-import { MdPlayArrow, MdStop, MdReplay, MdSkipNext, MdCheck, MdNavigateNext } from 'react-icons/md';
+import { MdPlayArrow, MdCheck, MdCancel } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import CompactSystemStatus from './CompactSystemStatus';
 import EpisodeStatus from './EpisodeStatus';
@@ -30,36 +30,24 @@ import TaskPhase from '../constants/taskPhases';
 import FullTaskStatus from './FullTaskStatus';
 
 const phaseGuideMessages = {
-  [TaskPhase.READY]: '📍 Ready to start',
-  [TaskPhase.WARMING_UP]: '🔥 Warmup in progress',
-  [TaskPhase.RESETTING]: '🏠 Reset in progress',
-  [TaskPhase.RECORDING]: '🔴 Recording in progress',
-  [TaskPhase.SAVING]: '💾 Saving...',
-  [TaskPhase.STOPPED]: '◼️ Task Stopped',
-  [TaskPhase.INFERENCING]: '⏳ Inferencing',
+  [TaskPhase.READY]: 'Ready to start',
+  [TaskPhase.WARMING_UP]: 'Warming up...',
+  [TaskPhase.RESETTING]: 'Resetting...',
+  [TaskPhase.RECORDING]: 'Recording in progress',
+  [TaskPhase.SAVING]: 'Saving...',
+  [TaskPhase.STOPPED]: 'Stopped',
+  [TaskPhase.INFERENCING]: 'Inferencing',
 };
 
 const requiredFieldsForRecord = [
   { key: 'taskName', label: 'Task Name' },
   { key: 'taskInstruction', label: 'Task Instruction' },
-  { key: 'userId', label: 'User ID' },
-  { key: 'fps', label: 'FPS' },
-  { key: 'warmupTime', label: 'Warmup Time' },
-  { key: 'episodeTime', label: 'Episode Time' },
-  { key: 'resetTime', label: 'Reset Time' },
-  { key: 'numEpisodes', label: 'Num Episodes' },
 ];
 
 const requiredFieldsForRecordInferenceMode = [
   { key: 'taskName', label: 'Task Name' },
   { key: 'taskInstruction', label: 'Task Instruction' },
   { key: 'policyPath', label: 'Policy Path' },
-  { key: 'userId', label: 'User ID' },
-  { key: 'fps', label: 'FPS' },
-  { key: 'warmupTime', label: 'Warmup Time' },
-  { key: 'episodeTime', label: 'Episode Time' },
-  { key: 'resetTime', label: 'Reset Time' },
-  { key: 'numEpisodes', label: 'Num Episodes' },
 ];
 
 const requiredFieldsForInferenceOnly = [
@@ -83,78 +71,37 @@ export default function ControlPanel() {
   const [spinnerIndex, setSpinnerIndex] = useState(0);
   const startedRef = useRef(started);
 
+  // Derive running state from phase (RECORDING = 3, INFERENCING = 6)
+  const isRunning = taskStatus.phase === TaskPhase.RECORDING || taskStatus.phase === TaskPhase.INFERENCING;
+
   const buttons = [
     {
       label: 'Start',
       icon: MdPlayArrow,
       color: '#1976d2',
-      description: page === PageType.RECORD ? 'Start recording task' : 'Start inference',
+      description: page === PageType.RECORD ? 'Start recording' : 'Start inference',
       shortcut: 'Space',
-    },
-    {
-      label: 'Stop',
-      icon: MdStop,
-      color: '#d32f2f',
-      description:
-        page === PageType.RECORD
-          ? useMultiTaskMode
-            ? 'Stop current task'
-            : 'Stop and save current episode'
-          : '',
-      shortcut: 'Space',
-    },
-    {
-      label: 'Skip\nTask',
-      icon: MdNavigateNext,
-      color: '#388e3c',
-      description: page === PageType.RECORD ? 'Skip current task' : '',
-      shortcut: 'Ctrl+Shift+N',
-    },
-    {
-      label: 'Retry',
-      icon: MdReplay,
-      color: '#fbc02d',
-      description:
-        page === PageType.RECORD
-          ? useMultiTaskMode
-            ? 'Retry current task'
-            : 'Retry current episode'
-          : '',
-      shortcut: '←',
-    },
-    {
-      label: 'Next',
-      icon: MdSkipNext,
-      color: '#388e3c',
-      description:
-        page === PageType.RECORD
-          ? useMultiTaskMode
-            ? 'Move to next task'
-            : 'Move to next episode'
-          : '',
-      shortcut: '→',
     },
     {
       label: 'Finish',
       icon: MdCheck,
       color: '#388e3c',
-      description:
-        page === PageType.RECORD
-          ? useMultiTaskMode
-            ? 'Finish and save'
-            : 'Finish and save task'
-          : 'Finish inference',
+      description: page === PageType.RECORD ? 'Finish and save recording' : 'Finish inference',
       shortcut: 'Ctrl+Shift+X',
+    },
+    {
+      label: 'Cancel',
+      icon: MdCancel,
+      color: '#d32f2f',
+      description: 'Cancel current recording without saving',
+      shortcut: 'Escape',
     },
   ];
 
   const buttonEnabled = {
     Start: true,
-    Stop: true,
-    Retry: true,
-    Next: true,
     Finish: true,
-    'Skip\nTask': useMultiTaskMode && page === PageType.RECORD,
+    Cancel: true,
   };
 
   const { sendRecordCommand } = useRosServiceCaller();
@@ -190,7 +137,7 @@ export default function ControlPanel() {
   // Check if button should be enabled based on phase
   const isButtonEnabled = useCallback(
     (label) => {
-      if (taskStatus.running) {
+      if (isRunning) {
         if (page === PageType.RECORD) {
           if (taskInfo?.taskType !== 'record' && taskInfo?.taskType !== '') {
             return false;
@@ -202,59 +149,21 @@ export default function ControlPanel() {
         }
       }
 
-      const isRecordTaskType = taskInfo?.taskType === 'record';
-      const isInferenceTaskType = taskInfo?.taskType === 'inference';
-
       switch (label) {
         case 'Start':
-          // Start button disabled when task is running or when running flag is true
-          return !taskStatus.running;
-        case 'Stop':
-          if (isInferenceTaskType) {
-            return taskStatus.running && taskInfo.recordInferenceMode;
-          }
-          // Stop button enabled only when task is running
-          return taskStatus.running;
-        case 'Retry':
-          if (isRecordTaskType && useMultiTaskMode) {
-            return taskStatus.running;
-          }
-
-          if (isInferenceTaskType) {
-            return !isReadyState(taskStatus.phase) && taskInfo.recordInferenceMode;
-          }
-          // Retry button enabled only when task is stopped
-          return !isReadyState(taskStatus.phase);
-        case 'Next':
-          if (isRecordTaskType && useMultiTaskMode) {
-            return taskStatus.running;
-          }
-
-          if (isInferenceTaskType) {
-            return !isReadyState(taskStatus.phase) && taskInfo.recordInferenceMode;
-          }
-          // Next button enabled only when task is stopped
-          return !isReadyState(taskStatus.phase);
-        case 'Skip\nTask':
-          if (page === PageType.RECORD) {
-            return !isReadyState(taskStatus.phase) && taskStatus.running;
-          }
-          return false;
+          // Start button enabled only when not recording
+          return !isRunning;
         case 'Finish':
-          // Finish button enabled only when task is stopped
-          return true; // Always enabled
+          // Finish button enabled when recording
+          return isRunning;
+        case 'Cancel':
+          // Cancel button enabled when recording
+          return isRunning;
         default:
           return false;
       }
     },
-    [
-      taskStatus.phase,
-      taskStatus.running,
-      taskInfo.recordInferenceMode,
-      taskInfo.taskType,
-      page,
-      useMultiTaskMode,
-    ]
+    [isRunning, taskInfo?.taskType, page]
   );
 
   const validateTaskInfo = useCallback(() => {
@@ -320,16 +229,10 @@ export default function ControlPanel() {
             toast.error(`Unknown page: ${page}`);
             return;
           }
-        } else if (cmd === 'Stop') {
-          result = await sendRecordCommand('stop');
-        } else if (cmd === 'Retry') {
-          result = await sendRecordCommand('rerecord');
-        } else if (cmd === 'Next') {
-          result = await sendRecordCommand('next');
-        } else if (cmd === 'Skip\nTask') {
-          result = await sendRecordCommand('skip_task');
         } else if (cmd === 'Finish') {
           result = await sendRecordCommand('finish');
+        } else if (cmd === 'Cancel') {
+          result = await sendRecordCommand('cancel');
         } else {
           console.warn(`Unknown command: ${cmd}`);
           toast.error(`Unknown command: ${cmd}`);
@@ -381,7 +284,7 @@ export default function ControlPanel() {
       handleControlCommand(label);
       console.log(label + ' command executed');
       if (label === 'Start') setStarted(true);
-      if (label === 'Stop' || label === 'Finish') setStarted(false);
+      if (label === 'Finish' || label === 'Cancel') setStarted(false);
     },
     [handleControlCommand]
   );
@@ -389,23 +292,24 @@ export default function ControlPanel() {
   // Helper function to get button label from keyboard event
   const getButtonFromKey = useCallback(
     (e) => {
-      if (e.key === 'ArrowLeft' && isButtonEnabled('Retry')) {
-        return 'Retry';
-      } else if (e.key === 'ArrowRight' && isButtonEnabled('Next')) {
-        return 'Next';
-      } else if (e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') {
+      // Space: Start (when not recording)
+      if (e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space') {
         if (isButtonEnabled('Start')) {
           return 'Start';
-        } else if (isButtonEnabled('Stop')) {
-          return 'Stop';
         }
-      } else if (
+      }
+      // Ctrl+Shift+X: Finish
+      if (
         (e.ctrlKey || e.metaKey) &&
         e.shiftKey &&
         (e.key === 'x' || e.key === 'X') &&
         isButtonEnabled('Finish')
       ) {
         return 'Finish';
+      }
+      // Escape: Cancel
+      if (e.key === 'Escape' && isButtonEnabled('Cancel')) {
+        return 'Cancel';
       }
       return null;
     },
@@ -635,7 +539,7 @@ export default function ControlPanel() {
           </div>
           <div>
             {/* Spinner */}
-            {taskStatus.running && (
+            {isRunning && (
               <span className="font-mono text-blue-500 text-4xl">
                 {spinnerFrames[spinnerIndex]}
               </span>

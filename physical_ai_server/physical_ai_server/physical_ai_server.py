@@ -33,7 +33,6 @@ from physical_ai_interfaces.msg import (
 )
 from physical_ai_interfaces.srv import (
     ControlHfServer,
-    ControlInference,
     GetDatasetList,
     GetHFUser,
     GetModelWeightList,
@@ -151,7 +150,6 @@ class PhysicalAIServer(Node):
             ),
             ('/huggingface/control', ControlHfServer, self.control_hf_server_callback),
             ('/training/get_training_info', GetTrainingInfo, self.get_training_info_callback),
-            ('/control_inference', ControlInference, self.control_action_publish_callback),
         ]
 
         for service_name, service_type, callback in service_definitions:

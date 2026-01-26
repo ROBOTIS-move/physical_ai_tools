@@ -211,7 +211,8 @@ class PhysicalAIServer(Node):
 
     def init_ros_params(self, robot_type):
         self.get_logger().info(f'Initializing ROS parameters for robot type: {robot_type}')
-        param_names = [
+        # List parameters (STRING_ARRAY type)
+        list_param_names = [
             'camera_topic_list',
             'joint_topic_list',
             'observation_list',
@@ -219,20 +220,27 @@ class PhysicalAIServer(Node):
             'rosbag_extra_topic_list',
         ]
 
-        # Declare parameters
+        # Declare list parameters
         declare_parameters(
             node=self,
             robot_type=robot_type,
-            param_names=param_names,
+            param_names=list_param_names,
             default_value=['']
         )
 
-        # Load parameters
+        # Declare string parameters separately (urdf_path is a single string)
+        urdf_param_name = f'{robot_type}.urdf_path'
+        self.declare_parameter(urdf_param_name, '')
+
+        # Load list parameters
         self.params = load_parameters(
             node=self,
             robot_type=robot_type,
-            param_names=param_names
+            param_names=list_param_names
         )
+
+        # Load urdf_path separately
+        self.params['urdf_path'] = self.get_parameter(urdf_param_name).value
 
         self.joint_order_list = [
             f'joint_order.{joint_name}' for joint_name in self.params['joint_list']
@@ -311,12 +319,13 @@ class PhysicalAIServer(Node):
             robot_type=self.robot_type,
             task_info=task_info
         )
-        self.communicator.clear_latest_data()
 
         self.timer_manager = TimerManager(node=self)
+        # Use 10 Hz for status publishing (rosbag2-only mode, no data collection needed)
+        # TODO: Consider moving to event-based approach instead of timer
         self.timer_manager.set_timer(
             timer_name=self.operation_mode,
-            timer_frequency=task_info.fps,
+            timer_frequency=10,
             callback_function=self.timer_callback_dict[self.operation_mode]
         )
         self.timer_manager.start(timer_name=self.operation_mode)
@@ -402,6 +411,15 @@ class PhysicalAIServer(Node):
         return robot_type_list
 
     def handle_rosbag_recording(self):
+        """
+        Handle rosbag recording state transitions (simplified mode).
+
+        States: idle -> recording -> idle
+        Transitions:
+        - idle -> recording: START rosbag
+        - recording -> idle (finish): STOP rosbag (save)
+        - recording -> idle (cancel): STOP_AND_DELETE rosbag
+        """
         try:
             current = self.data_manager.get_status()
             previous = self.previous_data_manager_status
@@ -410,315 +428,147 @@ class PhysicalAIServer(Node):
             if current == previous:
                 return
 
-            handlers = {
-                ('*', 'warmup'): self._handle_warmup_transition,
-                ('*', 'run'): self._handle_run_transition,
-                ('run', 'save'): self._handle_save_transition,
-                ('run', 'stop'): self._handle_stop_transition,
-                ('*', 'finish'): self._handle_finish_transition,
-                ('run', 'reset'): self._handle_reset_transition,
-            }
+            self.get_logger().info(f'Rosbag state transition: {previous} -> {current}')
 
-            # Try exact match first, then wildcard match
-            handler = handlers.get((previous, current)) or handlers.get(('*', current))
+            # Simplified state transitions
+            if current == 'recording' and previous in ('idle', None):
+                # Start recording
+                rosbag_path = self.data_manager.get_save_rosbag_path()
+                self.get_logger().info(
+                    f'Rosbag state: idle->recording, path={rosbag_path}, '
+                    f'episode={self.data_manager._record_episode_count}')
+                if rosbag_path:
+                    self.communicator.start_rosbag(rosbag_uri=rosbag_path)
+                    self.get_logger().info(f'Rosbag recording started: {rosbag_path}')
+                else:
+                    self.get_logger().error('Rosbag path is None - cannot start recording!')
 
-            if handler:
-                handler(previous)
+            elif current == 'idle' and previous == 'recording':
+                # This is handled by stop_recording_and_save or cancel_recording
+                # The actual rosbag command is sent from those methods
+                pass
+
+            # Legacy state transitions (for backward compatibility)
+            elif current == 'warmup':
+                rosbag_topics = self.communicator.get_all_topics()
+                self.communicator.prepare_rosbag(topics=rosbag_topics)
+
+            elif current == 'run' and previous in ('warmup', 'reset', 'skip_task'):
+                rosbag_path = self.data_manager.get_save_rosbag_path()
+                if rosbag_path:
+                    self.communicator.start_rosbag(rosbag_uri=rosbag_path)
+
+            elif current == 'save' and previous == 'run':
+                urdf_path = self.params.get('urdf_path', '')
+                if urdf_path:
+                    self.data_manager.save_robotis_metadata(urdf_path=urdf_path)
+                self.communicator.stop_rosbag()
+
+            elif current == 'stop' and previous == 'run':
+                self.communicator.stop_rosbag()
+
+            elif current == 'finish':
+                self.communicator.finish_rosbag()
+
+            elif current == 'reset' and previous == 'run':
+                self.communicator.stop_and_delete_rosbag()
 
             self.previous_data_manager_status = current
 
-        except PhysicalAIServer.RosbagNotReadyException as e:
-            # Expected condition: rosbag not ready yet
-            self.get_logger().warn(str(e))
         except Exception as e:
             error_msg = f'Error in rosbag recording: {str(e)}'
             self.get_logger().error(traceback.format_exc())
             self.get_logger().error(error_msg)
 
-    def _handle_warmup_transition(self, previous_status: str):
-        self.get_logger().info('Preparing rosbag recording, '
-                               f'previous status: {previous_status}')
+    def stop_recording_and_save(self):
+        """Stop recording and save the rosbag (simplified mode)."""
+        if self.data_manager is None:
+            return
 
-        rosbag_topics = self.communicator.get_all_topics()
-        self.communicator.prepare_rosbag(topics=rosbag_topics)
-
-    def _handle_run_transition(self, previous_status: str):
-        self.get_logger().info('Starting rosbag recording, '
-                               f'previous status: {previous_status}')
-
-        rosbag_path = self.data_manager.get_save_rosbag_path()
-
-        if rosbag_path is None:
-            raise PhysicalAIServer.RosbagNotReadyException(
-                'Episode buffer not initialized yet, '
-                'rosbag recording will start shortly')
-
-        self.communicator.start_rosbag(rosbag_uri=rosbag_path)
-
-    def _handle_save_transition(self, previous_status: str):
-        self.get_logger().info('Stopping rosbag recording(save), '
-                               f'previous status: {previous_status}')
-        # Get rosbag path before stopping (path may not be available after stop)
-        rosbag_path = self.data_manager.get_save_rosbag_path()
-        self.communicator.stop_rosbag()
-        # Save metadata to rosbag directory
-        if rosbag_path:
-            self._save_rosbag_metadata(rosbag_path)
-
-    def _handle_stop_transition(self, previous_status: str):
-        self.get_logger().info('Stopping rosbag recording(stop), '
-                               f'previous status: {previous_status}')
-        # Get rosbag path before stopping
-        rosbag_path = self.data_manager.get_save_rosbag_path()
-        self.communicator.stop_rosbag()
-        # Save metadata to rosbag directory
-        if rosbag_path:
-            self._save_rosbag_metadata(rosbag_path)
-
-    def _handle_finish_transition(self, previous_status: str):
-        self.get_logger().info('Finishing rosbag recording, '
-                               f'previous status: {previous_status}')
-        self.communicator.finish_rosbag()
-
-    def _handle_reset_transition(self, previous_status: str):
         self.get_logger().info(
-                'Stopping rosbag recording and delete recorded bag, '
-                f'previous status: {previous_status}')
+            f'Stopping recording: episode={self.data_manager._record_episode_count}, '
+            f'status={self.data_manager.get_status()}')
+
+        # Save metadata before stopping
+        urdf_path = self.params.get('urdf_path', '')
+        if urdf_path:
+            self.data_manager.save_robotis_metadata(urdf_path=urdf_path)
+
+        # Stop rosbag
+        self.communicator.stop_rosbag()
+
+        # Update data manager state
+        self.data_manager.stop_recording()
+
+        # IMPORTANT: Update previous status to 'idle' so next recording can detect transition
+        # This is needed because timer might be stopped before callback can update it
+        self.previous_data_manager_status = 'idle'
+
+        self.get_logger().info(
+            f'Recording stopped and saved: next_episode={self.data_manager._record_episode_count}')
+
+    def cancel_current_recording(self):
+        """Cancel recording and delete the rosbag (simplified mode)."""
+        if self.data_manager is None:
+            return
+
+        # Stop and delete rosbag
         self.communicator.stop_and_delete_rosbag()
 
-    def _save_rosbag_metadata(self, rosbag_path: str):
-        """
-        Save metadata.yaml file to rosbag directory with robot config info.
+        # Update data manager state (no episode increment)
+        self.data_manager.cancel_recording()
 
-        The metadata includes robot type, joint topics (follower/leader),
-        joint order, and camera topics for proper replay visualization.
-        """
-        if not rosbag_path or not os.path.exists(rosbag_path):
-            self.get_logger().warning(
-                f'Cannot save metadata: rosbag path does not exist: {rosbag_path}')
-            return
+        # IMPORTANT: Update previous status to 'idle' so next recording can detect transition
+        self.previous_data_manager_status = 'idle'
 
-        if not self.params or not self.joint_order:
-            self.get_logger().warning(
-                'Cannot save metadata: robot parameters not initialized')
-            return
-
-        try:
-            # Build metadata structure
-            metadata = {
-                'robot_type': self.robot_type,
-                'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
-            }
-
-            # Camera topics
-            if 'camera_topic_list' in self.params:
-                camera_topics = {}
-                for item in self.params['camera_topic_list']:
-                    if ':' in item:
-                        name, topic = item.split(':', 1)
-                        camera_topics[name] = topic
-                metadata['camera_topics'] = camera_topics
-
-            # Joint topics with follow/leader distinction
-            if 'joint_topic_list' in self.params:
-                state_topics = {}
-                action_topics = {}
-                for item in self.params['joint_topic_list']:
-                    if ':' in item:
-                        name, topic = item.split(':', 1)
-                        if name.startswith('follower'):
-                            state_topics[name] = topic
-                        elif name.startswith('leader'):
-                            action_topics[name] = topic
-                        else:
-                            # Default to state if unclear
-                            state_topics[name] = topic
-                metadata['state_topics'] = state_topics
-                metadata['action_topics'] = action_topics
-
-            # Joint order for each topic
-            if self.joint_order:
-                joint_order = {}
-                for key, joints in self.joint_order.items():
-                    # Remove 'joint_order.' prefix if present
-                    clean_key = key.replace('joint_order.', '')
-                    joint_order[clean_key] = joints
-                metadata['joint_order'] = joint_order
-
-            # Total joint order (combined)
-            if self.total_joint_order:
-                metadata['total_joint_order'] = self.total_joint_order
-
-            # Write robot config metadata file (separate from rosbag2's metadata.yaml)
-            metadata_path = os.path.join(rosbag_path, 'robot_config.yaml')
-            with open(metadata_path, 'w', encoding='utf-8') as f:
-                yaml.dump(metadata, f, default_flow_style=False, allow_unicode=True)
-
-            self.get_logger().info(f'Saved robot config metadata to: {metadata_path}')
-
-        except Exception as e:
-            self.get_logger().error(f'Failed to save rosbag metadata: {e}')
+        self.get_logger().info('Recording cancelled')
 
     def _data_collection_timer_callback(self):
-        error_msg = ''
-        current_status = TaskStatus()
-        camera_msgs, follower_msgs, leader_msgs = self.communicator.get_latest_data()
-        if camera_msgs is None:
-            if time.perf_counter() - self.start_recording_time > self.DEFAULT_TOPIC_TIMEOUT:
-                error_msg = 'Camera data not received within timeout period'
-                self.get_logger().error(error_msg)
-            else:
-                self.get_logger().info('Waiting for camera data...')
-                return
+        """
+        Timer callback for rosbag2-only data collection (simplified mode).
 
-        elif follower_msgs is None:
-            if time.perf_counter() - self.start_recording_time > self.DEFAULT_TOPIC_TIMEOUT:
-                error_msg = 'Follower data not received within timeout period'
-                self.get_logger().error(error_msg)
-            else:
-                self.get_logger().info('Waiting for follower data...')
-                return
+        This callback manages:
+        - Joystick trigger handling (right=toggle Start/Finish, left=Cancel)
+        - Status publishing
 
-        elif leader_msgs is None:
-            if time.perf_counter() - self.start_recording_time > self.DEFAULT_TOPIC_TIMEOUT:
-                error_msg = 'Leader data not received within timeout period'
-                self.get_logger().error(error_msg)
-            else:
-                self.get_logger().info('Waiting for leader data...')
-                return
-
-        try:
-            camera_data, follower_data, leader_data = self.data_manager.convert_msgs_to_raw_datas(
-                camera_msgs,
-                follower_msgs,
-                self.total_joint_order,
-                leader_msgs,
-                self.joint_order)
-
-        except Exception as e:
-            error_msg = f'Failed to convert messages: {str(e)}, please check the robot type again!'
-            self.on_recording = False
-            current_status.phase = TaskStatus.READY
-            current_status.error = error_msg
-            self.communicator.publish_status(status=current_status)
-            self.timer_manager.stop(timer_name=self.operation_mode)
-            return
-
-        if not self.data_manager.check_lerobot_dataset(
-                camera_data,
-                self.total_joint_order):
-            error_msg = 'Invalid repository name, Please change the repository name'
-            self.get_logger().info(error_msg)
-
-        if error_msg:
-            self.on_recording = False
-            current_status.phase = TaskStatus.READY
-            current_status.error = error_msg
-            self.communicator.publish_status(status=current_status)
-            self.timer_manager.stop(timer_name=self.operation_mode)
-            return
-
+        Note: No warmup, no episode timing, no reset cycle.
+        Recording starts/stops instantly on user command.
+        """
+        # Handle joystick trigger for recording control
         if self.communicator.joystick_state['updated']:
             self.handle_joystick_trigger(
                 joystick_mode=self.communicator.joystick_state['mode'])
             self.communicator.joystick_state['updated'] = False
 
-        record_completed = self.data_manager.record(
-            images=camera_data,
-            state=follower_data,
-            action=leader_data)
-
+        # Get current status and publish
         current_status = self.data_manager.get_current_record_status()
         self.communicator.publish_status(status=current_status)
 
+        # Handle rosbag2 recording state transitions
         if self.data_manager.should_record_rosbag2():
             self.handle_rosbag_recording()
 
-        if record_completed:
-            self.get_logger().info('Recording completed')
-            current_status.phase = TaskStatus.READY
-            current_status.proceed_time = int(0)
-            current_status.total_time = int(0)
-            self.communicator.publish_status(status=current_status)
-            self.on_recording = False
-            self.timer_manager.stop(timer_name=self.operation_mode)
-            return
-
     def _inference_timer_callback(self):
-        error_msg = ''
+        """
+        Timer callback for inference mode.
+
+        NOTE: Inference mode is currently disabled in rosbag2-only data acquisition mode.
+        Data subscribers were removed to simplify the architecture for rosbag2 recording.
+        To re-enable inference, data subscribers need to be added back to communicator.py.
+        """
+        error_msg = 'Inference mode is not supported in rosbag2-only mode. ' \
+                    'Data subscribers are required for inference.'
+        self.get_logger().error(error_msg)
+
         current_status = TaskStatus()
-        camera_msgs, follower_msgs, _ = self.communicator.get_latest_data()
-        if (camera_msgs is None or
-                len(camera_msgs) != len(self.params['camera_topic_list'])):
-            self.get_logger().info('Waiting for camera data...')
-            return
-        elif follower_msgs is None:
-            self.get_logger().info('Waiting for follower data...')
-            return
+        current_status.phase = TaskStatus.READY
+        current_status.error = error_msg
 
-        try:
-            camera_data, follower_data, _ = self.data_manager.convert_msgs_to_raw_datas(
-                camera_msgs,
-                follower_msgs,
-                self.total_joint_order)
-        except Exception as e:
-            error_msg = f'Failed to convert messages: {str(e)}, please check the robot type again!'
-            self.on_inference = False
-            current_status.phase = TaskStatus.READY
-            current_status.error = error_msg
-            self.communicator.publish_status(status=current_status)
+        self.on_inference = False
+        self.communicator.publish_status(status=current_status)
+        if self.inference_manager:
             self.inference_manager.clear_policy()
-            self.timer_manager.stop(timer_name=self.operation_mode)
-            return
-
-        if self.inference_manager.policy is None:
-            if not self.inference_manager.load_policy():
-                self.get_logger().error('Failed to load policy')
-                return
-
-        try:
-            if not self.on_inference:
-                self.get_logger().info('Inference mode is not active')
-                current_status = self.data_manager.get_current_record_status()
-                current_status.phase = TaskStatus.READY
-                self.communicator.publish_status(status=current_status)
-                self.inference_manager.clear_policy()
-                self.timer_manager.stop(timer_name=self.operation_mode)
-                return
-
-            action = self.inference_manager.predict(
-                images=camera_data,
-                state=follower_data,
-                task_instruction=self.task_instruction[0]
-            )
-
-            self.get_logger().info(
-                f'Action data: {action}')
-            action_pub_msgs = self.data_manager.data_converter.tensor_array2joint_msgs(
-                action,
-                self.joint_topic_types,
-                self.joint_order
-            )
-
-            self.communicator.publish_action(
-                joint_msg_datas=action_pub_msgs
-            )
-            current_status = self.data_manager.get_current_record_status()
-            current_status.phase = TaskStatus.INFERENCING
-            self.communicator.publish_status(status=current_status)
-
-        except Exception as e:
-            self.get_logger().error(f'Inference failed, please check : {str(e)}')
-            error_msg = f'Inference failed, please check : {str(e)}'
-            self.on_recording = False
-            self.on_inference = False
-            current_status = self.data_manager.get_current_record_status()
-            current_status.phase = TaskStatus.READY
-            current_status.error = error_msg
-            self.communicator.publish_status(status=current_status)
-            self.inference_manager.clear_policy()
-            self.timer_manager.stop(timer_name=self.operation_mode)
-            return
+        self.timer_manager.stop(timer_name=self.operation_mode)
 
     def user_training_interaction_callback(self, request, response):
         """
@@ -891,24 +741,44 @@ class PhysicalAIServer(Node):
             self.training_timer.stop('training_status')
 
     def user_interaction_callback(self, request, response):
+        """
+        Handle user commands for recording control (simplified mode).
+
+        Commands:
+        - START_RECORD: Initialize and start recording
+        - STOP / FINISH: Stop and save recording
+        - RERECORD: Cancel current recording (discard)
+        """
         try:
             if request.command == SendCommand.Request.START_RECORD:
-                if self.on_recording:
-                    self.get_logger().info('Restarting the recording.')
-                    self.data_manager.re_record()
-                    response.success = True
-                    response.message = 'Restarting the recording.'
-                    return response
-
-                self.get_logger().info('Start recording')
-                self.operation_mode = 'collection'
+                # Initialize data manager only if it doesn't exist or task changed
                 task_info = request.task_info
-                self.init_robot_control_parameters_from_user_task(
-                    task_info
+                task_name = f'{self.robot_type}_{task_info.task_name}'
+
+                # Check if we need to create a new DataManager
+                need_new_manager = (
+                    self.data_manager is None or
+                    self.data_manager._save_repo_name != task_name
                 )
 
-                self.start_recording_time = time.perf_counter()
+                if need_new_manager:
+                    self.get_logger().info('Initializing new recording session')
+                    self.operation_mode = 'collection'
+                    self.init_robot_control_parameters_from_user_task(task_info)
+                else:
+                    episode = self.data_manager._record_episode_count
+                    self.get_logger().info(
+                        f'Continuing recording session - Episode {episode}')
+                    # Restart timer if it was stopped
+                    if self.timer_manager:
+                        self.timer_manager.start(timer_name=self.operation_mode)
+
                 self.on_recording = True
+
+                # Start recording (simplified mode)
+                self.get_logger().info('Starting recording')
+                self.data_manager.start_recording()
+                self.start_recording_time = time.perf_counter()
                 response.success = True
                 response.message = 'Recording started'
 
@@ -927,9 +797,7 @@ class PhysicalAIServer(Node):
                     self.get_logger().error(response.message)
                     return response
 
-                self.init_robot_control_parameters_from_user_task(
-                    task_info
-                )
+                self.init_robot_control_parameters_from_user_task(task_info)
                 if task_info.record_inference_mode:
                     self.on_recording = True
                 self.on_inference = True
@@ -943,38 +811,80 @@ class PhysicalAIServer(Node):
                     response.message = 'Not currently recording'
                 else:
                     if request.command == SendCommand.Request.STOP:
-                        self.get_logger().info('Stopping recording')
-                        self.data_manager.record_stop()
+                        # Stop and save (simplified mode)
+                        self.get_logger().info('Stopping and saving recording')
+                        self.stop_recording_and_save()
                         response.success = True
-                        response.message = 'Recording stopped'
+                        response.message = 'Recording stopped and saved'
 
                     elif request.command == SendCommand.Request.MOVE_TO_NEXT:
-                        self.get_logger().info('Moving to next episode')
-                        if len(request.task_info.task_instruction) > 1:
-                            self.data_manager.record_next_episode()
-                        else:
-                            self.data_manager.record_early_save()
+                        # In simplified mode, this saves current and prepares for next
+                        self.get_logger().info('Saving current episode')
+                        self.stop_recording_and_save()
                         response.success = True
-                        response.message = 'Moved to next episode'
+                        response.message = 'Episode saved'
 
                     elif request.command == SendCommand.Request.RERECORD:
-                        self.get_logger().info('Re-recording current episode')
-                        self.data_manager.re_record()
+                        # Cancel current recording (simplified mode)
+                        self.get_logger().info('Cancelling current recording')
+                        self.cancel_current_recording()
+                        self.on_recording = False
+                        self.on_inference = False
+                        if self.timer_manager:
+                            self.timer_manager.stop(timer_name=self.operation_mode)
+                        # Publish final READY status
+                        if self.data_manager:
+                            final_status = self.data_manager.get_current_record_status()
+                            self.communicator.publish_status(status=final_status)
                         response.success = True
-                        response.message = 'Re-recording current episode'
+                        response.message = 'Recording cancelled'
 
                     elif request.command == SendCommand.Request.FINISH:
-                        self.get_logger().info('Terminating all operations')
-                        self.data_manager.record_finish()
+                        # Finish all operations
+                        self.get_logger().info('Finishing all operations')
+                        if self.data_manager and self.data_manager.is_recording():
+                            self.stop_recording_and_save()
+                        self.communicator.finish_rosbag()
+                        self.on_recording = False
                         self.on_inference = False
+                        if self.timer_manager:
+                            self.timer_manager.stop(timer_name=self.operation_mode)
+                        # Publish final READY status after stopping timer
+                        if self.data_manager:
+                            final_status = self.data_manager.get_current_record_status()
+                            self.communicator.publish_status(status=final_status)
                         response.success = True
                         response.message = 'All operations terminated'
 
                     elif request.command == SendCommand.Request.SKIP_TASK:
-                        self.get_logger().info('Skipping task')
-                        self.data_manager.record_skip_task()
+                        # In simplified mode, skip = cancel
+                        self.get_logger().info('Skipping (cancelling) current recording')
+                        self.cancel_current_recording()
+                        self.on_recording = False
+                        self.on_inference = False
+                        if self.timer_manager:
+                            self.timer_manager.stop(timer_name=self.operation_mode)
+                        # Publish final READY status
+                        if self.data_manager:
+                            final_status = self.data_manager.get_current_record_status()
+                            self.communicator.publish_status(status=final_status)
                         response.success = True
-                        response.message = 'Task skipped successfully'
+                        response.message = 'Recording cancelled'
+
+                    elif request.command == SendCommand.Request.CANCEL:
+                        # Cancel current recording without saving
+                        self.get_logger().info('Cancelling current recording')
+                        self.cancel_current_recording()
+                        self.on_recording = False
+                        self.on_inference = False
+                        if self.timer_manager:
+                            self.timer_manager.stop(timer_name=self.operation_mode)
+                        # Publish final READY status
+                        if self.data_manager:
+                            final_status = self.data_manager.get_current_record_status()
+                            self.communicator.publish_status(status=final_status)
+                        response.success = True
+                        response.message = 'Recording cancelled'
 
         except Exception as e:
             self.get_logger().error(f'Error in user interaction: {str(e)}')
@@ -1194,6 +1104,18 @@ class PhysicalAIServer(Node):
             self.robot_type = request.robot_type
             self.clear_parameters()
             self.init_ros_params(self.robot_type)
+
+            # Prepare rosbag subscriptions after communicator is initialized
+            # This allows instant recording start without warmup delay
+            if self.communicator is not None and self.communicator.rosbag_service_available:
+                rosbag_topics = self.communicator.get_all_topics()
+                self.communicator.prepare_rosbag(topics=rosbag_topics)
+                topic_count = len(rosbag_topics)
+                self.get_logger().info(
+                    f'Rosbag prepared with {topic_count} topics - ready for recording')
+            else:
+                self.get_logger().warn('Rosbag service not available - prepare skipped')
+
             response.success = True
             response.message = f'Robot type set to {self.robot_type}'
             return response
@@ -1455,40 +1377,48 @@ class PhysicalAIServer(Node):
             return response
 
     def handle_joystick_trigger(self, joystick_mode: str):
-        self.get_logger().info(
-            f'Joystick mode updated: {joystick_mode}')
-        if self.data_manager is None:
-            self.get_logger().warning(
-                'Data manager is not initialized')
-            return
+        """
+        Handle joystick trigger for simplified recording control.
 
-        if not self.on_recording:
-            self.get_logger().warning(
-                'Not currently recording')
+        - Right button: Toggle Start/Finish
+          - If idle: Start recording
+          - If recording: Finish and save
+        - Left button: Cancel (only during recording)
+          - Discards current recording
+        """
+        self.get_logger().info(f'Joystick trigger: {joystick_mode}')
+
+        if self.data_manager is None:
+            self.get_logger().warning('Data manager is not initialized')
             return
 
         if joystick_mode == 'right':
-            self.get_logger().info(
-                'Right tact triggered - Moving to next episode')
-            if len(self.data_manager.get_task_info().task_instruction) > 1:
-                self.data_manager.record_next_episode()
+            # Toggle Start/Finish
+            if self.data_manager.is_recording():
+                # Currently recording -> Finish and save
+                self.get_logger().info('Right button: Finishing recording')
+                self.stop_recording_and_save()
             else:
-                self.data_manager.record_early_save()
+                # Not recording -> Start recording
+                self.get_logger().info('Right button: Starting recording')
+                self.data_manager.start_recording()
+
         elif joystick_mode == 'left':
-            self.get_logger().info(
-                'Left tact triggered - Re-record current episode')
-            self.data_manager.re_record()
+            # Cancel (only during recording)
+            if self.data_manager.is_recording():
+                self.get_logger().info('Left button: Cancelling recording')
+                self.cancel_current_recording()
+            else:
+                self.get_logger().info('Left button ignored - not recording')
+
         elif joystick_mode == 'right_long_time':
-            self.get_logger().info(
-                'Right long tact triggered - Custom')
-            # If you want, you can add custom functionality.
+            self.get_logger().info('Right long press - reserved for future use')
+
         elif joystick_mode == 'left_long_time':
-            self.get_logger().info(
-                'Left long tact triggered - Custom')
-            # If you want, you can add custom functionality.
+            self.get_logger().info('Left long press - reserved for future use')
+
         else:
-            self.get_logger().info(
-                f'Received joystick trigger: {joystick_mode}')
+            self.get_logger().info(f'Unknown joystick trigger: {joystick_mode}')
 
     def _cleanup_hf_api_worker_with_threading(self):
         """

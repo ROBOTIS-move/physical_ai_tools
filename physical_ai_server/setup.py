@@ -22,7 +22,13 @@ setup(
         ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
         ('share/' + package_name + '/config', glob('config/*.yaml')),
     ],
-    install_requires=['setuptools', 'physical_ai_interfaces'],
+    install_requires=[
+        'setuptools',
+        'physical_ai_interfaces',
+        'mcap',
+        'mcap-ros2-support',
+        'matplotlib',
+    ],
     zip_safe=True,
     author=authors,
     author_email=author_emails,
@@ -41,6 +47,7 @@ setup(
     entry_points={
         'console_scripts': [
             'physical_ai_server = physical_ai_server.physical_ai_server:main',
+            'visualize_rosbag = physical_ai_server.visualization.rosbag_visualizer:main',
         ],
     },
 )

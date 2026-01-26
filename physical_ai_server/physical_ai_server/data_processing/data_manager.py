@@ -70,7 +70,7 @@ class DataManager:
             robot_type,
             task_info):
         self._robot_type = robot_type
-        self._save_repo_name = f'{task_info.user_id}/{robot_type}_{task_info.task_name}'
+        self._save_repo_name = f'{robot_type}_{task_info.task_name}'
         self._save_path = save_root_path / self._save_repo_name
         self._save_rosbag_path = '/workspace/rosbag2/' + self._save_repo_name
         self._on_saving = False
@@ -78,10 +78,11 @@ class DataManager:
         self._task_info = task_info
 
         self._lerobot_dataset = None
-        self._record_episode_count = 0
+        # Find next available episode number from existing folders
+        self._record_episode_count = self._find_next_episode_number()
         self._start_time_s = 0
         self._proceed_time = 0
-        self._status = 'warmup'
+        self._status = 'idle'  # Start in idle state (simplified mode)
         self._cpu_checker = CPUChecker()
         self.data_converter = DataConverter()
         self.force_save_for_safety = False
@@ -91,17 +92,207 @@ class DataManager:
         self._init_task_limits()
         self._current_scenario_number = 0
 
+    def _find_next_episode_number(self) -> int:
+        """
+        Find the next available episode number by scanning existing directories.
+
+        Checks the rosbag save path for existing episode folders (0, 1, 2, ...)
+        and returns the next available number.
+
+        Returns:
+            Next available episode number (0 if no existing episodes).
+        """
+        rosbag_dir = self._save_rosbag_path
+
+        if not os.path.exists(rosbag_dir):
+            print(f'[DataManager] No existing folder at {rosbag_dir}, starting from episode 0')
+            return 0
+
+        # Find all numeric folder names
+        existing_episodes = []
+        try:
+            for item in os.listdir(rosbag_dir):
+                item_path = os.path.join(rosbag_dir, item)
+                if os.path.isdir(item_path) and item.isdigit():
+                    existing_episodes.append(int(item))
+        except OSError as e:
+            print(f'[DataManager] Error scanning directory: {e}, starting from episode 0')
+            return 0
+
+        if not existing_episodes:
+            print(f'[DataManager] No existing episodes in {rosbag_dir}, starting from episode 0')
+            return 0
+
+        next_episode = max(existing_episodes) + 1
+        print(f'[DataManager] Found existing episodes {sorted(existing_episodes)}, '
+              f'starting from episode {next_episode}')
+        return next_episode
+
     def get_status(self):
         return self._status
 
+    # ========== Simplified Recording Methods (rosbag2-only mode) ==========
+
+    def start_recording(self):
+        """
+        Start recording (simplified mode).
+
+        Changes status to 'recording' for rosbag to begin writing.
+        """
+        self._status = 'recording'
+        self._start_time_s = time.perf_counter()
+        self.current_instruction = self._task_info.task_instruction[0] \
+            if self._task_info.task_instruction else ''
+        print(f'[DataManager] Recording started - Episode {self._record_episode_count}')
+
+    def stop_recording(self):
+        """
+        Stop recording and save (simplified mode).
+
+        Changes status to 'idle' and increments episode count.
+        """
+        self._status = 'idle'
+        self._record_episode_count += 1
+        self._start_time_s = 0
+        print(f'[DataManager] Recording stopped - Episode saved. '
+              f'Total episodes: {self._record_episode_count}')
+
+    def cancel_recording(self):
+        """
+        Cancel recording without saving (simplified mode).
+
+        Changes status to 'idle' without incrementing episode count.
+        """
+        self._status = 'idle'
+        self._start_time_s = 0
+        print('[DataManager] Recording cancelled - Episode discarded')
+
+    def is_recording(self):
+        """Check if currently recording."""
+        return self._status == 'recording'
+
+    # ========== End Simplified Recording Methods ==========
+
     def get_save_rosbag_path(self):
-        episode_index = self._lerobot_dataset.get_episode_index()
-        if episode_index is None:
-            return None
-        return self._save_rosbag_path + f'/{episode_index}'
+        """Get rosbag save path for current episode."""
+        # For simplified mode, return path when recording
+        if self._status == 'idle':
+            return None  # Not recording
+        if self._status == 'warmup':
+            return None  # Legacy: Not ready yet
+        return self._save_rosbag_path + f'/{self._record_episode_count}'
+
+    def save_robotis_metadata(self, urdf_path: str = None):
+        """
+        Save URDF and metadata for ROBOTIS format.
+
+        Called after each episode rosbag is saved.
+        """
+        rosbag_path = self.get_save_rosbag_path()
+        if rosbag_path is None:
+            return
+
+        # Create rosbag directory if not exists
+        os.makedirs(rosbag_path, exist_ok=True)
+
+        # Copy URDF file
+        if urdf_path and os.path.exists(urdf_path):
+            urdf_dest = os.path.join(rosbag_path, 'robot.urdf')
+            try:
+                shutil.copy2(urdf_path, urdf_dest)
+                print(f'[ROBOTIS] URDF copied to: {urdf_dest}')
+            except Exception as e:
+                print(f'[ROBOTIS] Failed to copy URDF: {e}')
+
+        # Save metadata JSON
+        meta_data = {
+            'task_instruction': self.current_instruction,
+            'robot_type': self._robot_type,
+            'episode_index': self._record_episode_count,
+            'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'fps': self._task_info.fps if hasattr(self._task_info, 'fps') else 15,
+            'format_version': 'robotis_v1'
+        }
+
+        meta_data_path = os.path.join(rosbag_path, 'meta_data.json')
+        try:
+            with open(meta_data_path, 'w') as f:
+                json.dump(meta_data, f, indent=2)
+            print(f'[ROBOTIS] Metadata saved to: {meta_data_path}')
+        except Exception as e:
+            print(f'[ROBOTIS] Failed to save metadata: {e}')
 
     def should_record_rosbag2(self):
-        return self._task_info.record_rosbag2
+        """In simplified mode, always record rosbag2."""
+        # Always return True in rosbag2-only mode
+        # Legacy: return self._task_info.record_rosbag2
+        return True
+
+    def update_state_machine(self):
+        """
+        Update state machine for rosbag2-only recording mode.
+
+        This method manages state transitions without data processing:
+        - warmup -> run -> save -> reset -> run (loop)
+        - Or finish at any point
+
+        Returns:
+            bool: True if recording completed, False otherwise
+        """
+        if self._start_time_s == 0:
+            self._start_time_s = time.perf_counter()
+
+        if self._status == 'warmup':
+            self._current_task = 0
+            self._current_scenario_number = 0
+            if not self._check_time(self._task_info.warmup_time_s, 'run'):
+                return self.RECORDING
+
+        elif self._status == 'run':
+            if not self._check_time(self._task_info.episode_time_s, 'save'):
+                # Update current instruction during run
+                self.current_instruction = self._task_info.task_instruction[
+                    self._current_task % len(self._task_info.task_instruction)
+                ]
+                return self.RECORDING
+
+        elif self._status == 'save':
+            # For rosbag2-only mode, no video encoding needed
+            self._record_episode_count += 1
+            self._get_current_scenario_number()
+            self._current_task += 1
+
+            # Check if we've reached the target episode count
+            if self._record_episode_count < self._task_info.num_episodes:
+                # Not finished yet, go to reset for next episode
+                self._status = 'reset'
+                self._start_time_s = 0
+            else:
+                # Finished!
+                self._status = 'finish'
+
+        elif self._status == 'reset':
+            if not self._single_task:
+                if not self._check_time(self.SKIP_TIME, 'run'):
+                    return self.RECORDING
+            else:
+                if not self._check_time(self._task_info.reset_time_s, 'run'):
+                    return self.RECORDING
+
+        elif self._status == 'skip_task':
+            if not self._check_time(self.SKIP_TIME, 'run'):
+                return self.RECORDING
+
+        elif self._status == 'stop':
+            return self.RECORDING
+
+        elif self._status == 'finish':
+            return self.RECORD_COMPLETED
+
+        if self._record_episode_count >= self._task_info.num_episodes:
+            return self.RECORD_COMPLETED
+
+        return self.RECORDING
 
     def record(
             self,
@@ -250,7 +441,11 @@ class DataManager:
         return frame
 
     def record_early_save(self):
-        if self._lerobot_dataset.episode_buffer is not None:
+        """Trigger early save for current episode."""
+        # For rosbag2-only mode, always allow early save
+        if self._lerobot_dataset is None:
+            self._status = 'save'
+        elif self._lerobot_dataset.episode_buffer is not None:
             self._status = 'save'
 
     def record_stop(self):
@@ -260,9 +455,11 @@ class DataManager:
         self._status = 'finish'
 
     def re_record(self):
+        """Re-record current episode (discard current and restart)."""
         self._stop_save_completed = False
         self._episode_reset()
         self._status = 'reset'
+        self._start_time_s = 0
 
     def record_skip_task(self):
         self._stop_save_completed = False
@@ -279,7 +476,19 @@ class DataManager:
         current_status.robot_type = self._robot_type
         current_status.task_info = self._task_info
 
-        if self._status == 'warmup':
+        # Simplified mode statuses
+        if self._status == 'idle':
+            current_status.phase = TaskStatus.READY
+            current_status.total_time = int(0)
+        elif self._status == 'recording':
+            current_status.phase = TaskStatus.RECORDING
+            # Calculate elapsed time
+            if self._start_time_s > 0:
+                elapsed = time.perf_counter() - self._start_time_s
+                self._proceed_time = int(elapsed)
+            current_status.total_time = int(0)  # No time limit in simplified mode
+        # Legacy statuses (for backward compatibility)
+        elif self._status == 'warmup':
             current_status.phase = TaskStatus.WARMING_UP
             current_status.total_time = int(self._task_info.warmup_time_s)
         elif self._status == 'run':
@@ -334,17 +543,22 @@ class DataManager:
             self._current_scenario_number += 1
 
     def _get_encoding_progress(self):
+        """Get video encoding progress (LeRobot mode only)."""
         min_encoding_percentage = 100
         is_saving = False
-        if self._lerobot_dataset is not None:
-            if hasattr(self._lerobot_dataset, 'encoders') and \
-                    self._lerobot_dataset.encoders is not None:
-                if self._lerobot_dataset.encoders:
-                    is_saving = True
-                    for key, values in self._lerobot_dataset.encoders.items():
-                        min_encoding_percentage = min(
-                            min_encoding_percentage,
-                            values.get_encoding_status()['progress_percentage'])
+
+        # For rosbag2-only mode, no encoding
+        if self._lerobot_dataset is None:
+            return False, 100.0
+
+        if hasattr(self._lerobot_dataset, 'encoders') and \
+                self._lerobot_dataset.encoders is not None:
+            if self._lerobot_dataset.encoders:
+                is_saving = True
+                for key, values in self._lerobot_dataset.encoders.items():
+                    min_encoding_percentage = min(
+                        min_encoding_percentage,
+                        values.get_encoding_status()['progress_percentage'])
 
         return is_saving, float(min_encoding_percentage)
 
@@ -399,6 +613,14 @@ class DataManager:
             raise ValueError(f'Unsupported message type: {type(msg_data)}')
 
     def _episode_reset(self):
+        """Reset episode state for next recording."""
+        # For rosbag2-only mode, just reset timing
+        if self._lerobot_dataset is None:
+            self._start_time_s = 0
+            gc.collect()
+            return
+
+        # For LeRobot mode, clear episode buffer
         if (
             self._lerobot_dataset
             and hasattr(self._lerobot_dataset, 'episode_buffer')

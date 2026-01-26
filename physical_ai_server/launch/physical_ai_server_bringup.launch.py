@@ -61,8 +61,7 @@ def generate_launch_description():
         package='web_video_server',
         executable='web_video_server',
         name='web_video_server',
-        output='screen',
-        parameters=[{'port': 8085}]
+        output='screen'
     )
 
     return LaunchDescription([

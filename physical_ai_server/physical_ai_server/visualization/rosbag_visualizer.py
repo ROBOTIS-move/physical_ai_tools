@@ -35,6 +35,11 @@ try:
 except ImportError:
     make_reader = None
 
+try:
+    from mcap_ros2.decoder import DecoderFactory
+except ImportError:
+    DecoderFactory = None
+
 
 @dataclass
 class TopicStats:
@@ -120,6 +125,9 @@ class RosbagVisualizer:
         """
         Load and parse the MCAP file.
 
+        Uses header.stamp timestamps for accurate Hz measurement.
+        Falls back to publish_time if header extraction fails.
+
         Returns:
             self for method chaining.
         """
@@ -131,11 +139,25 @@ class RosbagVisualizer:
         self.topic_timestamps.clear()
 
         with open(self.mcap_path, 'rb') as f:
-            reader = make_reader(f)
+            reader = make_reader(f, decoder_factories=[DecoderFactory()] if DecoderFactory else None)
 
-            for schema, channel, message in reader.iter_messages():
+            for schema, channel, message, decoded_msg in reader.iter_decoded_messages():
                 topic = channel.topic
-                timestamp_sec = message.publish_time / 1e9
+
+                # Try to extract header.stamp (source timestamp)
+                timestamp_sec = None
+                if decoded_msg is not None:
+                    # Try header.stamp first (most ROS2 messages)
+                    if hasattr(decoded_msg, 'header') and hasattr(decoded_msg.header, 'stamp'):
+                        stamp = decoded_msg.header.stamp
+                        timestamp_sec = stamp.sec + stamp.nanosec / 1e9
+                    # For messages without header, use publish_time
+                    if timestamp_sec is None or timestamp_sec == 0:
+                        timestamp_sec = message.publish_time / 1e9
+                else:
+                    # Fallback to publish_time if decoding failed
+                    timestamp_sec = message.publish_time / 1e9
+
                 self.topic_timestamps[topic].append(timestamp_sec)
 
         self._calculate_stats()

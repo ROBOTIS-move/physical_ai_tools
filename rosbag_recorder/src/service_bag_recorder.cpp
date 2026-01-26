@@ -174,7 +174,7 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
   RCLCPP_INFO(
     this->get_logger(),
     "Start Rosbag recording: uri=%s topics_to_record=%zu subscriptions=%zu",
-    uri.c_str(), topics_to_record_.size(), subscriptions_.size());
+    uri.c_str(), topics_to_record_.size(), generic_subscriptions_.size());
 
   if (is_recording_) {
     throw std::runtime_error("Already recording");
@@ -384,7 +384,7 @@ void ServiceBagRecorder::create_subscriptions()
 {
   RCLCPP_INFO(this->get_logger(), "Creating subscriptions with callback groups");
 
-  subscriptions_.clear();
+  generic_subscriptions_.clear();
 
   // Create generic subscriptions for all topics
   for (const auto & [topic, type] : type_for_topic_) {
@@ -404,7 +404,7 @@ void ServiceBagRecorder::create_subscriptions()
       },
       options);
 
-    subscriptions_.push_back(sub);
+    generic_subscriptions_.push_back(sub);
 
     std::string group_name = "other";
     if (camera_topics_.count(topic)) {

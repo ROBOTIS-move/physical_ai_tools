@@ -111,6 +111,9 @@ export function useRosServiceCaller() {
           case 'finish':
             command_enum = TaskCommand.FINISH;
             break;
+          case 'cancel':
+            command_enum = TaskCommand.CANCEL;
+            break;
           default:
             throw new Error(`Unknown command: ${command}`);
         }
@@ -131,20 +134,10 @@ export function useRosServiceCaller() {
           task_info: {
             task_name: String(taskInfo.taskName || ''),
             task_type: String(taskType),
-            user_id: String(taskInfo.userId || ''),
             task_instruction: task_instruction,
             policy_path: String(taskInfo.policyPath || ''),
             record_inference_mode: Boolean(taskInfo.recordInferenceMode),
-            fps: Number(taskInfo.fps) || 0,
             tags: taskInfo.tags || [],
-            warmup_time_s: Number(taskInfo.warmupTime) || 0,
-            episode_time_s: Number(taskInfo.episodeTime) || 0,
-            reset_time_s: Number(taskInfo.resetTime) || 0,
-            num_episodes: Number(taskInfo.numEpisodes) || 0,
-            push_to_hub: Boolean(taskInfo.pushToHub),
-            private_mode: Boolean(taskInfo.privateMode),
-            use_optimized_save_mode: Boolean(taskInfo.useOptimizedSave),
-            record_rosbag2: Boolean(taskInfo.recordRosBag2),
           },
           command: Number(command_enum),
         };

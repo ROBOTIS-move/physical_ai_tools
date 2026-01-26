@@ -562,6 +562,8 @@ class PhysicalAIServer(Node):
                 task_instruction=self.task_instruction[0]
             )
 
+            self.get_logger().info(f'Action data: {action}')
+
             action_pub_msgs = self.data_manager.data_converter.tensor_array2joint_msgs(
                 action,
                 self.joint_topic_types,

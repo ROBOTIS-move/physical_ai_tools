@@ -88,9 +88,10 @@ class Rotate(BaseAction):
         self.odom_start_yaw = None
         self.odom_last_yaw = None
 
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
         self._thread = None
-        self._thread_done = False
-        self._thread_success = False
+        self._result = None  # None=running, True=success, False=failure
         self._control_rate = CONTROL_RATE_HZ  # noqa: F405
 
     def _odom_callback(self, msg):
@@ -117,11 +118,11 @@ class Rotate(BaseAction):
 
         if self.odom_start_yaw is None:
             self.log_error('Timeout waiting for odom data')
-            self._thread_done = True
-            self._thread_success = False
+            with self._lock:
+                self._result = False
             return
 
-        while not self._thread_done:
+        while not self._stop_event.is_set():
             if self.odom_last_yaw is None:
                 time.sleep(rate_sleep)
                 continue
@@ -144,9 +145,9 @@ class Rotate(BaseAction):
                     f'(target: {target_str} deg)'
                 )
                 self.log_info(msg)
-                self._thread_success = True
-                self._thread_done = True
-                break
+                with self._lock:
+                    self._result = True
+                return
 
             if error > 0:
                 angular_z = self.angular_velocity
@@ -167,8 +168,9 @@ class Rotate(BaseAction):
         if self._thread is None:
             self.odom_start_yaw = None
             self.odom_last_yaw = None
-            self._thread_done = False
-            self._thread_success = False
+            self._stop_event.clear()
+            with self._lock:
+                self._result = None
 
             self._thread = threading.Thread(
                 target=self._control_loop, daemon=True
@@ -178,13 +180,12 @@ class Rotate(BaseAction):
             self.log_info(f'Rotate thread started (target: {angle_str} deg)')
             return NodeStatus.RUNNING
 
-        if self._thread_done:
-            if self._thread_success:
-                return NodeStatus.SUCCESS
-            else:
-                return NodeStatus.FAILURE
+        with self._lock:
+            result = self._result
 
-        return NodeStatus.RUNNING
+        if result is None:
+            return NodeStatus.RUNNING
+        return NodeStatus.SUCCESS if result else NodeStatus.FAILURE
 
     def _stop_mobile(self):
         """Stop the mobile base by publishing zero velocity."""
@@ -199,11 +200,11 @@ class Rotate(BaseAction):
     def reset(self):
         """Reset the action to its initial state."""
         super().reset()
+        self._stop_event.set()
         if self._thread is not None and self._thread.is_alive():
-            self._thread_done = True
             self._thread.join(timeout=THREAD_JOIN_TIMEOUT_SEC)  # noqa: F405
         self._thread = None
-        self._thread_done = False
-        self._thread_success = False
+        with self._lock:
+            self._result = None
         self.odom_start_yaw = None
         self.odom_last_yaw = None

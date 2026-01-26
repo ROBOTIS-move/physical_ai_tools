@@ -96,9 +96,10 @@ class MoveArms(BaseAction):
             qos_profile
         )
 
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
         self._thread = None
-        self._thread_done = False
-        self._thread_success = False
+        self._result = None  # None=running, True=success, False=failure
         self._control_rate = CONTROL_RATE_HZ  # noqa: F405
 
     def _joint_state_callback(self, msg):
@@ -128,7 +129,7 @@ class MoveArms(BaseAction):
         self.log_info('Arms trajectory published')
 
         timeout_count = 0
-        while not self._thread_done and timeout_count < MOVE_ARMS_TIMEOUT_TICKS:  # noqa: F405, E501
+        while not self._stop_event.is_set() and timeout_count < MOVE_ARMS_TIMEOUT_TICKS:  # noqa: F405, E501
             if self.joint_state is None:
                 time.sleep(rate_sleep)
                 timeout_count += 1
@@ -155,23 +156,24 @@ class MoveArms(BaseAction):
 
             if all_reached:
                 self.log_info('Arms reached target positions')
-                self._thread_success = True
-                self._thread_done = True
-                break
+                with self._lock:
+                    self._result = True
+                return
 
             time.sleep(rate_sleep)
             timeout_count += 1
 
-        if not self._thread_success and not self._thread_done:
-            self.log_error('Arms timeout waiting for target positions')
-            self._thread_done = True
+        with self._lock:
+            self._result = False
+        self.log_error('Arms timeout waiting for target positions')
 
     def tick(self) -> NodeStatus:
         """Execute the action and return its status."""
         if self._thread is None:
             self.joint_state = None
-            self._thread_done = False
-            self._thread_success = False
+            self._stop_event.clear()
+            with self._lock:
+                self._result = None
 
             self._thread = threading.Thread(
                 target=self._control_loop, daemon=True
@@ -180,21 +182,20 @@ class MoveArms(BaseAction):
             self.log_info('Arms thread started')
             return NodeStatus.RUNNING
 
-        if self._thread_done:
-            if self._thread_success:
-                return NodeStatus.SUCCESS
-            else:
-                return NodeStatus.FAILURE
+        with self._lock:
+            result = self._result
 
-        return NodeStatus.RUNNING
+        if result is None:
+            return NodeStatus.RUNNING
+        return NodeStatus.SUCCESS if result else NodeStatus.FAILURE
 
     def reset(self):
         """Reset the action to its initial state."""
         super().reset()
+        self._stop_event.set()
         if self._thread is not None and self._thread.is_alive():
-            self._thread_done = True
             self._thread.join(timeout=THREAD_JOIN_TIMEOUT_SEC)  # noqa: F405
         self._thread = None
-        self._thread_done = False
-        self._thread_success = False
+        with self._lock:
+            self._result = None
         self.joint_state = None

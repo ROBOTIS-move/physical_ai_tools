@@ -77,9 +77,10 @@ class MoveLift(BaseAction):
             qos_profile
         )
 
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
         self._thread = None
-        self._thread_done = False
-        self._thread_success = False
+        self._result = None  # None=running, True=success, False=failure
         self._control_rate = CONTROL_RATE_HZ  # noqa: F405
 
     def _joint_state_callback(self, msg):
@@ -114,7 +115,7 @@ class MoveLift(BaseAction):
 
         timeout_count = 0
         max_timeout = MOVE_LIFT_TIMEOUT_TICKS  # noqa: F405
-        while not self._thread_done and timeout_count < max_timeout:
+        while not self._stop_event.is_set() and timeout_count < max_timeout:
             if self.joint_state is not None:
                 current_pos = self._get_joint_position(self.lift_joint_name)
                 if current_pos is not None:
@@ -124,9 +125,9 @@ class MoveLift(BaseAction):
                         self.log_info(
                             f'Lift reached target position: {pos_str}'
                         )
-                        self._thread_success = True
-                        self._thread_done = True
-                        break
+                        with self._lock:
+                            self._result = True
+                        return
                 else:
                     self.log_warn(
                         f"Joint '{self.lift_joint_name}' not found in "
@@ -136,16 +137,17 @@ class MoveLift(BaseAction):
             time.sleep(rate_sleep)
             timeout_count += 1
 
-        if not self._thread_success:
-            self.log_error('Lift timeout waiting for target position')
-            self._thread_done = True
+        with self._lock:
+            self._result = False
+        self.log_error('Lift timeout waiting for target position')
 
     def tick(self) -> NodeStatus:
         """Execute the action and return its status."""
         if self._thread is None:
             self.joint_state = None
-            self._thread_done = False
-            self._thread_success = False
+            self._stop_event.clear()
+            with self._lock:
+                self._result = None
 
             self._thread = threading.Thread(
                 target=self._control_loop, daemon=True
@@ -155,21 +157,20 @@ class MoveLift(BaseAction):
             self.log_info(f'MoveLift thread started: target={target_str}')
             return NodeStatus.RUNNING
 
-        if self._thread_done:
-            if self._thread_success:
-                return NodeStatus.SUCCESS
-            else:
-                return NodeStatus.FAILURE
+        with self._lock:
+            result = self._result
 
-        return NodeStatus.RUNNING
+        if result is None:
+            return NodeStatus.RUNNING
+        return NodeStatus.SUCCESS if result else NodeStatus.FAILURE
 
     def reset(self):
         """Reset the action to its initial state."""
         super().reset()
+        self._stop_event.set()
         if self._thread is not None and self._thread.is_alive():
-            self._thread_done = True
             self._thread.join(timeout=THREAD_JOIN_TIMEOUT_SEC)  # noqa: F405
         self._thread = None
-        self._thread_done = False
-        self._thread_success = False
+        with self._lock:
+            self._result = None
         self.joint_state = None

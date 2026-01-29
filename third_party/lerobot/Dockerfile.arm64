@@ -5,8 +5,10 @@
 # Build context: physical_ai_tools/third_party/lerobot/
 # Usage: docker build -f Dockerfile.arm64 -t robotis/lerobot-zenoh:arm64 .
 
-# JetPack 6.x (L4T R36.x) with PyTorch - for Jetson Orin series
-FROM nvcr.io/nvidia/l4t-pytorch:r36.4.0-pth2.5-py3
+# JetPack 6.x (L4T R36.4) base image for Jetson Orin series
+# Same base image used by NVIDIA GR00T
+ARG BASE_IMAGE=nvcr.io/nvidia/l4t-jetpack:r36.4.0
+FROM ${BASE_IMAGE}
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -38,7 +40,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     speech-dispatcher \
     libgeos-dev \
     portaudio19-dev \
-    python3.10-venv \
+    python3-dev \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (fast Python package manager)
@@ -55,19 +59,19 @@ RUN uv venv /lerobot/.venv --python python3
 ENV VIRTUAL_ENV=/lerobot/.venv
 ENV PATH="/lerobot/.venv/bin:$PATH"
 
+# Install PyTorch for Jetson from Jetson AI Lab pip index
+# JetPack 6.x compatible wheels
+ENV PIP_INDEX_URL=https://pypi.jetson-ai-lab.dev/jp6/cu126
+ENV PIP_EXTRA_INDEX_URL=https://pypi.org/simple
+RUN uv pip install torch torchvision
+
 # Copy LeRobot source and install dependencies
 # Build context is third_party/lerobot/, so paths are relative to that
 COPY lerobot/setup.py lerobot/pyproject.toml lerobot/README.md lerobot/MANIFEST.in ./
 COPY lerobot/src/ ./src/
 
-# Install PyTorch from the base image's site-packages (already optimized for Jetson)
-# Then install LeRobot without torch/torchvision (use system ones)
+# Install LeRobot dependencies (excluding torch/torchvision which are already installed)
 RUN uv pip install --no-cache \
-    ".[dynamixel,gamepad,hopejr,lekiwi,reachy2,kinematics]" \
-    ".[smolvla,xvla,hilserl,async,dev,test]" \
-    ".[video_benchmark,aloha,pusht,phone,libero,metaworld,sarm,peft]" \
-    --no-deps || \
-    uv pip install --no-cache \
     ".[dynamixel,gamepad,hopejr,lekiwi,reachy2,kinematics]" \
     ".[smolvla,xvla,hilserl,async,dev,test]" \
     ".[video_benchmark,aloha,pusht,phone,libero,metaworld,sarm,peft]"

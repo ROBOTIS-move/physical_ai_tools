@@ -1,11 +1,14 @@
-# LeRobot Docker Container with Zenoh Communication Support
+# LeRobot Docker Container with Zenoh Communication Support (AMD64)
 # This container provides isolated LeRobot environment with Zenoh-based communication
 # for training and inference commands from physical_ai_server (ROS2)
 #
 # Build context: physical_ai_tools/third_party/lerobot/
-# Usage: docker build -t robotis/lerobot-zenoh:latest .
+# Usage: docker build -f Dockerfile.amd64 -t robotis/lerobot-zenoh:amd64 .
 
-FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+# NVIDIA PyTorch base image (same as GR00T Thor)
+# Includes PyTorch, CUDA, cuDNN pre-installed
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.12-py3
+FROM ${BASE_IMAGE}
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -17,13 +20,8 @@ RUN apt-get update && apt-get install -y locales \
     && rm -rf /var/lib/apt/lists/*
 ENV LANG=en_US.UTF-8
 
-# Install system dependencies (cmake, ninja-build, pkg-config required for egl-probe)
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    curl \
-    wget \
-    ca-certificates \
     cmake \
     pkg-config \
     ninja-build \
@@ -37,25 +35,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     speech-dispatcher \
     libgeos-dev \
     portaudio19-dev \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
-    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (fast Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
     && mv /root/.local/bin/uv /usr/local/bin/uv
 
-# Set Python 3.11 as default
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
-
 # Create working directory for LeRobot
 WORKDIR /lerobot
 
-# Create virtual environment
-RUN uv venv /lerobot/.venv --python 3.11
+# Create virtual environment using the base image's Python
+RUN uv venv /lerobot/.venv --python python3
 
 # Set virtual environment as default
 ENV VIRTUAL_ENV=/lerobot/.venv
@@ -66,9 +56,9 @@ ENV PATH="/lerobot/.venv/bin:$PATH"
 COPY lerobot/setup.py lerobot/pyproject.toml lerobot/README.md lerobot/MANIFEST.in ./
 COPY lerobot/src/ ./src/
 
-# Install LeRobot with all dependencies EXCEPT intelrealsense (ARM64 compatible)
+# Install LeRobot with all dependencies EXCEPT intelrealsense
 # Note: [all] includes [intelrealsense] which requires pyrealsense2
-# pyrealsense2 doesn't have ARM64 wheels, so we install everything else
+# Excluded for consistency with ARM64 build
 RUN uv pip install --no-cache \
     ".[dynamixel,gamepad,hopejr,lekiwi,reachy2,kinematics]" \
     ".[smolvla,xvla,hilserl,async,dev,test]" \

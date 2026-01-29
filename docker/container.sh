@@ -32,11 +32,11 @@ start_container() {
 
     echo "Starting physical_ai_server container..."
 
-    # Pull the latest images
-    docker compose -f "${SCRIPT_DIR}/docker-compose.yml" pull
+    # Pull the latest images (ignore errors for images that need to be built locally)
+    docker compose -f "${SCRIPT_DIR}/docker-compose.yml" pull --ignore-pull-failures || true
 
-    # Run docker-compose
-    docker compose -f "${SCRIPT_DIR}/docker-compose.yml" up -d
+    # Run docker-compose (build if image doesn't exist)
+    docker compose -f "${SCRIPT_DIR}/docker-compose.yml" up -d --build
 }
 
 # Function to enter the container

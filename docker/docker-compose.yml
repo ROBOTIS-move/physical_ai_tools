@@ -64,11 +64,13 @@ services:
   # ============================================
   lerobot:
     container_name: lerobot_server
-    image: robotis/lerobot-zenoh:latest
+    image: robotis/lerobot-zenoh:${ARCH:-amd64}
     build:
       # Build context is third_party/lerobot/ (new structure)
       context: ../third_party/lerobot
-      dockerfile: Dockerfile
+      # Use ARCH env var to select Dockerfile (default: amd64)
+      # For Jetson: ARCH=arm64 docker compose up --build
+      dockerfile: Dockerfile.${ARCH:-amd64}
     
     # Network: host mode for Zenoh communication
     network_mode: host

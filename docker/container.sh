@@ -4,6 +4,16 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 CONTAINER_NAME="physical_ai_server"
 
+# Auto-detect architecture for correct Dockerfile selection
+MACHINE_ARCH=$(uname -m)
+if [ "$MACHINE_ARCH" = "aarch64" ] || [ "$MACHINE_ARCH" = "arm64" ]; then
+    export ARCH="arm64"
+    echo "Detected ARM64 architecture (Jetson)"
+else
+    export ARCH="amd64"
+    echo "Detected AMD64 architecture (x86_64)"
+fi
+
 # Function to display help
 show_help() {
     echo "Usage: $0 [command]"

@@ -8,11 +8,13 @@ RUN echo 'export PATH=/opt/venv/bin:$PATH' >> /root/.bashrc && \
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install realsense and physical_ai_tools dependencies
+# Install dependencies including rmw_zenoh_cpp for Zenoh communication
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     vim \
     nano \
+    ros-${ROS_DISTRO}-rmw-zenoh-cpp \
+    ros-${ROS_DISTRO}-zenoh-ros2-router \
     && rm -rf /var/lib/apt/lists/*
 
 ENV COLCON_WS=/root/ros2_ws
@@ -31,26 +33,32 @@ RUN cd ${COLCON_WS} && \
 ENV PIP_INDEX_URL=https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
 ENV PIP_EXTRA_INDEX_URL=https://pypi.org/simple
 
-RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
+RUN cd ${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot && \
     sed -i '/"torch[^\"]*",/d' pyproject.toml && \
     sed -i '/"torchvision[^\"]*",/d' pyproject.toml && \
     pip install --ignore-installed -e .
 
-RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
+RUN cd ${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot && \
     pip install -e ".[smolvla]"
 
 RUN pip install setuptools==68.1.2
 RUN pip install 'numpy<2'
 
-RUN echo 'export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH' >> /root/.bashrc && \
-    export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH;
+RUN echo 'export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot/src:$PYTHONPATH' >> /root/.bashrc && \
+    export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot/src:$PYTHONPATH;
 
 RUN bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd ${COLCON_WS} && \
     colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release"
 
+# Install zenoh_ros2_sdk for communication with lerobot container
+# physical_ai_server uses zenoh_ros2_sdk client to communicate with lerobot's zenoh_ros2_sdk server
+# json5 is required by zenoh_ros2_sdk for config parsing
+RUN pip install zenoh_ros2_sdk json5 psutil matplotlib
+
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc  && \
     echo "source ${COLCON_WS}/install/setup.bash" >> ~/.bashrc  && \
     echo "alias cb='colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release'" >> ~/.bashrc && \
     echo "alias ai_server='ros2 launch physical_ai_server physical_ai_server_bringup.launch.py'" >> ~/.bashrc && \
-    echo "export ROS_DOMAIN_ID=30" >> ~/.bashrc
+    echo "export ROS_DOMAIN_ID=30" >> ~/.bashrc && \
+    echo "export RMW_IMPLEMENTATION=rmw_zenoh_cpp" >> ~/.bashrc

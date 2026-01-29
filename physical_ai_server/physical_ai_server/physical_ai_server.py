@@ -56,9 +56,9 @@ from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.data_processing.hf_api_worker import HfApiWorker
 from physical_ai_server.data_processing.replay_data_handler import ReplayDataHandler
-from physical_ai_server.inference.inference_manager import InferenceManager
+from physical_ai_server.inference.zenoh_inference_manager import ZenohInferenceManager
 from physical_ai_server.timer.timer_manager import TimerManager
-from physical_ai_server.training.training_manager import TrainingManager
+from physical_ai_server.training.zenoh_training_manager import ZenohTrainingManager
 from physical_ai_server.utils.file_browse_utils import FileBrowseUtils
 from physical_ai_server.utils.parameter_utils import (
     declare_parameters,
@@ -86,6 +86,7 @@ class PhysicalAIServer(Node):
         pass
 
     def __init__(self):
+        """Initialize Physical AI Server."""
         super().__init__('physical_ai_server')
         self.get_logger().info('Start Physical AI Server')
 
@@ -120,8 +121,9 @@ class PhysicalAIServer(Node):
         self.timer_manager: Optional[TimerManager] = None
         self.heartbeat_timer: Optional[TimerManager] = None
         self.training_timer: Optional[TimerManager] = None
-        self.inference_manager: Optional[InferenceManager] = None
-        self.training_manager: Optional[TrainingManager] = None
+        # Zenoh managers for inference/training (Docker container communication)
+        self.inference_manager: Optional[ZenohInferenceManager] = None
+        self.training_manager: Optional[ZenohTrainingManager] = None
 
         # Initialize HF API Worker
         self.hf_api_worker: Optional[HfApiWorker] = None
@@ -283,7 +285,7 @@ class PhysicalAIServer(Node):
             )
             self.heartbeat_timer.start(timer_name='heartbeat')
 
-        self.inference_manager = InferenceManager()
+        self.inference_manager = ZenohInferenceManager(node=self)
         self.get_logger().info(
             f'ROS parameters initialized successfully for robot type: {robot_type}')
 
@@ -578,8 +580,8 @@ class PhysicalAIServer(Node):
         """
         try:
             if request.command == SendTrainingCommand.Request.START:
-                # Initialize training components
-                self.training_manager = TrainingManager()
+                # Initialize training components (ROS2 services with rmw_zenoh)
+                self.training_manager = ZenohTrainingManager(node=self)
                 self.training_timer = TimerManager(node=self)
                 self._setup_training_status_timer()
 
@@ -595,7 +597,7 @@ class PhysicalAIServer(Node):
 
                 # Log training request details
                 output_folder_name = request.training_info.output_folder_name
-                weight_save_root_path = TrainingManager.get_weight_save_root_path()
+                weight_save_root_path = ZenohTrainingManager.get_weight_save_root_path()
                 self.get_logger().info(
                     f'Training request - Output: {output_folder_name}, '
                     f'Resume: {resume}, Model path: {resume_model_path}'
@@ -908,7 +910,7 @@ class PhysicalAIServer(Node):
         return response
 
     def get_policy_list_callback(self, request, response):
-        policy_list = InferenceManager.get_available_policies()
+        policy_list = ZenohInferenceManager.get_available_policies()
         if not policy_list:
             self.get_logger().warning('No policies available')
             response.success = False
@@ -923,7 +925,7 @@ class PhysicalAIServer(Node):
     def get_available_list_callback(self, request, response):
         response.success = True
         response.message = 'Policy and device lists retrieved successfully'
-        response.policy_list, response.device_list = TrainingManager.get_available_list()
+        response.policy_list, response.device_list = ZenohTrainingManager.get_available_list()
         return response
 
     def get_user_list_callback(self, request, response):
@@ -978,7 +980,7 @@ class PhysicalAIServer(Node):
         return response
 
     def get_model_weight_list_callback(self, request, response):
-        save_root_path = TrainingManager.get_weight_save_root_path()
+        save_root_path = ZenohTrainingManager.get_weight_save_root_path()
         try:
             if not save_root_path.exists():
                 response.success = False
@@ -1003,7 +1005,7 @@ class PhysicalAIServer(Node):
         return response
 
     def get_saved_policies_callback(self, request, response):
-        saved_policy_path, saved_policy_type = InferenceManager.get_saved_policies()
+        saved_policy_path, saved_policy_type = ZenohInferenceManager.get_saved_policies()
         if not saved_policy_path and not saved_policy_type:
             self.get_logger().warning('No saved policies found')
             response.saved_policy_path = []
@@ -1033,7 +1035,7 @@ class PhysicalAIServer(Node):
 
             # Clean up path (remove leading/trailing whitespace)
             train_config_path = request.train_config_path.strip()
-            weight_save_root_path = TrainingManager.get_weight_save_root_path()
+            weight_save_root_path = ZenohTrainingManager.get_weight_save_root_path()
             config_path = weight_save_root_path / train_config_path
 
             # Check if config file exists
@@ -1498,7 +1500,9 @@ class PhysicalAIServer(Node):
 
 
 def main(args=None):
+    """Main entry point for Physical AI Server."""
     rclpy.init(args=args)
+
     node = PhysicalAIServer()
     try:
         rclpy.spin(node)

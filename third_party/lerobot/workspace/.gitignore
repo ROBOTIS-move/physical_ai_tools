@@ -1,0 +1,31 @@
+# LeRobot Workspace
+# All runtime data is ignored - only structure is tracked
+
+# Training checkpoints and model weights
+checkpoints/
+!checkpoints/.gitkeep
+
+# Datasets (downloaded or local)
+datasets/
+!datasets/.gitkeep
+
+# Training outputs (logs, tensorboard, etc.)
+outputs/
+!outputs/.gitkeep
+
+# Temporary files
+*.tmp
+*.lock
+*.cache
+
+# Model files (large binary files)
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.h5
+*.onnx
+
+# HuggingFace cache
+.cache/

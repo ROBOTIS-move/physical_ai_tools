@@ -1,4 +1,7 @@
 services:
+  # ============================================
+  # Physical AI Manager (React UI)
+  # ============================================
   physical_ai_manager:
     container_name: physical_ai_manager
     image: robotis/physical-ai-manager:latest
@@ -7,6 +10,10 @@ services:
       dockerfile: Dockerfile
     network_mode: host
     restart: unless-stopped
+
+  # ============================================
+  # Physical AI Server (ROS2 + Zenoh)
+  # ============================================
   physical_ai_server:
     container_name: physical_ai_server
     image: robotis/physical-ai-server:latest
@@ -19,9 +26,16 @@ services:
       rttime: -1
       memlock: 8428281856
     network_mode: host
+    # Shared Memory support for Zenoh communication with lerobot
+    ipc: host
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      # ROS2 RMW configuration - use Zenoh instead of DDS
+      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+      # Zenoh configuration
+      - ZENOH_ROUTER_IP=127.0.0.1
+      - ZENOH_ROUTER_PORT=7447
     volumes:
       - /dev:/dev
       - ./workspace:/workspace
@@ -29,10 +43,13 @@ services:
       - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
       - ../:/root/ros2_ws/src/physical_ai_tools/
       - ./huggingface:/root/.cache/huggingface
+      # Shared Memory
+      - /dev/shm:/dev/shm
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     privileged: true
-    command: bash
+    # Start Zenoh router in background, then keep container running
+    command: bash -c "zenohd &>/dev/null & exec bash"
     runtime: nvidia
     deploy:
       resources:
@@ -40,3 +57,83 @@ services:
           devices:
             - driver: nvidia
               capabilities: [gpu]
+
+  # ============================================
+  # LeRobot Server (Isolated Docker Container)
+  # Communicates with physical_ai_server via Zenoh
+  # ============================================
+  lerobot:
+    container_name: lerobot_server
+    image: robotis/lerobot-zenoh:latest
+    build:
+      # Build context is third_party/lerobot/ (new structure)
+      context: ../third_party/lerobot
+      dockerfile: Dockerfile
+    
+    # Network: host mode for Zenoh communication
+    network_mode: host
+    
+    # Shared Memory support for high-performance Zenoh transport
+    ipc: host
+    
+    # GPU support for training and inference
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    
+    # Volume mappings
+    volumes:
+      # Shared Memory device
+      - /dev/shm:/dev/shm
+      
+      # LeRobot workspace (datasets, models, outputs)
+      # Maps: host third_party/lerobot/workspace <-> container /workspace
+      - ../third_party/lerobot/workspace:/workspace
+      
+      # HuggingFace cache (shared with physical_ai_server)
+      - ./huggingface:/root/.cache/huggingface
+      
+      # Zenoh SDK (shared across all opensource integrations)
+      - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
+      
+      # LeRobot executor.py (for development - mount latest code)
+      - ../third_party/lerobot/executor.py:/app/executor.py:ro
+      
+      # Timezone
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    
+    # Environment variables
+    environment:
+      # ROS Domain ID - MUST match physical_ai_server (default: 30)
+      - ROS_DOMAIN_ID=30
+
+      # Zenoh configuration
+      - ZENOH_ROUTER_IP=127.0.0.1
+      - ZENOH_ROUTER_PORT=7447
+      - ZENOH_SHM_ENABLED=true
+      - ZENOH_SDK_PATH=/zenoh_sdk
+      
+      # GPU
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      
+      # Python
+      - PYTHONUNBUFFERED=1
+      
+      # Workspace path
+      - LEROBOT_WORKSPACE=/workspace
+    
+    # Auto restart
+    restart: unless-stopped
+    
+    # Default command: start Zenoh server
+    command: server
+
+    # Dependencies
+    depends_on:
+      - physical_ai_server

@@ -505,12 +505,6 @@ class Communicator:
             response.message = f'Error: {str(e)}'
             return response
 
-    def get_publisher_msg_types(self):
-        msg_types = {}
-        for publisher_name, publisher in self.joint_publishers.items():
-            msg_types[publisher_name] = publisher.msg_type
-        return msg_types
-
     # ========== Cleanup ==========
 
     def _destroy_service_if_exists(self, service_attr_name: str):

@@ -20,9 +20,8 @@
 from collections import defaultdict
 from typing import Callable, Optional, Set, Type
 
-import rclpy
 from rclpy.node import Node
-import rclpy.qos
+from rclpy import qos as rclpy_qos
 
 
 class MultiSubscriber:
@@ -47,7 +46,7 @@ class MultiSubscriber:
             topic: str,
             msg_type: Type,
             callback: Optional[Callable] = None,
-            qos_profile: Optional[rclpy.qos.QoSProfile] = None) -> None:
+            qos_profile: Optional[rclpy_qos.QoSProfile] = None) -> None:
 
         # Skip if this source category is disabled
         if not self.is_source_enabled(category):
@@ -57,10 +56,10 @@ class MultiSubscriber:
             return
 
         if qos_profile is None:
-            qos_profile = rclpy.qos.QoSProfile(
+            qos_profile = rclpy_qos.QoSProfile(
                 depth=1,
-                reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT,
-                history=rclpy.qos.HistoryPolicy.KEEP_LAST
+                reliability=rclpy_qos.ReliabilityPolicy.BEST_EFFORT,
+                history=rclpy_qos.HistoryPolicy.KEEP_LAST
             )
 
         if category in self._subscribers and name in self._subscribers[category]:

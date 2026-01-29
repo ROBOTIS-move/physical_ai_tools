@@ -66,8 +66,13 @@ ENV PATH="/lerobot/.venv/bin:$PATH"
 COPY lerobot/setup.py lerobot/pyproject.toml lerobot/README.md lerobot/MANIFEST.in ./
 COPY lerobot/src/ ./src/
 
-# Install LeRobot with all dependencies
-RUN uv pip install --no-cache ".[all]"
+# Install LeRobot with all dependencies EXCEPT intelrealsense (ARM64 compatible)
+# Note: [all] includes [intelrealsense] which requires pyrealsense2
+# pyrealsense2 doesn't have ARM64 wheels, so we install everything else
+RUN uv pip install --no-cache \
+    ".[dynamixel,gamepad,hopejr,lekiwi,reachy2,kinematics]" \
+    ".[smolvla,xvla,hilserl,async,dev,test]" \
+    ".[video_benchmark,aloha,pusht,phone,libero,metaworld,sarm,peft]"
 
 # Copy the rest of LeRobot (configs, tests, etc.)
 COPY lerobot/ ./

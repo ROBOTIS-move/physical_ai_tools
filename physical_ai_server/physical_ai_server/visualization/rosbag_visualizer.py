@@ -35,6 +35,20 @@ try:
 except ImportError:
     make_reader = None
 
+try:
+    from mcap_ros2.decoder import DecoderFactory
+except ImportError:
+    DecoderFactory = None
+
+
+@dataclass
+class JointData:
+    """Joint state data for a single message."""
+
+    timestamp: float
+    names: List[str]
+    positions: List[float]
+
 
 @dataclass
 class TopicStats:
@@ -95,6 +109,7 @@ class RosbagVisualizer:
         """
         self.mcap_path, self.output_dir = self._resolve_mcap_path(mcap_path)
         self.topic_timestamps: Dict[str, List[float]] = defaultdict(list)
+        self.joint_data: Dict[str, List[JointData]] = defaultdict(list)
         self.stats: Optional[RosbagStats] = None
         self._loaded = False
 
@@ -120,6 +135,10 @@ class RosbagVisualizer:
         """
         Load and parse the MCAP file.
 
+        Uses header.stamp for messages that have a header (JointState, CameraInfo,
+        CompressedImage, Odometry, etc.) for accurate timing. Falls back to
+        publish_time for messages without headers.
+
         Returns:
             self for method chaining.
         """
@@ -130,6 +149,55 @@ class RosbagVisualizer:
 
         self.topic_timestamps.clear()
 
+        # Check if we can use ROS2 decoder for header.stamp extraction
+        use_ros2_decoder = DecoderFactory is not None
+        if use_ros2_decoder:
+            print('Using header.stamp for messages with headers')
+            self._load_with_header_stamp()
+        else:
+            print('Warning: mcap_ros2 not available, using publish_time for all messages')
+            print('Install with: pip install mcap-ros2-support')
+            self._load_with_publish_time()
+
+        self._calculate_stats()
+        self._loaded = True
+        print(f'Loaded {len(self.topic_timestamps)} topics, {self.stats.total_messages} messages')
+
+        return self
+
+    def _load_with_header_stamp(self):
+        """Load using header.stamp from decoded ROS2 messages."""
+        with open(self.mcap_path, 'rb') as f:
+            reader = make_reader(f, decoder_factories=[DecoderFactory()])
+
+            for schema, channel, message, decoded_msg in reader.iter_decoded_messages():
+                topic = channel.topic
+                timestamp_sec = None
+
+                # Try to get header.stamp from decoded message
+                if decoded_msg is not None and hasattr(decoded_msg, 'header'):
+                    header = decoded_msg.header
+                    if hasattr(header, 'stamp'):
+                        stamp = header.stamp
+                        timestamp_sec = stamp.sec + stamp.nanosec / 1e9
+
+                # Fallback to publish_time if no header.stamp
+                if timestamp_sec is None:
+                    timestamp_sec = message.publish_time / 1e9
+
+                self.topic_timestamps[topic].append(timestamp_sec)
+
+                # Store joint state data for comparison visualization
+                if 'joint_states' in topic and decoded_msg is not None:
+                    if hasattr(decoded_msg, 'name') and hasattr(decoded_msg, 'position'):
+                        self.joint_data[topic].append(JointData(
+                            timestamp=timestamp_sec,
+                            names=list(decoded_msg.name),
+                            positions=list(decoded_msg.position)
+                        ))
+
+    def _load_with_publish_time(self):
+        """Load using publish_time (fallback when mcap_ros2 not available)."""
         with open(self.mcap_path, 'rb') as f:
             reader = make_reader(f)
 
@@ -137,12 +205,6 @@ class RosbagVisualizer:
                 topic = channel.topic
                 timestamp_sec = message.publish_time / 1e9
                 self.topic_timestamps[topic].append(timestamp_sec)
-
-        self._calculate_stats()
-        self._loaded = True
-        print(f'Loaded {len(self.topic_timestamps)} topics, {self.stats.total_messages} messages')
-
-        return self
 
     def _calculate_stats(self):
         """Calculate statistics for all topics."""
@@ -189,6 +251,39 @@ class RosbagVisualizer:
             start_time=t_min,
             end_time=t_max
         )
+
+    def _get_readable_topic_name(self, topic: str) -> str:
+        """Get a readable short name for a topic while preserving uniqueness."""
+        parts = topic.split('/')
+
+        # Camera topics: /robot/camera/cam_xxx/image_raw/compressed -> cam_xxx/compressed
+        # Camera info: /robot/camera/cam_xxx/.../camera_info -> cam_xxx/camera_info
+        if 'camera' in topic:
+            cam_name = None
+            for part in parts:
+                if part.startswith('cam_'):
+                    cam_name = part
+                    break
+            if cam_name:
+                if 'camera_info' in topic:
+                    return f'{cam_name}/camera_info'
+                elif 'compressed' in topic:
+                    return f'{cam_name}/compressed'
+
+        # Joint topics: /robot/arm_left_follower/joint_states -> arm_left_follower
+        if 'joint_states' in topic:
+            for part in parts:
+                if 'follower' in part or 'leader' in part:
+                    return part
+
+        # TF, odom, cmd_vel - return as is
+        if topic in ['/tf', '/odom', '/cmd_vel']:
+            return topic.lstrip('/')
+
+        # Default: return last meaningful part
+        if len(parts) > 1:
+            return parts[-1] if parts[-1] else parts[-2]
+        return topic
 
     def _get_topic_type(self, topic: str) -> str:
         """Determine the type of a topic for coloring."""
@@ -257,7 +352,7 @@ class RosbagVisualizer:
 
         # Configure timeline plot
         ax1.set_yticks(range(len(topics)))
-        short_names = [t.split('/')[-1] if len(t) > 30 else t for t in topics]
+        short_names = [self._get_readable_topic_name(t) for t in topics]
         ax1.set_yticklabels(short_names, fontsize=8)
         ax1.set_xlabel('Time (seconds)', fontsize=12)
         ax1.set_ylabel('Topics', fontsize=12)
@@ -609,6 +704,159 @@ class RosbagVisualizer:
         print(f'Stats saved to: {output_path}')
         return output_path
 
+    def plot_joint_comparison(
+        self,
+        output_path: Optional[str] = None,
+        figsize_per_joint: Tuple[float, float] = (12, 3),
+        show: bool = False
+    ) -> List[str]:
+        """
+        Plot follower vs leader joint comparison for teleoperation validation.
+
+        Creates comparison plots for each joint pair showing how well the follower
+        tracks the leader in teleoperation scenarios.
+
+        Args:
+            output_path: Base path for output files. If None, auto-generates.
+            figsize_per_joint: Figure size per joint subplot.
+            show: Whether to display the plots.
+
+        Returns:
+            List of paths to saved figures.
+        """
+        if not self._loaded:
+            raise RuntimeError('Data not loaded. Call load() first.')
+
+        if DecoderFactory is None:
+            raise RuntimeError('mcap_ros2 is required for joint comparison. '
+                               'Install with: pip install mcap-ros2-support')
+
+        if not self.joint_data:
+            print('No joint state data found. Re-loading with joint data...')
+            self._reload_joint_data()
+
+        # Define follower-leader pairs
+        joint_pairs = [
+            ('/robot/arm_left_follower/joint_states', '/robot/arm_left_leader/joint_states'),
+            ('/robot/arm_right_follower/joint_states', '/robot/arm_right_leader/joint_states'),
+            ('/robot/head_follower/joint_states', '/robot/head_leader/joint_states'),
+            ('/robot/lift_follower/joint_states', '/robot/lift_leader/joint_states'),
+        ]
+
+        saved_paths = []
+        base_dir = Path(self.output_dir)
+
+        for follower_topic, leader_topic in joint_pairs:
+            if follower_topic not in self.joint_data or leader_topic not in self.joint_data:
+                print(f'Skipping {follower_topic} - data not found')
+                continue
+
+            follower_data = self.joint_data[follower_topic]
+            leader_data = self.joint_data[leader_topic]
+
+            if not follower_data or not leader_data:
+                continue
+
+            # Get joint names from the first message
+            joint_names = follower_data[0].names
+            n_joints = len(joint_names)
+
+            # Extract time-series data
+            follower_times = np.array([d.timestamp for d in follower_data])
+            leader_times = np.array([d.timestamp for d in leader_data])
+
+            # Normalize to start from 0
+            t_min = min(follower_times.min(), leader_times.min())
+            follower_times = follower_times - t_min
+            leader_times = leader_times - t_min
+
+            # Extract positions for each joint
+            follower_positions = np.array([d.positions for d in follower_data])
+            leader_positions = np.array([d.positions for d in leader_data])
+
+            # Create figure
+            fig, axes = plt.subplots(
+                n_joints, 1,
+                figsize=(figsize_per_joint[0], figsize_per_joint[1] * n_joints),
+                sharex=True
+            )
+
+            if n_joints == 1:
+                axes = [axes]
+
+            # Get pair name for title
+            pair_name = follower_topic.split('/')[2].replace('_follower', '')
+
+            for idx, joint_name in enumerate(joint_names):
+                ax = axes[idx]
+
+                # Plot leader and follower
+                ax.plot(leader_times, leader_positions[:, idx],
+                        'b-', label='Leader', alpha=0.8, linewidth=1)
+                ax.plot(follower_times, follower_positions[:, idx],
+                        'r-', label='Follower', alpha=0.8, linewidth=1)
+
+                ax.set_ylabel(f'{joint_name}\n(rad)', fontsize=9)
+                ax.legend(loc='upper right', fontsize=8)
+                ax.grid(True, alpha=0.3)
+
+                # Calculate tracking error statistics
+                # Interpolate leader to follower timestamps for error calc
+                leader_interp = np.interp(follower_times, leader_times, leader_positions[:, idx])
+                error = follower_positions[:, idx] - leader_interp
+                rmse = np.sqrt(np.mean(error ** 2))
+                max_error = np.max(np.abs(error))
+
+                ax.text(0.02, 0.95, f'RMSE: {rmse:.4f} rad, Max: {max_error:.4f} rad',
+                        transform=ax.transAxes, fontsize=8, verticalalignment='top',
+                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+            axes[-1].set_xlabel('Time (seconds)', fontsize=10)
+
+            fig.suptitle(f'Joint Comparison: {pair_name}\n(Leader vs Follower)',
+                         fontsize=14, fontweight='bold')
+            plt.tight_layout()
+
+            # Save figure
+            if output_path is None:
+                save_path = str(base_dir / f'joint_comparison_{pair_name}.png')
+            else:
+                save_path = f'{output_path}_{pair_name}.png'
+
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            print(f'Joint comparison saved: {save_path}')
+            saved_paths.append(save_path)
+
+            if show:
+                plt.show()
+            else:
+                plt.close()
+
+        return saved_paths
+
+    def _reload_joint_data(self):
+        """Reload MCAP to extract joint state data."""
+        self.joint_data.clear()
+        with open(self.mcap_path, 'rb') as f:
+            reader = make_reader(f, decoder_factories=[DecoderFactory()])
+
+            for schema, channel, message, decoded_msg in reader.iter_decoded_messages():
+                topic = channel.topic
+                if 'joint_states' in topic and decoded_msg is not None:
+                    timestamp_sec = None
+                    if hasattr(decoded_msg, 'header'):
+                        stamp = decoded_msg.header.stamp
+                        timestamp_sec = stamp.sec + stamp.nanosec / 1e9
+                    else:
+                        timestamp_sec = message.publish_time / 1e9
+
+                    if hasattr(decoded_msg, 'name') and hasattr(decoded_msg, 'position'):
+                        self.joint_data[topic].append(JointData(
+                            timestamp=timestamp_sec,
+                            names=list(decoded_msg.name),
+                            positions=list(decoded_msg.position)
+                        ))
+
 
 def main():
     """Command-line interface for rosbag visualization."""
@@ -620,6 +868,7 @@ def main():
     parser.add_argument('--show', action='store_true', help='Show plots interactively')
     parser.add_argument('--detailed', action='store_true', help='Show detailed statistics')
     parser.add_argument('--intervals', action='store_true', help='Plot interval distributions')
+    parser.add_argument('--joints', action='store_true', help='Plot joint follower-leader comparison')
 
     args = parser.parse_args()
 
@@ -637,6 +886,12 @@ def main():
     if args.intervals:
         visualizer.plot_topic_intervals(
             output_path=os.path.join(output_dir, 'topic_intervals.png'),
+            show=args.show
+        )
+
+    if args.joints:
+        visualizer.plot_joint_comparison(
+            output_path=os.path.join(output_dir, 'joint_comparison'),
             show=args.show
         )
 

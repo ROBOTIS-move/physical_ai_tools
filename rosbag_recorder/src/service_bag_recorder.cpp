@@ -112,7 +112,7 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
 {
   RCLCPP_INFO(this->get_logger(), "Prepare Rosbag recording");
 
-  if (is_recording_) {
+  if (is_recording_.load(std::memory_order_acquire)) {
     throw std::runtime_error("Already recording");
   }
 
@@ -176,7 +176,7 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     "Start Rosbag recording: uri=%s topics_to_record=%zu subscriptions=%zu",
     uri.c_str(), topics_to_record_.size(), subscriptions_.size());
 
-  if (is_recording_) {
+  if (is_recording_.load(std::memory_order_acquire)) {
     throw std::runtime_error("Already recording");
   }
 
@@ -238,7 +238,7 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
   }
 
   // Set recording flag - messages will now be written to bag
-  is_recording_ = true;
+  is_recording_.store(true, std::memory_order_release);
 
   RCLCPP_INFO(
     this->get_logger(), "Recording started: uri=%s topics=%zu storage=%s cache=%zuMB",
@@ -251,13 +251,14 @@ void ServiceBagRecorder::handle_stop()
   RCLCPP_INFO(this->get_logger(), "Stop Rosbag recording");
 
   // Handle gracefully when not recording (e.g., if START failed)
-  if (!is_recording_) {
+  if (!is_recording_.load(std::memory_order_acquire)) {
     RCLCPP_WARN(this->get_logger(), "Stop called but not recording - nothing to stop");
     return;
   }
 
   try {
-    is_recording_ = false;
+    // Set flag first to stop callbacks from writing
+    is_recording_.store(false, std::memory_order_release);
 
     // Log statistics before closing
     log_statistics();
@@ -277,13 +278,14 @@ void ServiceBagRecorder::handle_stop_and_delete()
   RCLCPP_INFO(this->get_logger(), "Stop and delete Rosbag recording");
 
   // Handle gracefully when not recording (e.g., Cancel pressed before recording started)
-  if (!is_recording_) {
+  if (!is_recording_.load(std::memory_order_acquire)) {
     RCLCPP_INFO(this->get_logger(), "Not recording, nothing to delete");
     return;
   }
 
   try {
-    is_recording_ = false;
+    // Set flag first to stop callbacks from writing
+    is_recording_.store(false, std::memory_order_release);
 
     // Log statistics
     log_statistics();
@@ -313,8 +315,8 @@ void ServiceBagRecorder::handle_finish()
   // 1. A new PREPARE command is received (robot type changed)
   // 2. The node is destroyed (program shutdown)
 
-  if (is_recording_) {
-    is_recording_ = false;
+  if (is_recording_.load(std::memory_order_acquire)) {
+    is_recording_.store(false, std::memory_order_release);
     writer_.reset();
     current_bag_uri_.clear();
   }
@@ -477,9 +479,9 @@ void ServiceBagRecorder::handle_serialized_message(
   const std::shared_ptr<rclcpp::SerializedMessage> & serialized_msg,
   const rclcpp::MessageInfo & message_info)
 {
-  // If not recording, discard the message (no buffering)
-  // Don't count as received to avoid false "dropped" counts
-  if (!is_recording_ || !writer_) {
+  // First check without lock - fast path for when not recording
+  // is_recording_ is atomic, so this read is safe
+  if (!is_recording_.load(std::memory_order_acquire)) {
     return;
   }
 
@@ -500,9 +502,13 @@ void ServiceBagRecorder::handle_serialized_message(
   // Note: received_timestamp is also available via rmw_info.received_timestamp
   // MCAP format stores both: publishTime (source) and logTime (received)
 
-  // Write to bag with minimal locking
+  // Write to bag with lock - double-check writer_ inside lock to prevent race condition
   {
     std::scoped_lock<std::mutex> lock(mutex_);
+    // Second check inside lock - writer_ may have been reset by handle_stop()
+    if (!writer_) {
+      return;
+    }
     writer_->write(serialized_msg, topic, type, source_timestamp);
   }
 

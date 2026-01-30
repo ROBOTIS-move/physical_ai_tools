@@ -82,7 +82,7 @@ private:
   std::unordered_set<std::string> camera_topics_;
   std::unordered_set<std::string> joint_topics_;
 
-  bool is_recording_ {false};
+  std::atomic<bool> is_recording_ {false};
   std::string current_bag_uri_;
   std::vector<std::string> topics_to_record_ {};
   std::mutex mutex_;

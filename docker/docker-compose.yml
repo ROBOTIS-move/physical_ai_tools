@@ -22,6 +22,7 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
     volumes:
       - /dev:/dev
       - ./workspace:/workspace

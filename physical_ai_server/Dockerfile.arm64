@@ -9,12 +9,12 @@ RUN echo 'export PATH=/opt/venv/bin:$PATH' >> /root/.bashrc && \
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies including rmw_zenoh_cpp for Zenoh communication
+# Note: zenoh-ros2-router not available on ARM64, use zenohd from rmw_zenoh_cpp instead
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     vim \
     nano \
     ros-${ROS_DISTRO}-rmw-zenoh-cpp \
-    ros-${ROS_DISTRO}-zenoh-ros2-router \
     && rm -rf /var/lib/apt/lists/*
 
 ENV COLCON_WS=/root/ros2_ws

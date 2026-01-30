@@ -16,7 +16,12 @@ services:
   # ============================================
   physical_ai_server:
     container_name: physical_ai_server
-    image: robotis/physical-ai-server:latest
+    image: robotis/physical-ai-server:${ARCH:-amd64}
+    build:
+      context: ../physical_ai_server
+      # Use ARCH env var to select Dockerfile (default: amd64)
+      # For Jetson: ARCH=arm64 docker compose up --build
+      dockerfile: Dockerfile.${ARCH:-amd64}
     tty: true
     restart: always
     cap_add:

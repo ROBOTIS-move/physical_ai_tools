@@ -60,10 +60,11 @@ ENV VIRTUAL_ENV=/lerobot/.venv
 ENV PATH="/lerobot/.venv/bin:$PATH"
 
 # Install PyTorch for Jetson from Jetson AI Lab pip index
-# JetPack 6.x compatible wheels
-ENV PIP_INDEX_URL=https://pypi.jetson-ai-lab.dev/jp6/cu126
-ENV PIP_EXTRA_INDEX_URL=https://pypi.org/simple
-RUN uv pip install torch torchvision
+# JetPack 6.x compatible wheels with CUDA support
+# Use explicit --index-url for uv to ensure CUDA-enabled PyTorch is installed
+RUN uv pip install torch torchvision \
+    --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple \
+    --extra-index-url https://pypi.org/simple
 
 # Copy LeRobot source and install dependencies
 # Build context is third_party/lerobot/, so paths are relative to that

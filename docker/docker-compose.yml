@@ -106,38 +106,125 @@ services:
       
       # Zenoh SDK (shared across all opensource integrations)
       - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
-      
+
       # LeRobot executor.py (for development - mount latest code)
       - ../third_party/lerobot/executor.py:/app/executor.py:ro
-      
+
       # Timezone
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-    
+
     # Environment variables
     environment:
       # ROS Domain ID - MUST match physical_ai_server (default: 30)
       - ROS_DOMAIN_ID=30
 
-      # Zenoh configuration
+      # Zenoh configuration - peer-to-peer mode (no router needed)
       - ZENOH_ROUTER_IP=127.0.0.1
       - ZENOH_ROUTER_PORT=7447
       - ZENOH_SHM_ENABLED=true
       - ZENOH_SDK_PATH=/zenoh_sdk
-      
+      # Override to enable peer-to-peer scouting instead of router connection
+      - ZENOH_CONFIG_OVERRIDE=mode="peer";connect/endpoints=[];scouting/multicast/enabled=true;scouting/gossip/enabled=true
+
       # GPU
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
-      
+
       # Python
       - PYTHONUNBUFFERED=1
-      
+
       # Workspace path
       - LEROBOT_WORKSPACE=/workspace
     
     # Auto restart
     restart: unless-stopped
     
+    # Default command: start Zenoh server
+    command: server
+
+    # Dependencies
+    depends_on:
+      - physical_ai_server
+
+  # ============================================
+  # GR00T N1.6 Server (Isolated Docker Container)
+  # NVIDIA Isaac GR00T foundation model for robotics
+  # Communicates with physical_ai_server via Zenoh
+  # ============================================
+  groot:
+    container_name: groot_server
+    image: robotis/groot-zenoh:${ARCH:-amd64}
+    build:
+      # Build context is third_party/groot/ (GR00T integration)
+      context: ../third_party/groot
+      # Use ARCH env var to select Dockerfile (default: amd64)
+      # For Jetson: ARCH=arm64 docker compose up --build
+      dockerfile: Dockerfile.${ARCH:-amd64}
+
+    # Network: host mode for Zenoh communication
+    network_mode: host
+
+    # Shared Memory support for high-performance Zenoh transport
+    ipc: host
+
+    # GPU support for training and inference
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+
+    # Volume mappings
+    volumes:
+      # Shared Memory device
+      - /dev/shm:/dev/shm
+
+      # GR00T workspace (datasets, checkpoints, outputs)
+      # Maps: host third_party/groot/workspace <-> container /workspace
+      - ../third_party/groot/workspace:/workspace
+
+      # HuggingFace cache (shared with physical_ai_server and lerobot)
+      - ./huggingface:/root/.cache/huggingface
+
+      # Zenoh SDK (shared across all opensource integrations)
+      - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
+
+      # GR00T executor.py (for development - mount latest code)
+      - ../third_party/groot/executor.py:/app/executor.py:ro
+
+      # Timezone
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+
+    # Environment variables
+    environment:
+      # ROS Domain ID - MUST match physical_ai_server (default: 30)
+      - ROS_DOMAIN_ID=30
+
+      # Zenoh configuration - peer-to-peer mode (no router needed)
+      - ZENOH_ROUTER_IP=127.0.0.1
+      - ZENOH_ROUTER_PORT=7447
+      - ZENOH_SHM_ENABLED=true
+      - ZENOH_SDK_PATH=/zenoh_sdk
+      # Override to enable peer-to-peer scouting instead of router connection
+      - ZENOH_CONFIG_OVERRIDE=mode="peer";connect/endpoints=[];scouting/multicast/enabled=true;scouting/gossip/enabled=true
+
+      # GPU
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+
+      # Python
+      - PYTHONUNBUFFERED=1
+
+      # Workspace path
+      - GROOT_WORKSPACE=/workspace
+
+    # Auto restart
+    restart: unless-stopped
+
     # Default command: start Zenoh server
     command: server
 

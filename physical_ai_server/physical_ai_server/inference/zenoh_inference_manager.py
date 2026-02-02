@@ -29,9 +29,9 @@ class ZenohInferenceManager:
     Inference manager that delegates to LeRobot Docker container via Zenoh.
 
     Architecture:
-    - physical_ai_server uses ROS2 + rmw_zenoh for INTERNAL ROS2 communication
-    - physical_ai_server uses zenoh_ros2_sdk for EXTERNAL communication with lerobot
-    - lerobot container uses zenoh_ros2_sdk only (no ROS2 installed)
+    - physical_ai_server uses ROS2 + rmw_zenoh (standard ROS2 API)
+    - lerobot container uses zenoh_ros2_sdk (no ROS2 installed)
+    - rmw_zenoh converts ROS2 messages to Zenoh protocol = COMPATIBLE
     """
 
     SUPPORTED_POLICIES = [
@@ -42,9 +42,9 @@ class ZenohInferenceManager:
     _cached_policies: list = None
 
     def __init__(self, node: Node = None):
-        # Node is accepted for API compatibility but not used by zenoh_ros2_sdk
+        # ROS2 node required for creating service clients
         self._node = node
-        self.client = ZenohLeRobotClient()
+        self.client = ZenohLeRobotClient(node=node)
         self._connected = False
         self._action_callback: Optional[Callable] = None
         self._status_callback: Optional[Callable] = None
@@ -57,7 +57,7 @@ class ZenohInferenceManager:
             return True
         if node is not None:
             self._node = node
-        self._connected = self.client.connect()
+        self._connected = self.client.connect(node=self._node)
         if self._connected:
             self.client.subscribe_status(self._on_status_update)
             self.client.subscribe_actions(self._on_action_received)

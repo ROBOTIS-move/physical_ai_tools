@@ -51,10 +51,9 @@ RUN bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd ${COLCON_WS} && \
     colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release"
 
-# Install zenoh_ros2_sdk for communication with lerobot container
-# physical_ai_server uses zenoh_ros2_sdk client to communicate with lerobot's zenoh_ros2_sdk server
-# json5 is required by zenoh_ros2_sdk for config parsing
-RUN pip install zenoh_ros2_sdk json5 psutil matplotlib
+# Install Python utilities
+# Note: zenoh_ros2_sdk removed - using ROS2 rmw_zenoh for LeRobot communication
+RUN pip install psutil matplotlib
 
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc  && \
     echo "source ${COLCON_WS}/install/setup.bash" >> ~/.bashrc  && \

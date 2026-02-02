@@ -17,115 +17,37 @@
 # Author: Physical AI Team
 
 """
-ZenohLeRobotClient - Zenoh SDK Client for LeRobot Docker communication.
+ZenohLeRobotClient - ROS2 Service Client for LeRobot Docker communication.
 
-Uses zenoh_ros2_sdk to communicate with LeRobot Docker container.
-This ensures protocol compatibility with lerobot's zenoh_ros2_sdk server.
+Uses ROS2 standard Service Client with rmw_zenoh middleware.
+rmw_zenoh automatically handles Zenoh protocol conversion, enabling
+communication with LeRobot Docker container's zenoh_ros2_sdk server.
 
 Architecture Design:
-- physical_ai_server uses ROS2 + rmw_zenoh for INTERNAL ROS2 communication
-- physical_ai_server uses zenoh_ros2_sdk for EXTERNAL communication with lerobot
-- lerobot container uses zenoh_ros2_sdk only (no ROS2 installed)
-- Both sides use the same zenoh_ros2_sdk protocol = COMPATIBLE
+- physical_ai_server uses ROS2 + rmw_zenoh (standard ROS2 API)
+- lerobot container uses zenoh_ros2_sdk (no ROS2 installed)
+- rmw_zenoh converts ROS2 messages to Zenoh protocol = COMPATIBLE
 """
 
 from dataclasses import dataclass
 import logging
-import os
 from typing import Any, Callable, Dict, Optional
 
-from rclpy.node import Node
-
-from zenoh_ros2_sdk import (
-    ROS2ServiceClient,
-    ROS2Subscriber,
+from physical_ai_interfaces.msg import TrainingProgress
+from physical_ai_interfaces.srv import (
+    CheckpointList,
+    ModelList,
+    PolicyList,
+    StartInference,
+    StopTraining,
+    TrainingStatus,
+    TrainModel,
 )
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 logger = logging.getLogger(__name__)
-
-
-# Service type definitions for zenoh_ros2_sdk
-# These match the ROS2 service definitions in physical_ai_interfaces
-SERVICE_DEFINITIONS = {
-    'TrainModel': {
-        'type': 'physical_ai_interfaces/srv/TrainModel',
-        'request': '''string policy_type
-string dataset_path
-string output_dir
-int32 steps
-int32 batch_size
-float32 learning_rate
-int32 eval_freq
-int32 log_freq
-int32 save_freq
-string wandb_project
-bool push_to_hub''',
-        'response': '''bool success
-string message
-string job_id'''
-    },
-    'StartInference': {
-        'type': 'physical_ai_interfaces/srv/StartInference',
-        'request': '''string model_path''',
-        'response': '''bool success
-string message'''
-    },
-    'StopTraining': {
-        'type': 'physical_ai_interfaces/srv/StopTraining',
-        'request': '''''',
-        'response': '''bool success
-string message'''
-    },
-    'TrainingStatus': {
-        'type': 'physical_ai_interfaces/srv/TrainingStatus',
-        'request': '''''',
-        'response': '''bool success
-string message
-string state
-int32 step
-int32 total_steps
-float32 loss
-float32 learning_rate'''
-    },
-    'PolicyList': {
-        'type': 'physical_ai_interfaces/srv/PolicyList',
-        'request': '''string category''',
-        'response': '''bool success
-string message
-string[] policies'''
-    },
-    'CheckpointList': {
-        'type': 'physical_ai_interfaces/srv/CheckpointList',
-        'request': '''''',
-        'response': '''bool success
-string message
-string[] checkpoints'''
-    },
-    'ModelList': {
-        'type': 'physical_ai_interfaces/srv/ModelList',
-        'request': '''''',
-        'response': '''bool success
-string message
-string[] models'''
-    },
-}
-
-# Message type definitions
-MESSAGE_DEFINITIONS = {
-    'TrainingProgress': {
-        'type': 'physical_ai_interfaces/msg/TrainingProgress',
-        'definition': '''int32 step
-int32 total_steps
-float64 epoch
-float64 loss
-float64 learning_rate
-float64 gradient_norm
-float64 samples_per_second
-float64 elapsed_seconds
-float64 eta_seconds
-string state'''
-    },
-}
 
 
 @dataclass
@@ -179,14 +101,11 @@ class LeRobotResponse:
 
 class ZenohLeRobotClient:
     """
-    Client for communicating with LeRobot Docker container via zenoh_ros2_sdk.
+    Client for communicating with LeRobot Docker container via ROS2 + rmw_zenoh.
 
-    Uses zenoh_ros2_sdk service clients which are protocol-compatible with
+    Uses ROS2 standard service clients. The rmw_zenoh middleware automatically
+    converts ROS2 messages to Zenoh protocol, enabling communication with
     the zenoh_ros2_sdk service servers in the lerobot container.
-
-    Note: The 'node' parameter is accepted for API compatibility with the
-    rest of the physical_ai_server code, but is not used for actual
-    communication (zenoh_ros2_sdk doesn't need ROS2 nodes).
     """
 
     SERVICE_TRAIN = '/lerobot/train'
@@ -204,31 +123,20 @@ class ZenohLeRobotClient:
         self,
         node: Node = None,
         timeout_sec: float = 30.0,
-        router_ip: str = None,
-        router_port: int = 7447,
-        domain_id: int = None,
+        **kwargs  # Accept but ignore zenoh-specific params for compatibility
     ):
         """
         Initialize the LeRobot client.
 
         Parameters
         ----------
-        node : Node, optional
-            ROS2 node (accepted for API compatibility, not used directly).
+        node : Node
+            ROS2 node for creating service clients.
         timeout_sec : float
             Timeout for service calls in seconds.
-        router_ip : str, optional
-            Zenoh router IP. Defaults to 127.0.0.1.
-        router_port : int
-            Zenoh router port. Defaults to 7447.
-        domain_id : int, optional
-            ROS domain ID. Defaults to ROS_DOMAIN_ID or 30.
         """
-        self._node = node  # For API compatibility
+        self._node = node
         self.timeout_sec = timeout_sec
-        self.router_ip = router_ip or os.getenv('ZENOH_ROUTER_IP', '127.0.0.1')
-        self.router_port = router_port
-        self.domain_id = domain_id or int(os.getenv('ROS_DOMAIN_ID', '30'))
 
         self._connected = False
 
@@ -236,108 +144,112 @@ class ZenohLeRobotClient:
         self._action_callback: Optional[Callable] = None
         self._training_log_callback: Optional[Callable] = None
 
-        # Service clients (zenoh_ros2_sdk)
-        self._train_client: Optional[ROS2ServiceClient] = None
-        self._infer_client: Optional[ROS2ServiceClient] = None
-        self._stop_client: Optional[ROS2ServiceClient] = None
-        self._status_client: Optional[ROS2ServiceClient] = None
-        self._policy_list_client: Optional[ROS2ServiceClient] = None
-        self._checkpoint_list_client: Optional[ROS2ServiceClient] = None
-        self._model_list_client: Optional[ROS2ServiceClient] = None
+        # Callback group for service clients
+        self._callback_group: Optional[MutuallyExclusiveCallbackGroup] = None
+
+        # Service clients (ROS2 standard)
+        self._train_client = None
+        self._infer_client = None
+        self._stop_client = None
+        self._status_client = None
+        self._policy_list_client = None
+        self._checkpoint_list_client = None
+        self._model_list_client = None
 
         # Subscribers
-        self._progress_sub: Optional[ROS2Subscriber] = None
+        self._progress_sub = None
 
     def connect(self, node: Node = None) -> bool:
         """
-        Connect to LeRobot services via zenoh_ros2_sdk.
+        Connect to LeRobot services via ROS2 service clients.
 
         Parameters
         ----------
-        node : Node, optional
-            ROS2 node (accepted for API compatibility, not used).
+        node : Node
+            ROS2 node for creating service clients.
         """
         if node is not None:
             self._node = node
+
+        if self._node is None:
+            logger.error('No ROS2 node provided')
+            return False
 
         if self._connected:
             return True
 
         try:
+            self._callback_group = MutuallyExclusiveCallbackGroup()
             self._init_service_clients()
             self._connected = True
             logger.info(
-                f'Connected to LeRobot services via zenoh_ros2_sdk '
-                f'(router={self.router_ip}:{self.router_port}, '
-                f'domain_id={self.domain_id})'
+                'Connected to LeRobot services via ROS2 rmw_zenoh'
             )
             return True
         except Exception as e:
             logger.error(f'Connection failed: {e}')
             return False
 
-    def _create_service_client(
-        self, service_name: str, service_key: str
-    ) -> ROS2ServiceClient:
-        """Create a zenoh_ros2_sdk service client."""
-        svc_def = SERVICE_DEFINITIONS[service_key]
-        return ROS2ServiceClient(
-            service_name=service_name,
-            srv_type=svc_def['type'],
-            request_definition=svc_def['request'],
-            response_definition=svc_def['response'],
-            domain_id=self.domain_id,
-            router_ip=self.router_ip,
-            router_port=self.router_port,
-            timeout=self.timeout_sec,
-        )
-
     def _init_service_clients(self):
-        """Initialize zenoh_ros2_sdk service clients."""
-        self._train_client = self._create_service_client(
-            self.SERVICE_TRAIN, 'TrainModel'
+        """Initialize ROS2 service clients."""
+        self._train_client = self._node.create_client(
+            TrainModel,
+            self.SERVICE_TRAIN,
+            callback_group=self._callback_group
         )
-        self._infer_client = self._create_service_client(
-            self.SERVICE_INFER, 'StartInference'
+        self._infer_client = self._node.create_client(
+            StartInference,
+            self.SERVICE_INFER,
+            callback_group=self._callback_group
         )
-        self._stop_client = self._create_service_client(
-            self.SERVICE_STOP, 'StopTraining'
+        self._stop_client = self._node.create_client(
+            StopTraining,
+            self.SERVICE_STOP,
+            callback_group=self._callback_group
         )
-        self._status_client = self._create_service_client(
-            self.SERVICE_STATUS, 'TrainingStatus'
+        self._status_client = self._node.create_client(
+            TrainingStatus,
+            self.SERVICE_STATUS,
+            callback_group=self._callback_group
         )
-        self._policy_list_client = self._create_service_client(
-            self.SERVICE_POLICY_LIST, 'PolicyList'
+        self._policy_list_client = self._node.create_client(
+            PolicyList,
+            self.SERVICE_POLICY_LIST,
+            callback_group=self._callback_group
         )
-        self._checkpoint_list_client = self._create_service_client(
-            self.SERVICE_CHECKPOINT_LIST, 'CheckpointList'
+        self._checkpoint_list_client = self._node.create_client(
+            CheckpointList,
+            self.SERVICE_CHECKPOINT_LIST,
+            callback_group=self._callback_group
         )
-        self._model_list_client = self._create_service_client(
-            self.SERVICE_MODEL_LIST, 'ModelList'
+        self._model_list_client = self._node.create_client(
+            ModelList,
+            self.SERVICE_MODEL_LIST,
+            callback_group=self._callback_group
         )
 
     def disconnect(self):
         """Disconnect from LeRobot services."""
         if self._progress_sub is not None:
-            self._progress_sub.close()
+            self._node.destroy_subscription(self._progress_sub)
             self._progress_sub = None
 
-        # Close service clients
+        # Destroy service clients
         clients = [
-            self._train_client,
-            self._infer_client,
-            self._stop_client,
-            self._status_client,
-            self._policy_list_client,
-            self._checkpoint_list_client,
-            self._model_list_client,
+            ('_train_client', self._train_client),
+            ('_infer_client', self._infer_client),
+            ('_stop_client', self._stop_client),
+            ('_status_client', self._status_client),
+            ('_policy_list_client', self._policy_list_client),
+            ('_checkpoint_list_client', self._checkpoint_list_client),
+            ('_model_list_client', self._model_list_client),
         ]
-        for client in clients:
+        for name, client in clients:
             if client is not None:
                 try:
-                    client.close()
+                    self._node.destroy_client(client)
                 except Exception as e:
-                    logger.debug(f'Error closing client: {e}')
+                    logger.debug(f'Error destroying client {name}: {e}')
 
         self._train_client = None
         self._infer_client = None
@@ -350,9 +262,9 @@ class ZenohLeRobotClient:
         self._connected = False
 
     def _call_service(
-        self, client: ROS2ServiceClient, service_name: str, **kwargs
+        self, client, request, service_name: str
     ) -> LeRobotResponse:
-        """Call a zenoh_ros2_sdk service and return LeRobotResponse."""
+        """Call a ROS2 service and return LeRobotResponse."""
         if not self._connected:
             return LeRobotResponse(
                 success=False,
@@ -370,11 +282,35 @@ class ZenohLeRobotClient:
             )
 
         try:
-            logger.debug(f'Calling service {service_name} with args: {kwargs}')
-            response = client.call(**kwargs)
+            # Check if service is available
+            if not client.wait_for_service(timeout_sec=5.0):
+                return LeRobotResponse(
+                    success=False,
+                    message=f'Service not available: {service_name}',
+                    data={},
+                    request_id=''
+                )
 
-            if response is not None:
-                return LeRobotResponse.from_service_response(response)
+            logger.debug(f'Calling service {service_name}')
+            future = client.call_async(request)
+
+            # Wait for response with timeout
+            import rclpy
+            rclpy.spin_until_future_complete(
+                self._node, future, timeout_sec=self.timeout_sec
+            )
+
+            if future.done():
+                response = future.result()
+                if response is not None:
+                    return LeRobotResponse.from_service_response(response)
+                else:
+                    return LeRobotResponse(
+                        success=False,
+                        message=f'Service call returned None: {service_name}',
+                        data={},
+                        request_id=''
+                    )
             else:
                 return LeRobotResponse(
                     success=False,
@@ -405,52 +341,54 @@ class ZenohLeRobotClient:
         wandb_project: str = None
     ) -> LeRobotResponse:
         """Start training on LeRobot container."""
+        request = TrainModel.Request()
+        request.policy_type = policy_type
+        request.dataset_path = dataset_path
+        request.output_dir = output_dir or ''
+        request.steps = num_epochs or 0
+        request.batch_size = batch_size or 0
+        request.learning_rate = learning_rate or 0.0
+        request.eval_freq = eval_freq or 0
+        request.log_freq = log_freq or 0
+        request.save_freq = save_freq or 0
+        request.wandb_project = wandb_project or ''
+        request.push_to_hub = False
+
         return self._call_service(
-            self._train_client,
-            self.SERVICE_TRAIN,
-            policy_type=policy_type,
-            dataset_path=dataset_path,
-            output_dir=output_dir or '',
-            steps=num_epochs or 0,
-            batch_size=batch_size or 0,
-            learning_rate=learning_rate or 0.0,
-            eval_freq=eval_freq or 0,
-            log_freq=log_freq or 0,
-            save_freq=save_freq or 0,
-            wandb_project=wandb_project or '',
-            push_to_hub=False,
+            self._train_client, request, self.SERVICE_TRAIN
         )
 
     def stop_training(self) -> LeRobotResponse:
         """Stop training on LeRobot container."""
+        request = StopTraining.Request()
         return self._call_service(
-            self._stop_client,
-            self.SERVICE_STOP,
+            self._stop_client, request, self.SERVICE_STOP
         )
 
     def resume_training(self, checkpoint_path: str) -> LeRobotResponse:
         """Resume training from checkpoint."""
+        request = TrainModel.Request()
+        request.policy_type = ''
+        request.dataset_path = ''
+        request.output_dir = checkpoint_path
+        request.steps = 0
+        request.batch_size = 0
+        request.learning_rate = 0.0
+        request.eval_freq = 0
+        request.log_freq = 0
+        request.save_freq = 0
+        request.wandb_project = ''
+        request.push_to_hub = False
+
         return self._call_service(
-            self._train_client,
-            self.SERVICE_TRAIN,
-            policy_type='',
-            dataset_path='',
-            output_dir=checkpoint_path,
-            steps=0,
-            batch_size=0,
-            learning_rate=0.0,
-            eval_freq=0,
-            log_freq=0,
-            save_freq=0,
-            wandb_project='',
-            push_to_hub=False,
+            self._train_client, request, self.SERVICE_TRAIN
         )
 
     def get_training_status(self) -> LeRobotResponse:
         """Get training status from LeRobot container."""
+        request = TrainingStatus.Request()
         return self._call_service(
-            self._status_client,
-            self.SERVICE_STATUS,
+            self._status_client, request, self.SERVICE_STATUS
         )
 
     def start_inference(
@@ -460,18 +398,16 @@ class ZenohLeRobotClient:
         num_episodes: int = None
     ) -> LeRobotResponse:
         """Start inference on LeRobot container."""
+        request = StartInference.Request()
+        request.model_path = model_path
+
         return self._call_service(
-            self._infer_client,
-            self.SERVICE_INFER,
-            model_path=model_path,
+            self._infer_client, request, self.SERVICE_INFER
         )
 
     def stop_inference(self) -> LeRobotResponse:
         """Stop inference on LeRobot container."""
-        return self._call_service(
-            self._stop_client,
-            self.SERVICE_STOP,
-        )
+        return self.stop_training()
 
     def get_inference_status(self) -> LeRobotResponse:
         """Get inference status from LeRobot container."""
@@ -487,9 +423,9 @@ class ZenohLeRobotClient:
 
     def list_models(self) -> LeRobotResponse:
         """List available models."""
+        request = ModelList.Request()
         return self._call_service(
-            self._model_list_client,
-            self.SERVICE_MODEL_LIST,
+            self._model_list_client, request, self.SERVICE_MODEL_LIST
         )
 
     def subscribe_status(self, callback: Callable[[Dict], None]) -> bool:
@@ -497,31 +433,31 @@ class ZenohLeRobotClient:
         self._status_callback = callback
 
         try:
-            msg_def = MESSAGE_DEFINITIONS['TrainingProgress']
+            qos = QoSProfile(
+                depth=10,
+                reliability=ReliabilityPolicy.RELIABLE
+            )
 
-            def on_progress(msg):
+            def on_progress(msg: TrainingProgress):
                 data = {
-                    'status': getattr(msg, 'state', 'unknown'),
-                    'step': getattr(msg, 'step', 0),
-                    'total_steps': getattr(msg, 'total_steps', 0),
-                    'epoch': getattr(msg, 'epoch', 0.0),
-                    'loss': getattr(msg, 'loss', 0.0),
-                    'learning_rate': getattr(msg, 'learning_rate', 0.0),
-                    'gradient_norm': getattr(msg, 'gradient_norm', 0.0),
-                    'samples_per_second': getattr(msg, 'samples_per_second', 0.0),
-                    'elapsed_seconds': getattr(msg, 'elapsed_seconds', 0.0),
-                    'eta_seconds': getattr(msg, 'eta_seconds', 0.0),
+                    'status': msg.state,
+                    'step': msg.step,
+                    'total_steps': msg.total_steps,
+                    'epoch': msg.epoch,
+                    'loss': msg.loss,
+                    'learning_rate': msg.learning_rate,
+                    'gradient_norm': msg.gradient_norm,
+                    'samples_per_second': msg.samples_per_second,
+                    'elapsed_seconds': msg.elapsed_seconds,
+                    'eta_seconds': msg.eta_seconds,
                 }
                 callback(data)
 
-            self._progress_sub = ROS2Subscriber(
-                topic=self.TOPIC_PROGRESS,
-                msg_type=msg_def['type'],
-                msg_definition=msg_def['definition'],
-                callback=on_progress,
-                domain_id=self.domain_id,
-                router_ip=self.router_ip,
-                router_port=self.router_port,
+            self._progress_sub = self._node.create_subscription(
+                TrainingProgress,
+                self.TOPIC_PROGRESS,
+                on_progress,
+                qos
             )
             return True
         except Exception as e:
@@ -541,9 +477,9 @@ class ZenohLeRobotClient:
 
     def list_checkpoints(self) -> LeRobotResponse:
         """List available checkpoints."""
+        request = CheckpointList.Request()
         return self._call_service(
-            self._checkpoint_list_client,
-            self.SERVICE_CHECKPOINT_LIST,
+            self._checkpoint_list_client, request, self.SERVICE_CHECKPOINT_LIST
         )
 
     def get_checkpoint_info(self, checkpoint_path: str) -> LeRobotResponse:
@@ -566,8 +502,8 @@ class ZenohLeRobotClient:
 
     def get_policy_list(self, category: str = None) -> LeRobotResponse:
         """Get available policy types."""
+        request = PolicyList.Request()
+        request.category = category or ''
         return self._call_service(
-            self._policy_list_client,
-            self.SERVICE_POLICY_LIST,
-            category=category or '',
+            self._policy_list_client, request, self.SERVICE_POLICY_LIST
         )

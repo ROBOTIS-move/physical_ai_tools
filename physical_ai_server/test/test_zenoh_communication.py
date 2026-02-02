@@ -19,35 +19,38 @@
 """
 Unit tests for Zenoh communication layer.
 
-Tests the zenoh_ros2_sdk based communication with LeRobot Docker container.
+Tests the ROS2 rmw_zenoh based communication with LeRobot Docker container.
 
 Architecture:
-- physical_ai_server uses ROS2 + rmw_zenoh for INTERNAL ROS2 communication
-- physical_ai_server uses zenoh_ros2_sdk for EXTERNAL communication with lerobot
-- lerobot container uses zenoh_ros2_sdk only (no ROS2 installed)
-- Both sides use the same zenoh_ros2_sdk protocol = COMPATIBLE
+- physical_ai_server uses ROS2 + rmw_zenoh (standard ROS2 API)
+- lerobot container uses zenoh_ros2_sdk (no ROS2 installed)
+- rmw_zenoh converts ROS2 messages to Zenoh protocol = COMPATIBLE
 """
 
 import unittest
 import sys
-import os
 
 
 class TestZenohLeRobotClient(unittest.TestCase):
-    """Test ZenohLeRobotClient with zenoh_ros2_sdk."""
+    """Test ZenohLeRobotClient with ROS2 rmw_zenoh."""
 
-    def test_01_import_zenoh_ros2_sdk(self):
-        """Test that zenoh_ros2_sdk can be imported."""
+    def test_01_import_ros2_interfaces(self):
+        """Test that ROS2 interfaces can be imported."""
         try:
-            from zenoh_ros2_sdk import (
-                ROS2ServiceClient,
-                ROS2Subscriber,
-                ROS2Publisher,
+            from physical_ai_interfaces.msg import TrainingProgress
+            from physical_ai_interfaces.srv import (
+                TrainModel,
+                StartInference,
+                StopTraining,
+                TrainingStatus,
+                PolicyList,
+                CheckpointList,
+                ModelList,
             )
             self.assertTrue(True)
-            print("PASS: zenoh_ros2_sdk imported successfully")
+            print("PASS: ROS2 interfaces imported successfully")
         except ImportError as e:
-            self.fail(f"Failed to import zenoh_ros2_sdk: {e}")
+            self.fail(f"Failed to import ROS2 interfaces: {e}")
 
     def test_02_import_zenoh_lerobot_client(self):
         """Test that ZenohLeRobotClient can be imported."""
@@ -91,9 +94,8 @@ class TestZenohLeRobotClient(unittest.TestCase):
 
         client = ZenohLeRobotClient()
         self.assertIsNotNone(client)
-        self.assertEqual(client.router_ip, os.getenv('ZENOH_ROUTER_IP', '127.0.0.1'))
-        self.assertEqual(client.router_port, 7447)
-        self.assertEqual(client.domain_id, int(os.getenv('ROS_DOMAIN_ID', '30')))
+        self.assertEqual(client.timeout_sec, 30.0)
+        self.assertFalse(client._connected)
         print("PASS: ZenohLeRobotClient created with default parameters")
 
     def test_06_create_client_custom_params(self):
@@ -104,87 +106,59 @@ class TestZenohLeRobotClient(unittest.TestCase):
 
         client = ZenohLeRobotClient(
             timeout_sec=10.0,
+            # These params are ignored but accepted for compatibility
             router_ip='192.168.1.100',
             router_port=7448,
             domain_id=42,
         )
         self.assertIsNotNone(client)
         self.assertEqual(client.timeout_sec, 10.0)
-        self.assertEqual(client.router_ip, '192.168.1.100')
-        self.assertEqual(client.router_port, 7448)
-        self.assertEqual(client.domain_id, 42)
         print("PASS: ZenohLeRobotClient created with custom parameters")
 
-    def test_07_connect_creates_service_clients(self):
-        """Test that connect() creates zenoh_ros2_sdk service clients."""
+    def test_07_connect_requires_node(self):
+        """Test that connect() requires a ROS2 node."""
         from physical_ai_server.communication.zenoh_lerobot_client import (
             ZenohLeRobotClient,
         )
 
         client = ZenohLeRobotClient()
         result = client.connect()
-        self.assertTrue(result)
-        self.assertTrue(client._connected)
-        print("PASS: connect() succeeded")
 
-        # Verify service clients are created
-        self.assertIsNotNone(client._train_client)
-        self.assertIsNotNone(client._infer_client)
-        self.assertIsNotNone(client._stop_client)
-        self.assertIsNotNone(client._status_client)
-        print("PASS: Service clients created")
-
-        client.disconnect()
+        # Should fail without a ROS2 node
+        self.assertFalse(result)
         self.assertFalse(client._connected)
-        print("PASS: disconnect() succeeded")
+        print("PASS: connect() correctly requires ROS2 node")
 
-    def test_08_training_manager_connect(self):
-        """Test ZenohTrainingManager connect."""
-        from physical_ai_server.training.zenoh_training_manager import (
-            ZenohTrainingManager,
-        )
-
-        manager = ZenohTrainingManager()
-        self.assertIsNotNone(manager)
-
-        result = manager.connect()
-        self.assertTrue(result)
-        print("PASS: ZenohTrainingManager connected")
-
-        manager.disconnect()
-
-    def test_09_inference_manager_connect(self):
-        """Test ZenohInferenceManager connect."""
-        from physical_ai_server.inference.zenoh_inference_manager import (
-            ZenohInferenceManager,
-        )
-
-        manager = ZenohInferenceManager()
-        self.assertIsNotNone(manager)
-
-        result = manager.connect()
-        self.assertTrue(result)
-        print("PASS: ZenohInferenceManager connected")
-
-        manager.disconnect()
-
-    def test_10_get_training_status_without_server(self):
-        """Test get_training_status when lerobot server is not available."""
+    def test_08_service_names_defined(self):
+        """Test that service names are defined."""
         from physical_ai_server.communication.zenoh_lerobot_client import (
             ZenohLeRobotClient,
         )
 
-        client = ZenohLeRobotClient(timeout_sec=5.0)
-        client.connect()
+        self.assertEqual(ZenohLeRobotClient.SERVICE_TRAIN, '/lerobot/train')
+        self.assertEqual(ZenohLeRobotClient.SERVICE_INFER, '/lerobot/infer')
+        self.assertEqual(ZenohLeRobotClient.SERVICE_STOP, '/lerobot/stop')
+        self.assertEqual(ZenohLeRobotClient.SERVICE_STATUS, '/lerobot/status')
+        self.assertEqual(
+            ZenohLeRobotClient.SERVICE_POLICY_LIST, '/lerobot/policy_list'
+        )
+        self.assertEqual(
+            ZenohLeRobotClient.SERVICE_CHECKPOINT_LIST, '/lerobot/checkpoint_list'
+        )
+        self.assertEqual(
+            ZenohLeRobotClient.SERVICE_MODEL_LIST, '/lerobot/model_list'
+        )
+        print("PASS: Service names are correctly defined")
 
-        # This should return a timeout response (no lerobot server running)
-        response = client.get_training_status()
-        self.assertIsNotNone(response)
-        # Will timeout since no lerobot server is running
-        print(f"INFO: get_training_status response: success={response.success}, "
-              f"message={response.message}")
+    def test_09_topic_names_defined(self):
+        """Test that topic names are defined."""
+        from physical_ai_server.communication.zenoh_lerobot_client import (
+            ZenohLeRobotClient,
+        )
 
-        client.disconnect()
+        self.assertEqual(ZenohLeRobotClient.TOPIC_PROGRESS, '/lerobot/progress')
+        self.assertEqual(ZenohLeRobotClient.TOPIC_ACTION, '/lerobot/action')
+        print("PASS: Topic names are correctly defined")
 
 
 class TestLeRobotResponse(unittest.TestCase):
@@ -222,46 +196,33 @@ class TestLeRobotResponse(unittest.TestCase):
         self.assertEqual(response.request_id, "test-id")
         print("PASS: from_service_response handles None correctly")
 
-
-class TestServiceDefinitions(unittest.TestCase):
-    """Test service definition constants."""
-
-    def test_service_definitions_exist(self):
-        """Test that SERVICE_DEFINITIONS are defined."""
+    def test_extract_data_with_attributes(self):
+        """Test _extract_data extracts various attributes."""
         from physical_ai_server.communication.zenoh_lerobot_client import (
-            SERVICE_DEFINITIONS,
-            MESSAGE_DEFINITIONS,
+            LeRobotResponse,
         )
 
-        expected_services = [
-            'TrainModel',
-            'StartInference',
-            'StopTraining',
-            'TrainingStatus',
-            'PolicyList',
-            'CheckpointList',
-            'ModelList',
-        ]
+        class MockResponse:
+            success = True
+            message = "OK"
+            job_id = "job-123"
+            state = "training"
+            step = 100
+            total_steps = 1000
+            loss = 0.5
+            learning_rate = 0.001
+            policies = ["act", "diffusion"]
+            checkpoints = ["ckpt1", "ckpt2"]
+            models = ["model1"]
 
-        for svc in expected_services:
-            self.assertIn(svc, SERVICE_DEFINITIONS)
-            self.assertIn('type', SERVICE_DEFINITIONS[svc])
-            self.assertIn('request', SERVICE_DEFINITIONS[svc])
-            self.assertIn('response', SERVICE_DEFINITIONS[svc])
+        response = LeRobotResponse.from_service_response(MockResponse())
 
-        print("PASS: All service definitions exist")
-
-    def test_message_definitions_exist(self):
-        """Test that MESSAGE_DEFINITIONS are defined."""
-        from physical_ai_server.communication.zenoh_lerobot_client import (
-            MESSAGE_DEFINITIONS,
-        )
-
-        self.assertIn('TrainingProgress', MESSAGE_DEFINITIONS)
-        self.assertIn('type', MESSAGE_DEFINITIONS['TrainingProgress'])
-        self.assertIn('definition', MESSAGE_DEFINITIONS['TrainingProgress'])
-
-        print("PASS: Message definitions exist")
+        self.assertTrue(response.success)
+        self.assertEqual(response.data['job_id'], "job-123")
+        self.assertEqual(response.data['state'], "training")
+        self.assertEqual(response.data['step'], 100)
+        self.assertEqual(response.data['policies'], ["act", "diffusion"])
+        print("PASS: _extract_data extracts all attributes correctly")
 
 
 def main():
@@ -272,7 +233,6 @@ def main():
 
     # Add tests in order
     suite.addTests(loader.loadTestsFromTestCase(TestLeRobotResponse))
-    suite.addTests(loader.loadTestsFromTestCase(TestServiceDefinitions))
     suite.addTests(loader.loadTestsFromTestCase(TestZenohLeRobotClient))
 
     # Run tests

@@ -35,12 +35,12 @@ class ZenohTrainingManager:
     Training manager that delegates to LeRobot Docker container via Zenoh.
 
     This manager does not import lerobot directly. Instead, it sends commands
-    to the isolated LeRobot Docker container through zenoh_ros2_sdk services.
+    to the isolated LeRobot Docker container through ROS2 service clients.
 
     Architecture:
-    - physical_ai_server uses ROS2 + rmw_zenoh for INTERNAL ROS2 communication
-    - physical_ai_server uses zenoh_ros2_sdk for EXTERNAL communication with lerobot
-    - lerobot container uses zenoh_ros2_sdk only (no ROS2 installed)
+    - physical_ai_server uses ROS2 + rmw_zenoh (standard ROS2 API)
+    - lerobot container uses zenoh_ros2_sdk (no ROS2 installed)
+    - rmw_zenoh converts ROS2 messages to Zenoh protocol = COMPATIBLE
     """
 
     SUPPORTED_POLICIES = [
@@ -54,10 +54,10 @@ class ZenohTrainingManager:
     _cached_policy_details: Optional[list] = None
 
     def __init__(self, node: Node = None):
-        # Node is accepted for API compatibility but not used by zenoh_ros2_sdk
+        # ROS2 node required for creating service clients
         self._node = node
         self.training_info = TrainingInfo()
-        self.client = ZenohLeRobotClient()
+        self.client = ZenohLeRobotClient(node=node)
         self._connected = False
         self._status_callback: Optional[Callable] = None
         self._current_status = 'idle'
@@ -75,7 +75,7 @@ class ZenohTrainingManager:
             return True
         if node is not None:
             self._node = node
-        self._connected = self.client.connect()
+        self._connected = self.client.connect(node=self._node)
         if self._connected:
             self.client.subscribe_status(self._on_status_update)
             self.client.subscribe_training_log(self._on_training_log_update)

@@ -50,6 +50,7 @@ from physical_ai_interfaces.srv import (
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.data_processing.hf_api_worker import HfApiWorker
+from physical_ai_server.data_processing.mp4_conversion_worker import Mp4ConversionWorker
 from physical_ai_server.inference.inference_manager import InferenceManager
 from physical_ai_server.timer.timer_manager import TimerManager
 from physical_ai_server.training.training_manager import TrainingManager
@@ -118,6 +119,10 @@ class PhysicalAIServer(Node):
         self.hf_api_worker: Optional[HfApiWorker] = None
         self.hf_status_timer: Optional[TimerManager] = None
         self._init_hf_api_worker()
+
+        # Initialize MP4 Conversion Worker
+        self.mp4_conversion_worker: Optional[Mp4ConversionWorker] = None
+        self.mp4_status_timer: Optional[TimerManager] = None
 
     def _init_ros_publisher(self):
         self.get_logger().info('Initializing ROS publishers...')
@@ -758,6 +763,47 @@ class PhysicalAIServer(Node):
                 response.success = True
                 response.message = 'Inference started'
 
+            elif request.command == SendCommand.Request.CONVERT_MP4:
+                # Handle MP4 conversion command
+                task_info = request.task_info
+                task_name = f'{self.robot_type}_{task_info.task_name}'
+
+                # Build dataset path
+                dataset_path = self.DEFAULT_SAVE_ROOT_PATH / task_name
+
+                if not dataset_path.exists():
+                    response.success = False
+                    response.message = f'Dataset path does not exist: {dataset_path}'
+                    return response
+
+                # Initialize MP4 conversion worker if needed
+                if self.mp4_conversion_worker is None or not self.mp4_conversion_worker.is_alive():
+                    self._init_mp4_conversion_worker()
+
+                if self.mp4_conversion_worker is None:
+                    response.success = False
+                    response.message = 'Failed to initialize MP4 conversion worker'
+                    return response
+
+                if self.mp4_conversion_worker.is_busy():
+                    response.success = False
+                    response.message = 'MP4 conversion is already in progress'
+                    return response
+
+                # Send conversion request
+                request_data = {
+                    'dataset_path': str(dataset_path),
+                    'robot_type': self.robot_type
+                }
+
+                if self.mp4_conversion_worker.send_request(request_data):
+                    self.get_logger().info(f'MP4 conversion started for: {dataset_path}')
+                    response.success = True
+                    response.message = f'MP4 conversion started for: {task_name}'
+                else:
+                    response.success = False
+                    response.message = 'Failed to start MP4 conversion'
+
             else:
                 if not self.on_recording and not self.on_inference:
                     response.success = False
@@ -1332,6 +1378,96 @@ class PhysicalAIServer(Node):
         except Exception as e:
             self.get_logger().error(f'Error cleaning up HF API Worker: {str(e)}')
 
+    def _init_mp4_conversion_worker(self):
+        """Initialize MP4 Conversion Worker and status monitoring timer."""
+        try:
+            self.mp4_conversion_worker = Mp4ConversionWorker()
+            if self.mp4_conversion_worker.start():
+                self.get_logger().info('MP4 Conversion Worker started successfully')
+                # Initialize idle count
+                self._mp4_idle_count = 0
+                # Initialize status monitoring timer
+                self.mp4_status_timer = TimerManager(node=self)
+                self.mp4_status_timer.set_timer(
+                    timer_name='mp4_status',
+                    timer_frequency=2.0,
+                    callback_function=self._mp4_status_timer_callback
+                )
+                self.mp4_status_timer.start(timer_name='mp4_status')
+            else:
+                self.get_logger().error('Failed to start MP4 Conversion Worker')
+        except Exception as e:
+            self.get_logger().error(f'Error initializing MP4 Conversion Worker: {str(e)}')
+
+    def _mp4_status_timer_callback(self):
+        """Timer callback to check MP4 Conversion Worker status."""
+        if self.mp4_conversion_worker is None:
+            return
+        try:
+            status = self.mp4_conversion_worker.check_task_status()
+
+            # Log status changes
+            last_status = self._last_mp4_status.get('status', 'Unknown') \
+                if hasattr(self, '_last_mp4_status') else 'Unknown'
+            current_status = status.get('status', 'Unknown')
+
+            if hasattr(self, '_last_mp4_status') and last_status != current_status:
+                self.get_logger().info(
+                    f'MP4 Conversion Status changed: {last_status} -> {current_status}'
+                )
+
+            self._last_mp4_status = status
+
+            # Update task status with conversion progress if converting
+            if current_status == 'Converting' and self.data_manager is not None:
+                progress = status.get('progress', {})
+                percentage = progress.get('percentage', 0.0)
+                # Update encoding_progress field for frontend display
+                current_record_status = self.data_manager.get_current_record_status()
+                current_record_status.phase = TaskStatus.CONVERTING
+                current_record_status.encoding_progress = percentage
+                if self.communicator is not None:
+                    self.communicator.publish_status(status=current_record_status)
+
+            # Handle completion or failure
+            if current_status in ('Success', 'Failed'):
+                if current_status == 'Success':
+                    self.get_logger().info(
+                        f'MP4 conversion completed: {status.get("message", "")}'
+                    )
+                else:
+                    self.get_logger().error(
+                        f'MP4 conversion failed: {status.get("message", "")}'
+                    )
+
+            # Idle status count and automatic shutdown
+            if current_status == 'Idle':
+                self._mp4_idle_count = getattr(self, '_mp4_idle_count', 0) + 1
+                if self._mp4_idle_count >= 5:
+                    self.get_logger().info(
+                        'MP4 Conversion Worker idle for 5 cycles, shutting down.'
+                    )
+                    self._cleanup_mp4_conversion_worker()
+            else:
+                self._mp4_idle_count = 0
+        except Exception as e:
+            self.get_logger().error(f'Error in MP4 status timer callback: {str(e)}')
+
+    def _cleanup_mp4_conversion_worker(self):
+        """Cleanup MP4 Conversion Worker and related timers."""
+        try:
+            if self.mp4_status_timer is not None:
+                self.mp4_status_timer.stop(timer_name='mp4_status')
+                self.mp4_status_timer = None
+
+            if self.mp4_conversion_worker is not None:
+                self.mp4_conversion_worker.stop()
+                self.mp4_conversion_worker = None
+
+            self.get_logger().info('MP4 Conversion Worker cleaned up successfully')
+        except Exception as e:
+            self.get_logger().error(f'Error cleaning up MP4 Conversion Worker: {str(e)}')
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -1341,8 +1477,9 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        # Cleanup HF API Worker before destroying node
+        # Cleanup workers before destroying node
         node._cleanup_hf_api_worker()
+        node._cleanup_mp4_conversion_worker()
         node.destroy_node()
         rclpy.shutdown()
 

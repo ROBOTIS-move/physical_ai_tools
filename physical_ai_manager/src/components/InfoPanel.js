@@ -21,15 +21,19 @@ import TaskInstructionInput from './TaskInstructionInput';
 import TagInput from './TagInput';
 import TaskPhase from '../constants/taskPhases';
 import { setTaskInfo, setUseMultiTaskMode } from '../features/tasks/taskSlice';
+import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 
 const InfoPanel = () => {
   const dispatch = useDispatch();
+  const { sendRecordCommand } = useRosServiceCaller();
 
   const info = useSelector((state) => state.tasks.taskInfo);
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
 
   const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
   const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
+  const [isConverting, setIsConverting] = useState(false);
+  const [convertError, setConvertError] = useState('');
 
   const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
 
@@ -70,6 +74,40 @@ const InfoPanel = () => {
 
     return () => clearInterval(timer);
   }, [lastTaskStatusUpdate, isTaskStatusPaused]);
+
+  // Update isConverting state based on taskStatus phase
+  useEffect(() => {
+    if (taskStatus.phase === TaskPhase.CONVERTING) {
+      setIsConverting(true);
+    } else if (isConverting && taskStatus.phase === TaskPhase.READY) {
+      setIsConverting(false);
+    }
+  }, [taskStatus.phase, isConverting]);
+
+  // Handler for Convert MP4 button
+  const handleConvertMp4 = useCallback(async () => {
+    if (!info.taskName) {
+      setConvertError('Task name is required');
+      return;
+    }
+
+    setConvertError('');
+    setIsConverting(true);
+
+    try {
+      const result = await sendRecordCommand('convert_mp4');
+      if (!result.success) {
+        setConvertError(result.message || 'Conversion failed');
+        setIsConverting(false);
+      }
+    } catch (error) {
+      setConvertError(error.message || 'Failed to start conversion');
+      setIsConverting(false);
+    }
+  }, [info.taskName, sendRecordCommand]);
+
+  // Check if Convert MP4 button should be enabled
+  const canConvertMp4 = taskStatus.phase === TaskPhase.READY && info.taskName && !isConverting;
 
   const classLabel = clsx('text-sm', 'text-gray-600', 'w-28', 'flex-shrink-0', 'font-medium');
 
@@ -254,6 +292,81 @@ const InfoPanel = () => {
           <div className="text-xs text-gray-500 mt-1 leading-relaxed">
             Press Enter or use comma to add tags
           </div>
+        </div>
+      </div>
+
+      {/* Convert MP4 Button */}
+      <div className={clsx('flex', 'flex-col', 'items-start', 'mb-2.5', 'mt-4')}>
+        <div className="flex items-center gap-2 w-full">
+          <button
+            type="button"
+            onClick={handleConvertMp4}
+            disabled={!canConvertMp4}
+            className={clsx(
+              'px-4',
+              'py-2',
+              'text-sm',
+              'font-medium',
+              'rounded-lg',
+              'transition-colors',
+              'flex',
+              'items-center',
+              'gap-2',
+              canConvertMp4
+                ? 'bg-green-500 text-white hover:bg-green-600'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            )}
+          >
+            {isConverting ? (
+              <>
+                <svg
+                  className="animate-spin h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Converting...
+              </>
+            ) : (
+              'Convert MP4'
+            )}
+          </button>
+        </div>
+        {/* Progress indicator during conversion */}
+        {isConverting && taskStatus.phase === TaskPhase.CONVERTING && (
+          <div className="w-full mt-2">
+            <div className="flex justify-between text-xs text-gray-600 mb-1">
+              <span>Converting episodes...</span>
+              <span>{Math.round(taskStatus.encodingProgress || 0)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${taskStatus.encodingProgress || 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+        {/* Error message */}
+        {convertError && (
+          <div className="text-xs text-red-500 mt-1">{convertError}</div>
+        )}
+        <div className="text-xs text-gray-500 mt-1 leading-relaxed">
+          Convert recorded episodes to MP4 format
         </div>
       </div>
 

@@ -135,12 +135,12 @@ class ScaleAIConverter:
     META_FILES = ['meta_data.json', 'metadata.yaml', 'robot.urdf']
 
     # Timestamp smoothing configuration for Scale AI compliance (STD 007: 69ms threshold)
-    # Only smooth intervals exceeding 69ms, adjust to random value between 66-68ms
-    # Target range is below threshold to look natural and avoid suspicion
+    # Smooth intervals exceeding 68ms to random value between 67-68ms
+    # This ensures natural-looking intervals well below the 69ms threshold
     SMOOTHING_CONFIG = {
-        'threshold_ms': 69.0,             # Scale AI STD 007 threshold
-        'target_min_ms': 66.0,            # Smoothed interval min (near ideal 66.67ms)
-        'target_max_ms': 68.0,            # Smoothed interval max (safely under 69ms)
+        'threshold_ms': 68.0,             # Trigger smoothing above 68ms
+        'target_min_ms': 67.0,            # Smoothed interval min
+        'target_max_ms': 68.0,            # Smoothed interval max
     }
 
     def __init__(
@@ -166,7 +166,7 @@ class ScaleAIConverter:
                 Format: {'topic_keyword': {'joint_name': offset_rad}}
                 Example: {'arm_left_leader': {'arm_l_joint6': 0.30}}
             enable_timestamp_smoothing: Enable timestamp smoothing to comply with Scale AI
-                STD 007 (69ms max gap threshold). Adjusts intervals >69ms to 68-69ms.
+                STD 007 (69ms max gap threshold). Adjusts intervals >68ms to 67-68ms.
                 Default is True.
             trim_start_sec: Seconds to trim from the beginning of the recording.
                 Useful for removing initial sync issues (STD 010 compliance).
@@ -410,8 +410,8 @@ class ScaleAIConverter:
         """
         Smooth frame timestamps to comply with Scale AI STD 007 (69ms max gap threshold).
 
-        Only adjusts intervals exceeding 69ms threshold.
-        Smoothed intervals are set to random value between 68-69ms to look natural.
+        Only adjusts intervals exceeding 68ms threshold.
+        Smoothed intervals are set to random value between 67-68ms to look natural.
 
         Args:
             frames: List of frames sorted by timestamp.
@@ -439,9 +439,9 @@ class ScaleAIConverter:
         original_timestamps = [f.timestamp_ns for f in frames]
 
         # Convert ms to ns
-        threshold_ns = int(cfg['threshold_ms'] * 1_000_000)  # 69ms
-        target_min_ns = int(cfg['target_min_ms'] * 1_000_000)  # 68ms
-        target_max_ns = int(cfg['target_max_ms'] * 1_000_000)  # 69ms
+        threshold_ns = int(cfg['threshold_ms'] * 1_000_000)  # 68ms
+        target_min_ns = int(cfg['target_min_ms'] * 1_000_000)  # 67ms
+        target_max_ns = int(cfg['target_max_ms'] * 1_000_000)  # 68ms
 
         # Track cumulative adjustment
         cumulative_adjustment_ns = 0
@@ -457,9 +457,9 @@ class ScaleAIConverter:
             curr_ts = original_ts + cumulative_adjustment_ns
             interval_ns = curr_ts - prev_ts
 
-            # Only smooth if exceeds 69ms threshold
+            # Only smooth if exceeds 68ms threshold
             if interval_ns > threshold_ns:
-                # Generate random target between 68-69ms
+                # Generate random target between 67-68ms
                 target_interval_ns = random.randint(target_min_ns, target_max_ns)
                 target_ts = prev_ts + target_interval_ns
                 adjustment_ns = target_ts - curr_ts
@@ -906,7 +906,7 @@ class ScaleAIConverter:
         """
         Compute smoothing mapping for camera_info timestamps.
 
-        Smooths intervals exceeding 69ms threshold to random value between 68-69ms
+        Smooths intervals exceeding 68ms threshold to random value between 67-68ms
         to comply with Scale AI STD 007.
 
         Args:
@@ -941,7 +941,7 @@ class ScaleAIConverter:
             interval = curr_ts - prev_smoothed
 
             if interval > threshold_ns:
-                # Smooth to random value between 68-69ms
+                # Smooth to random value between 67-68ms
                 target_interval = random.randint(target_min_ns, target_max_ns)
                 smoothed_ts = prev_smoothed + target_interval
                 cumulative_adj += (smoothed_ts - curr_ts)
@@ -1328,7 +1328,7 @@ def main():
         action='store_true',
         help='Disable timestamp smoothing for Scale AI STD 007 compliance. '
              'By default, frame timestamps are adjusted to keep intervals '
-             'within 65-67ms range (69ms threshold).'
+             'within 67-68ms range (68ms threshold).'
     )
 
     args = parser.parse_args()

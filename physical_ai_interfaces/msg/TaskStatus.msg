@@ -9,6 +9,7 @@ uint8 RECORDING = 3
 uint8 SAVING = 4
 uint8 STOPPED = 5
 uint8 INFERENCING = 6
+uint8 CONVERTING = 7
 
 TaskInfo task_info
 string robot_type

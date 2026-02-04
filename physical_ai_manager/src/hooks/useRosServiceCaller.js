@@ -114,6 +114,9 @@ export function useRosServiceCaller() {
           case 'cancel':
             command_enum = TaskCommand.CANCEL;
             break;
+          case 'convert_mp4':
+            command_enum = TaskCommand.CONVERT_MP4;
+            break;
           default:
             throw new Error(`Unknown command: ${command}`);
         }

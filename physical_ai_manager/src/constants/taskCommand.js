@@ -27,6 +27,7 @@ const TaskCommand = {
   FINISH: 6,
   SKIP_TASK: 7,
   CANCEL: 8,
+  CONVERT_MP4: 9,
 };
 
 export default TaskCommand;

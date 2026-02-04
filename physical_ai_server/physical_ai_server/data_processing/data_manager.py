@@ -21,10 +21,12 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import shutil
 import subprocess
 import threading
 import time
+import xml.etree.ElementTree as ET
 
 import cv2
 from geometry_msgs.msg import Twist
@@ -187,6 +189,7 @@ class DataManager:
         Save URDF and metadata for ROBOTIS format.
 
         Called after each episode rosbag is saved.
+        Copies URDF file and all referenced mesh files.
         """
         rosbag_path = self.get_save_rosbag_path()
         if rosbag_path is None:
@@ -195,14 +198,21 @@ class DataManager:
         # Create rosbag directory if not exists
         os.makedirs(rosbag_path, exist_ok=True)
 
-        # Copy URDF file
+        # Copy URDF file and mesh files
         if urdf_path and os.path.exists(urdf_path):
             urdf_dest = os.path.join(rosbag_path, 'robot.urdf')
             try:
-                shutil.copy2(urdf_path, urdf_dest)
-                print(f'[ROBOTIS] URDF copied to: {urdf_dest}')
+                # Copy URDF and mesh files with path conversion
+                self._copy_urdf_with_meshes(urdf_path, urdf_dest, rosbag_path)
+                print(f'[ROBOTIS] URDF and meshes copied to: {rosbag_path}')
             except Exception as e:
-                print(f'[ROBOTIS] Failed to copy URDF: {e}')
+                print(f'[ROBOTIS] Failed to copy URDF/meshes: {e}')
+                # Fallback: copy URDF only
+                try:
+                    shutil.copy2(urdf_path, urdf_dest)
+                    print(f'[ROBOTIS] URDF copied (without meshes): {urdf_dest}')
+                except Exception as e2:
+                    print(f'[ROBOTIS] Failed to copy URDF: {e2}')
 
         # Save metadata JSON
         meta_data = {
@@ -221,6 +231,162 @@ class DataManager:
             print(f'[ROBOTIS] Metadata saved to: {meta_data_path}')
         except Exception as e:
             print(f'[ROBOTIS] Failed to save metadata: {e}')
+
+    def _copy_urdf_with_meshes(
+        self,
+        urdf_path: str,
+        urdf_dest: str,
+        output_dir: str
+    ):
+        """
+        Copy URDF file and all referenced mesh files.
+
+        Parses URDF to find mesh references (package:// or file://),
+        copies them to meshes/ subdirectory, and updates URDF paths.
+
+        Args:
+            urdf_path: Source URDF file path.
+            urdf_dest: Destination URDF file path.
+            output_dir: Output directory for meshes.
+        """
+        # Parse URDF
+        tree = ET.parse(urdf_path)
+        root = tree.getroot()
+
+        # Find all mesh elements
+        mesh_elements = root.findall('.//mesh')
+        if not mesh_elements:
+            # No meshes, just copy URDF
+            shutil.copy2(urdf_path, urdf_dest)
+            return
+
+        # Create meshes directory
+        meshes_dir = os.path.join(output_dir, 'meshes')
+        os.makedirs(meshes_dir, exist_ok=True)
+
+        # Track copied meshes to avoid duplicates
+        copied_meshes = {}
+        mesh_count = 0
+
+        # Known ROS package paths to search
+        ros_pkg_paths = [
+            '/root/main_ws/ai_worker',
+            '/root/ros2_ws/install',
+            '/root/ros2_ws/src',
+            '/opt/ros/humble/share',
+        ]
+
+        for mesh_elem in mesh_elements:
+            filename = mesh_elem.get('filename')
+            if not filename:
+                continue
+
+            # Resolve the actual file path
+            actual_path = self._resolve_mesh_path(filename, ros_pkg_paths)
+            if actual_path is None or not os.path.exists(actual_path):
+                print(f'[ROBOTIS] Warning: Mesh not found: {filename}')
+                continue
+
+            # Check if already copied
+            if actual_path in copied_meshes:
+                mesh_elem.set('filename', copied_meshes[actual_path])
+                continue
+
+            # Determine relative path in meshes directory
+            # Extract package structure: package://pkg_name/meshes/... -> meshes/pkg_name/...
+            rel_path = self._get_mesh_relative_path(filename, actual_path)
+            dest_mesh_path = os.path.join(meshes_dir, rel_path)
+
+            # Create subdirectories
+            os.makedirs(os.path.dirname(dest_mesh_path), exist_ok=True)
+
+            # Copy mesh file
+            try:
+                shutil.copy2(actual_path, dest_mesh_path)
+                mesh_count += 1
+            except Exception as e:
+                print(f'[ROBOTIS] Warning: Failed to copy mesh {actual_path}: {e}')
+                continue
+
+            # Update URDF reference to relative path
+            new_filename = f'meshes/{rel_path}'
+            mesh_elem.set('filename', new_filename)
+            copied_meshes[actual_path] = new_filename
+
+        # Write modified URDF
+        tree.write(urdf_dest, encoding='unicode', xml_declaration=True)
+        print(f'[ROBOTIS] Copied {mesh_count} mesh files')
+
+    def _resolve_mesh_path(self, filename: str, search_paths: list) -> str:
+        """
+        Resolve mesh file path from package:// or file:// URI.
+
+        Args:
+            filename: Mesh filename (package:// or file:// or absolute path).
+            search_paths: List of paths to search for packages.
+
+        Returns:
+            Absolute file path or None if not found.
+        """
+        # Handle file:// prefix
+        if filename.startswith('file://'):
+            return filename[7:]
+
+        # Handle absolute paths
+        if filename.startswith('/'):
+            return filename
+
+        # Handle package:// prefix
+        if filename.startswith('package://'):
+            # Extract package name and relative path
+            # package://ffw_description/meshes/... -> ffw_description, meshes/...
+            path_part = filename[10:]  # Remove 'package://'
+            parts = path_part.split('/', 1)
+            if len(parts) != 2:
+                return None
+
+            pkg_name, rel_path = parts
+
+            # Search for package in known paths
+            for search_path in search_paths:
+                # Try direct path: search_path/pkg_name/rel_path
+                candidate = os.path.join(search_path, pkg_name, rel_path)
+                if os.path.exists(candidate):
+                    return candidate
+
+                # Try share path: search_path/pkg_name/share/pkg_name/rel_path
+                candidate = os.path.join(
+                    search_path, pkg_name, 'share', pkg_name, rel_path
+                )
+                if os.path.exists(candidate):
+                    return candidate
+
+        return None
+
+    def _get_mesh_relative_path(self, filename: str, actual_path: str) -> str:
+        """
+        Get relative path for mesh file in output directory.
+
+        Args:
+            filename: Original mesh filename reference.
+            actual_path: Resolved absolute path.
+
+        Returns:
+            Relative path to use in output meshes directory.
+        """
+        # For package:// URIs, use package structure
+        if filename.startswith('package://'):
+            # package://ffw_description/meshes/common/... -> ffw_description/common/...
+            path_part = filename[10:]
+            parts = path_part.split('/', 2)
+            if len(parts) >= 3 and parts[1] == 'meshes':
+                # Skip the 'meshes' part: pkg_name/subpath
+                return f'{parts[0]}/{parts[2]}'
+            elif len(parts) >= 2:
+                return '/'.join(parts)
+
+        # For other cases, use just the filename
+        return os.path.basename(actual_path)
 
     def should_record_rosbag2(self):
         """In simplified mode, always record rosbag2."""

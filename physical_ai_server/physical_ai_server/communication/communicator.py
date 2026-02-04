@@ -16,7 +16,7 @@
 #
 # Author: Dongyun Kim, Seongwoo Kim, Kiwoong Park
 
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from geometry_msgs.msg import Twist
 from physical_ai_interfaces.msg import (
@@ -115,6 +115,9 @@ class Communicator:
             'updated': False,
             'mode': None
         }
+
+        # Joystick handler callback for immediate processing
+        self._joystick_handler: Optional[Callable[[str], None]] = None
 
     def get_all_topics(self):
         """Get all topics for rosbag recording."""
@@ -284,6 +287,21 @@ class Communicator:
             msg_types[publisher_name] = publisher.msg_type
         return msg_types
 
+    # ========== Joystick Handler ==========
+
+    def register_joystick_handler(self, handler: Callable[[str], None]):
+        """
+        Register a handler for joystick triggers.
+
+        This allows immediate processing of joystick events without
+        waiting for the timer callback.
+
+        Args:
+            handler: Callback function that takes joystick mode string
+        """
+        self._joystick_handler = handler
+        self.node.get_logger().info('Joystick handler registered')
+
     # ========== Callbacks ==========
 
     def joystick_trigger_callback(self, msg: String):
@@ -291,6 +309,12 @@ class Communicator:
         self.node.get_logger().info(f'Received joystick trigger: {msg.data}')
         self.joystick_state['updated'] = True
         self.joystick_state['mode'] = msg.data
+
+        # Call registered handler immediately if available
+        if self._joystick_handler is not None:
+            self._joystick_handler(msg.data)
+            # Mark as processed to prevent duplicate handling in timer callback
+            self.joystick_state['updated'] = False
 
     def heartbeat_timer_callback(self):
         """Publish heartbeat."""

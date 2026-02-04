@@ -16,6 +16,7 @@
 #
 # Author: Dongyun Kim, Seongwoo Kim
 
+from datetime import datetime
 import glob
 import json
 import os
@@ -28,6 +29,7 @@ from typing import Optional
 from ament_index_python.packages import get_package_share_directory
 from physical_ai_interfaces.msg import (
     HFOperationStatus,
+    TaskInfo,
     TaskStatus,
     TrainingStatus,
 )
@@ -240,6 +242,9 @@ class PhysicalAIServer(Node):
                 callback_function=self.communicator.heartbeat_timer_callback
             )
             self.heartbeat_timer.start(timer_name='heartbeat')
+
+        # Register joystick handler for immediate processing
+        self.communicator.register_joystick_handler(self.handle_joystick_trigger)
 
         self.inference_manager = InferenceManager()
         self.get_logger().info(
@@ -1263,6 +1268,7 @@ class PhysicalAIServer(Node):
         Handle joystick trigger for simplified recording control.
 
         - Right button: Toggle Start/Finish
+          - If no session: Auto-create session and start recording
           - If idle: Start recording
           - If recording: Finish and save
         - Left button: Cancel (only during recording)
@@ -1270,13 +1276,19 @@ class PhysicalAIServer(Node):
         """
         self.get_logger().info(f'Joystick trigger: {joystick_mode}')
 
-        if self.data_manager is None:
-            self.get_logger().warning('Data manager is not initialized')
-            return
-
         if joystick_mode == 'right':
             # Toggle Start/Finish
-            if self.data_manager.is_recording():
+            if self.data_manager is None:
+                # Auto-create recording session with timestamp-based task name
+                self.get_logger().info(
+                    'Right button: No session exists, auto-creating...')
+                if not self._auto_create_recording_session():
+                    # Failed to create session (e.g., robot_type not set)
+                    return
+                # Start recording after session creation
+                self.data_manager.start_recording()
+                self.start_recording_time = time.perf_counter()
+            elif self.data_manager.is_recording():
                 # Currently recording -> Finish and save
                 self.get_logger().info('Right button: Finishing recording')
                 self.stop_recording_and_save()
@@ -1284,10 +1296,13 @@ class PhysicalAIServer(Node):
                 # Not recording -> Start recording
                 self.get_logger().info('Right button: Starting recording')
                 self.data_manager.start_recording()
+                self.start_recording_time = time.perf_counter()
 
         elif joystick_mode == 'left':
             # Cancel (only during recording)
-            if self.data_manager.is_recording():
+            if self.data_manager is None:
+                self.get_logger().info('Left button ignored - no session')
+            elif self.data_manager.is_recording():
                 self.get_logger().info('Left button: Cancelling recording')
                 self.cancel_current_recording()
             else:
@@ -1301,6 +1316,46 @@ class PhysicalAIServer(Node):
 
         else:
             self.get_logger().info(f'Unknown joystick trigger: {joystick_mode}')
+
+    def _auto_create_recording_session(self) -> bool:
+        """
+        Auto-create a recording session with timestamp-based task name.
+
+        Task name format: task_YYMMDDHHMMSS (e.g., task_260204181101)
+
+        Returns:
+            bool: True if session created successfully, False otherwise
+        """
+        # Check if robot_type is set
+        if not hasattr(self, 'robot_type') or self.robot_type is None:
+            self.get_logger().error(
+                'Cannot auto-create session: robot_type is not set. '
+                'Please set robot type from UI first.')
+            return False
+
+        # Generate timestamp-based task name
+        timestamp = datetime.now().strftime('%y%m%d%H%M%S')
+        task_name = f'task_{timestamp}'
+
+        self.get_logger().info(f'Auto-creating recording session: {task_name}')
+
+        # Create TaskInfo with timestamp-based values
+        task_info = TaskInfo()
+        task_info.task_name = task_name
+        task_info.task_type = ''
+        task_info.task_instruction = [task_name]
+        task_info.policy_path = ''
+        task_info.tags = []
+        task_info.record_inference_mode = False
+
+        # Initialize recording session
+        self.operation_mode = 'collection'
+        self.init_robot_control_parameters_from_user_task(task_info)
+        self.on_recording = True
+
+        self.get_logger().info(
+            f'Auto-created recording session: {task_name}')
+        return True
 
     def _cleanup_hf_api_worker_with_threading(self):
         """

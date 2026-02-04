@@ -1064,9 +1064,10 @@ class ScaleAIConverter:
 
         # Known ROS package paths to search
         # Get physical_ai_tools root directory (relative to this script)
+        # Script location: physical_ai_server/physical_ai_server/data_processing/
         script_dir = os.path.dirname(os.path.abspath(__file__))
         physical_ai_tools_root = os.path.abspath(
-            os.path.join(script_dir, '..', '..', '..', '..')
+            os.path.join(script_dir, '..', '..', '..')
         )
         rosbag_recorder_config = os.path.join(
             physical_ai_tools_root, 'rosbag_recorder', 'config'

@@ -471,20 +471,30 @@ class PhysicalAIServer(Node):
             f'Recording stopped and saved: next_episode={self.data_manager._record_episode_count}')
 
     def cancel_current_recording(self):
-        """Cancel recording and delete the rosbag (simplified mode)."""
+        """Cancel recording and save with review flag (simplified mode).
+
+        Data is saved instead of deleted, with needs_review=True in metadata.
+        This allows partially useful data to be reviewed later.
+        """
         if self.data_manager is None:
             return
 
-        # Stop and delete rosbag
-        self.communicator.stop_and_delete_rosbag()
+        # Save metadata with review flag BEFORE stopping (status must be 'recording')
+        urdf_path = self.params.get('urdf_path', '')
+        if urdf_path:
+            self.data_manager.save_robotis_metadata(
+                urdf_path=urdf_path, needs_review=True)
 
-        # Update data manager state (no episode increment)
-        self.data_manager.cancel_recording()
+        # Stop rosbag (save, not delete)
+        self.communicator.stop_rosbag()
+
+        # Update data manager state (increment episode since data is saved)
+        self.data_manager.stop_recording()
 
         # IMPORTANT: Update previous status to 'idle' so next recording can detect transition
         self.previous_data_manager_status = 'idle'
 
-        self.get_logger().info('Recording cancelled')
+        self.get_logger().info('Recording cancelled - data saved with review flag')
 
     def _data_collection_timer_callback(self):
         """
@@ -742,6 +752,7 @@ class PhysicalAIServer(Node):
                 self.get_logger().info('Starting recording')
                 self.data_manager.start_recording()
                 self.start_recording_time = time.perf_counter()
+                self.communicator.publish_action_event('start')
                 response.success = True
                 response.message = 'Recording started'
 
@@ -811,13 +822,31 @@ class PhysicalAIServer(Node):
 
             else:
                 if not self.on_recording and not self.on_inference:
-                    response.success = False
-                    response.message = 'Not currently recording'
+                    # Not recording - handle cancel to toggle previous episode review
+                    if request.command in (
+                        SendCommand.Request.CANCEL,
+                        SendCommand.Request.RERECORD,
+                    ) and self.data_manager is not None:
+                        result = self.data_manager \
+                            .toggle_previous_episode_needs_review()
+                        if result is not None:
+                            event = 'review_on' if result else 'review_off'
+                            self.communicator.publish_action_event(event)
+                            response.success = True
+                            response.message = \
+                                f'Previous episode needs_review: {result}'
+                        else:
+                            response.success = False
+                            response.message = 'No previous episode to toggle'
+                    else:
+                        response.success = False
+                        response.message = 'Not currently recording'
                 else:
                     if request.command == SendCommand.Request.STOP:
                         # Stop and save (simplified mode)
                         self.get_logger().info('Stopping and saving recording')
                         self.stop_recording_and_save()
+                        self.communicator.publish_action_event('finish')
                         response.success = True
                         response.message = 'Recording stopped and saved'
 
@@ -825,13 +854,15 @@ class PhysicalAIServer(Node):
                         # In simplified mode, this saves current and prepares for next
                         self.get_logger().info('Saving current episode')
                         self.stop_recording_and_save()
+                        self.communicator.publish_action_event('finish')
                         response.success = True
                         response.message = 'Episode saved'
 
                     elif request.command == SendCommand.Request.RERECORD:
-                        # Cancel current recording (simplified mode)
+                        # Cancel current recording (save with review flag)
                         self.get_logger().info('Cancelling current recording')
                         self.cancel_current_recording()
+                        self.communicator.publish_action_event('cancel')
                         self.on_recording = False
                         self.on_inference = False
                         if self.timer_manager:
@@ -848,6 +879,7 @@ class PhysicalAIServer(Node):
                         self.get_logger().info('Finishing all operations')
                         if self.data_manager and self.data_manager.is_recording():
                             self.stop_recording_and_save()
+                        self.communicator.publish_action_event('finish')
                         self.communicator.finish_rosbag()
                         self.on_recording = False
                         self.on_inference = False
@@ -861,9 +893,10 @@ class PhysicalAIServer(Node):
                         response.message = 'All operations terminated'
 
                     elif request.command == SendCommand.Request.SKIP_TASK:
-                        # In simplified mode, skip = cancel
+                        # In simplified mode, skip = cancel (save with review flag)
                         self.get_logger().info('Skipping (cancelling) current recording')
                         self.cancel_current_recording()
+                        self.communicator.publish_action_event('cancel')
                         self.on_recording = False
                         self.on_inference = False
                         if self.timer_manager:
@@ -876,9 +909,10 @@ class PhysicalAIServer(Node):
                         response.message = 'Recording cancelled'
 
                     elif request.command == SendCommand.Request.CANCEL:
-                        # Cancel current recording without saving
+                        # Cancel current recording (save with review flag)
                         self.get_logger().info('Cancelling current recording')
                         self.cancel_current_recording()
+                        self.communicator.publish_action_event('cancel')
                         self.on_recording = False
                         self.on_inference = False
                         if self.timer_manager:
@@ -1288,25 +1322,40 @@ class PhysicalAIServer(Node):
                 # Start recording after session creation
                 self.data_manager.start_recording()
                 self.start_recording_time = time.perf_counter()
+                self.communicator.publish_action_event('start')
             elif self.data_manager.is_recording():
                 # Currently recording -> Finish and save
                 self.get_logger().info('Right button: Finishing recording')
                 self.stop_recording_and_save()
+                self.communicator.publish_action_event('finish')
             else:
                 # Not recording -> Start recording
                 self.get_logger().info('Right button: Starting recording')
+                # Restart timer if it was stopped (e.g., by UI Finish command)
+                if self.timer_manager:
+                    self.timer_manager.start(timer_name=self.operation_mode)
+                self.on_recording = True
                 self.data_manager.start_recording()
                 self.start_recording_time = time.perf_counter()
+                self.communicator.publish_action_event('start')
 
         elif joystick_mode == 'left':
-            # Cancel (only during recording)
+            # Cancel during recording, or mark previous episode in idle
             if self.data_manager is None:
                 self.get_logger().info('Left button ignored - no session')
             elif self.data_manager.is_recording():
                 self.get_logger().info('Left button: Cancelling recording')
                 self.cancel_current_recording()
+                self.communicator.publish_action_event('cancel')
             else:
-                self.get_logger().info('Left button ignored - not recording')
+                # Idle state: toggle previous episode's needs_review
+                result = self.data_manager.toggle_previous_episode_needs_review()
+                if result is not None:
+                    event = 'review_on' if result else 'review_off'
+                    self.communicator.publish_action_event(event)
+                else:
+                    self.get_logger().info(
+                        'Left button: No previous episode to toggle')
 
         elif joystick_mode == 'right_long_time':
             self.get_logger().info('Right long press - reserved for future use')

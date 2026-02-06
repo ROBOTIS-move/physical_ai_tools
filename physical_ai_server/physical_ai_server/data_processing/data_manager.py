@@ -23,6 +23,7 @@ from pathlib import Path
 import queue
 import re
 import shutil
+import socket
 import subprocess
 import threading
 import time
@@ -184,12 +185,16 @@ class DataManager:
             return None  # Legacy: Not ready yet
         return self._save_rosbag_path + f'/{self._record_episode_count}'
 
-    def save_robotis_metadata(self, urdf_path: str = None):
+    def save_robotis_metadata(self, urdf_path: str = None, needs_review: bool = False):
         """
         Save URDF and metadata for ROBOTIS format.
 
         Called after each episode rosbag is saved.
         Copies URDF file and all referenced mesh files.
+
+        Args:
+            urdf_path: Path to URDF file to copy.
+            needs_review: If True, marks episode as needing review (e.g., cancelled recording).
         """
         rosbag_path = self.get_save_rosbag_path()
         if rosbag_path is None:
@@ -221,7 +226,9 @@ class DataManager:
             'episode_index': self._record_episode_count,
             'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
             'fps': self._task_info.fps if hasattr(self._task_info, 'fps') else 15,
-            'format_version': 'robotis_v1'
+            'format_version': 'robotis_v1',
+            'device_serial': socket.gethostname(),
+            'needs_review': needs_review,
         }
 
         meta_data_path = os.path.join(rosbag_path, 'meta_data.json')
@@ -231,6 +238,44 @@ class DataManager:
             print(f'[ROBOTIS] Metadata saved to: {meta_data_path}')
         except Exception as e:
             print(f'[ROBOTIS] Failed to save metadata: {e}')
+
+    def toggle_previous_episode_needs_review(self):
+        """Toggle the previous episode's needs_review flag.
+
+        Reads the current needs_review state and flips it.
+        Used when user presses cancel in idle state.
+
+        Returns:
+            Optional[bool]: The new needs_review value, or None if failed.
+        """
+        prev_episode = self._record_episode_count - 1
+        if prev_episode < 0:
+            print('[DataManager] No previous episode to toggle')
+            return None
+
+        episode_path = self._save_rosbag_path + f'/{prev_episode}'
+        meta_data_path = os.path.join(episode_path, 'meta_data.json')
+
+        if not os.path.exists(meta_data_path):
+            print(f'[DataManager] No meta_data.json at: {meta_data_path}')
+            return None
+
+        try:
+            with open(meta_data_path, 'r') as f:
+                meta_data = json.load(f)
+
+            current = meta_data.get('needs_review', False)
+            meta_data['needs_review'] = not current
+
+            with open(meta_data_path, 'w') as f:
+                json.dump(meta_data, f, indent=2)
+
+            print(f'[DataManager] Episode {prev_episode} '
+                  f'needs_review: {current} -> {not current}')
+            return not current
+        except Exception as e:
+            print(f'[DataManager] Failed to toggle episode {prev_episode}: {e}')
+            return None
 
     def _copy_urdf_with_meshes(
         self,

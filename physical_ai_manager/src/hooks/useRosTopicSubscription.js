@@ -56,6 +56,7 @@ export function useRosTopicSubscription() {
   const previousPhaseRef = useRef(null);
   const audioContextRef = useRef(null);
   const hfStatusTopicRef = useRef(null);
+  const actionEventTopicRef = useRef(null);
 
   const dispatch = useDispatch();
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
@@ -115,6 +116,29 @@ export function useRosTopicSubscription() {
     [initializeAudioContext]
   );
 
+  const speakText = useCallback(
+    (text) => {
+      try {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = 'ko-KR';
+          utterance.rate = 1.2;
+          utterance.volume = 1.0;
+          window.speechSynthesis.speak(utterance);
+          console.log(`🔊 Speech: "${text}"`);
+        } else {
+          console.warn('Speech synthesis not available, falling back to beep');
+          playBeep();
+        }
+      } catch (error) {
+        console.warn('Speech failed, falling back to beep:', error);
+        playBeep();
+      }
+    },
+    [playBeep]
+  );
+
   // Helper function to unsubscribe from a topic
   const unsubscribeFromTopic = useCallback((topicRef, topicName) => {
     if (topicRef.current) {
@@ -132,6 +156,7 @@ export function useRosTopicSubscription() {
     unsubscribeFromTopic(heartbeatTopicRef, 'Heartbeat');
     unsubscribeFromTopic(trainingStatusTopicRef, 'Training status');
     unsubscribeFromTopic(hfStatusTopicRef, 'HF status');
+    unsubscribeFromTopic(actionEventTopicRef, 'Action event');
 
     // Reset previous phase tracking
     previousPhaseRef.current = null;
@@ -175,10 +200,6 @@ export function useRosTopicSubscription() {
 
   const subscribeToTaskStatus = useCallback(async () => {
     try {
-      const RECORDING_BEEP_FREQUENCY = 1000;
-      const RECORDING_BEEP_DURATION = 400;
-      const BEEP_DELAY = 100;
-
       const ros = await rosConnectionManager.getConnection(rosbridgeUrl);
       if (!ros) return;
 
@@ -208,17 +229,6 @@ export function useRosTopicSubscription() {
 
         const currentPhase = msg.phase;
         const previousPhase = previousPhaseRef.current;
-
-        if (currentPhase === TaskPhase.RECORDING && previousPhase !== TaskPhase.RECORDING) {
-          console.log('🔊 Recording started - playing beep sound');
-
-          setTimeout(() => {
-            playBeep(RECORDING_BEEP_FREQUENCY, RECORDING_BEEP_DURATION);
-          }, BEEP_DELAY);
-
-          toast.success('Recording started! 🎬');
-        }
-
         previousPhaseRef.current = currentPhase;
 
         // Calculate progress percentage
@@ -305,7 +315,50 @@ export function useRosTopicSubscription() {
     } catch (error) {
       console.error('Failed to subscribe to task status topic:', error);
     }
-  }, [dispatch, rosbridgeUrl, playBeep]);
+  }, [dispatch, rosbridgeUrl]);
+
+  const subscribeToActionEvent = useCallback(async () => {
+    try {
+      const VOICE_DELAY = 100;
+      const ACTION_VOICE_MAP = {
+        start: '취득 시작',
+        finish: '취득 종료',
+        cancel: '취소',
+        review_on: '이전 데이터 검토 필요',
+        review_off: '이전 데이터 검토 해제',
+      };
+
+      const ros = await rosConnectionManager.getConnection(rosbridgeUrl);
+      if (!ros) return;
+
+      if (actionEventTopicRef.current) {
+        console.log('Action event already subscribed, skipping...');
+        return;
+      }
+
+      actionEventTopicRef.current = new ROSLIB.Topic({
+        ros,
+        name: '/task/action_event',
+        messageType: 'std_msgs/msg/String',
+      });
+
+      actionEventTopicRef.current.subscribe((msg) => {
+        const action = msg.data;
+        console.log('Received action event:', action);
+
+        const voiceText = ACTION_VOICE_MAP[action];
+        if (voiceText) {
+          setTimeout(() => {
+            speakText(voiceText);
+          }, VOICE_DELAY);
+        }
+      });
+
+      console.log('Action event subscription established');
+    } catch (error) {
+      console.error('Failed to subscribe to action event topic:', error);
+    }
+  }, [rosbridgeUrl, speakText]);
 
   const subscribeToHeartbeat = useCallback(async () => {
     try {
@@ -346,6 +399,7 @@ export function useRosTopicSubscription() {
       try {
         await subscribeToTaskStatus();
         await subscribeToHeartbeat();
+        await subscribeToActionEvent();
         await subscribeToTrainingStatus();
         await subscribeHFStatus();
       } catch (error) {
@@ -544,6 +598,7 @@ export function useRosTopicSubscription() {
     try {
       await subscribeToTaskStatus();
       await subscribeToHeartbeat();
+      await subscribeToActionEvent();
       await subscribeToTrainingStatus();
       await subscribeHFStatus();
       console.log('ROS subscriptions initialized successfully');
@@ -555,6 +610,7 @@ export function useRosTopicSubscription() {
     cleanup,
     subscribeToTaskStatus,
     subscribeToHeartbeat,
+    subscribeToActionEvent,
     subscribeToTrainingStatus,
     subscribeHFStatus,
   ]);

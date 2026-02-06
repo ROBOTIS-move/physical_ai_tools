@@ -167,6 +167,13 @@ class Communicator:
             self.PUB_QOS_SIZE
         )
 
+        # Action event publisher (for voice feedback: start/finish/cancel)
+        self.action_event_publisher = self.node.create_publisher(
+            String,
+            '/task/action_event',
+            self.PUB_QOS_SIZE
+        )
+
         # Heartbeat publisher
         self.heartbeat_publisher = self.node.create_publisher(
             Empty,
@@ -279,6 +286,12 @@ class Communicator:
     def publish_status(self, status: TaskStatus):
         """Publish task status."""
         self.status_publisher.publish(status)
+
+    def publish_action_event(self, event: str):
+        """Publish action event for voice feedback (start/finish/cancel)."""
+        msg = String()
+        msg.data = event
+        self.action_event_publisher.publish(msg)
 
     def get_publisher_msg_types(self):
         """Get message types for joint publishers."""
@@ -521,6 +534,7 @@ class Communicator:
     def _cleanup_publishers(self):
         publisher_names = [
             'status_publisher',
+            'action_event_publisher',
             'heartbeat_publisher'
         ]
         for publisher_name in publisher_names:

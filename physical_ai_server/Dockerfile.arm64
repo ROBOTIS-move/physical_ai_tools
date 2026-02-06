@@ -71,11 +71,11 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc  && \
 RUN mkdir -p /var/run/agent && \
     chmod 777 /var/run/agent
 
-# Copy system_manager package (contains both system_manager and agent modules)
-COPY system_manager /opt/system_manager
-ENV PYTHONPATH=/opt/system_manager:${PYTHONPATH}
+RUN git clone -b main https://github.com/ROBOTIS-GIT/robotis_system_manager.git /opt/robotis_system_manager
 
-RUN pip install --no-cache-dir -r /opt/system_manager/requirements.txt
+ENV PYTHONPATH=/opt/robotis_system_manager:${PYTHONPATH}
+
+RUN pip install --no-cache-dir -r /opt/robotis_system_manager/requirements.txt
 
 # ROS2 physical_ai_server service (longrun) with logging pipeline
 # Main service

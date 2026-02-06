@@ -71,11 +71,11 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc  && \
 RUN mkdir -p /var/run/agent && \
     chmod 777 /var/run/agent
 
-RUN git clone -b main https://github.com/ROBOTIS-GIT/robotis_system_manager.git /opt/robotis_system_manager
+RUN git clone -b main https://github.com/ROBOTIS-GIT/talos.git /opt/talos
 
-ENV PYTHONPATH=/opt/robotis_system_manager:${PYTHONPATH}
+ENV PYTHONPATH=/opt/talos:${PYTHONPATH}
 
-RUN pip install --no-cache-dir -r /opt/robotis_system_manager/requirements.txt
+RUN pip install --no-cache-dir -r /opt/talos/requirements.txt
 
 # ROS2 physical_ai_server service (longrun) with logging pipeline
 # Main service

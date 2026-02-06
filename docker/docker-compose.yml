@@ -35,11 +35,6 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
       - /var/run/robotis/agent_sockets/physical_ai_server:/var/run/agent
-      - ./s6-agent:/etc/s6-overlay/s6-rc.d/s6-agent
-      - ./s6-services/physical_ai_server:/etc/s6-overlay/s6-rc.d/physical_ai_server
-      - ./s6-services/physical_ai_server-log:/etc/s6-overlay/s6-rc.d/physical_ai_server-log
-      - ./s6-services/physical_ai_server-log-prepare:/etc/s6-overlay/s6-rc.d/physical_ai_server-log-prepare
-      - ./s6-services/common:/usr/local/lib/s6-services
     privileged: true
     runtime: nvidia
     deploy:

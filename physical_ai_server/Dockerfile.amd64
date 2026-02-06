@@ -4,7 +4,6 @@ FROM robotis/ros:jazzy-ros-base-torch2.7.0-cuda12.8.0 AS physical-ai-tools
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies including rmw_zenoh_cpp for Zenoh communication
-# zenoh-ros2-router not needed - rmw_zenoh_cpp provides native Zenoh support
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     vim \
@@ -15,35 +14,27 @@ RUN apt-get update && apt-get install -y \
 ENV COLCON_WS=/root/ros2_ws
 WORKDIR ${COLCON_WS}
 
-RUN mkdir -p ${COLCON_WS}/src && \
-    cd ${COLCON_WS}/src && \
-    git clone -b jazzy https://github.com/ROBOTIS-GIT/physical_ai_tools.git --recursive
+# Copy local source code instead of git clone
+# At runtime, docker-compose volume mount will override this with latest code
+RUN mkdir -p ${COLCON_WS}/src
+COPY . ${COLCON_WS}/src/physical_ai_tools/
 
+# Install ROS2 dependencies via rosdep
 RUN cd ${COLCON_WS} && \
     apt-get update && \
     rosdep update && \
     rosdep install -i --from-path src --rosdistro $ROS_DISTRO -y && \
     rm -rf /var/lib/apt/lists/*
 
-RUN cd ${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot && \
-    sed -i '/"torch[^\"]*",/d' pyproject.toml && \
-    sed -i '/"torchvision[^\"]*",/d' pyproject.toml && \
-    pip install --ignore-installed -e .
-
-RUN cd ${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot && \
-    pip install -e ".[smolvla]"
-
-RUN pip install setuptools==68.1.2
-RUN pip install 'numpy<2'
-
+# Build ROS2 packages
 RUN bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd ${COLCON_WS} && \
     colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release"
 
 # Install Python utilities
-# Note: zenoh_ros2_sdk removed - using ROS2 rmw_zenoh for LeRobot communication
 RUN pip install psutil matplotlib
 
+# Setup bashrc
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc  && \
     echo "source ${COLCON_WS}/install/setup.bash" >> ~/.bashrc  && \
     echo "alias cb='colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release'" >> ~/.bashrc && \

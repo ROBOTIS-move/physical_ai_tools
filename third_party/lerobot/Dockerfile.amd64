@@ -56,20 +56,20 @@ ENV PATH="/lerobot/.venv/bin:$PATH"
 COPY lerobot/setup.py lerobot/pyproject.toml lerobot/README.md lerobot/MANIFEST.in ./
 COPY lerobot/src/ ./src/
 
-# Install LeRobot with all dependencies EXCEPT intelrealsense
-# Note: [all] includes [intelrealsense] which requires pyrealsense2
-# Excluded for consistency with ARM64 build
-RUN uv pip install --no-cache \
-    ".[dynamixel,gamepad,hopejr,lekiwi,reachy2,kinematics]" \
-    ".[smolvla,xvla,hilserl,async,dev,test]" \
-    ".[video_benchmark,aloha,pusht,phone,libero,metaworld,sarm,peft]"
+# Install LeRobot dependencies (training/inference only, no hardware/simulation)
+# Removed: dynamixel, gamepad, hopejr, lekiwi, reachy2, kinematics (hardware)
+# Removed: dev, test, video_benchmark (development)
+# Removed: aloha, pusht, phone, libero, metaworld, sarm (simulation)
+RUN uv pip install --no-cache ".[smolvla,xvla,hilserl,async,peft]"
 
 # Copy the rest of LeRobot (configs, tests, etc.)
 COPY lerobot/ ./
 
 # Zenoh dependencies (zenoh_ros2_sdk mounted as volume at /zenoh_sdk)
 # json5 required for zenoh_ros2_sdk
-RUN uv pip install eclipse-zenoh>=1.0.0 rosbags>=0.11.0 GitPython>=3.1.18 json5>=0.9.14 \
+# IMPORTANT: eclipse-zenoh version MUST match rmw_zenoh_cpp's bundled zenoh-c version (1.6.x)
+# Mismatched versions (e.g., 1.7.x vs 1.6.x) cause service call failures despite discovery working
+RUN uv pip install "eclipse-zenoh>=1.6.0,<1.7.0" rosbags>=0.11.0 GitPython>=3.1.18 json5>=0.9.14 \
     && mkdir -p /zenoh_sdk
 
 # Create application directory for Zenoh server

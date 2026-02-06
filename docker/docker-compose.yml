@@ -18,10 +18,11 @@ services:
     container_name: physical_ai_server
     image: robotis/physical-ai-server:${ARCH:-amd64}
     build:
-      context: ../physical_ai_server
+      # Build context is project root for COPY to work
+      context: ..
       # Use ARCH env var to select Dockerfile (default: amd64)
       # For Jetson: ARCH=arm64 docker compose up --build
-      dockerfile: Dockerfile.${ARCH:-amd64}
+      dockerfile: physical_ai_server/Dockerfile.${ARCH:-amd64}
     tty: true
     restart: always
     cap_add:
@@ -53,8 +54,8 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     privileged: true
-    # Start Zenoh router in background, then keep container running
-    command: bash -c "zenohd &>/dev/null & exec bash"
+    # Zenoh router is managed externally, just keep container running
+    command: bash
     runtime: nvidia
     deploy:
       resources:

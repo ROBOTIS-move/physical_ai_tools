@@ -107,7 +107,9 @@ RUN pip install -e . --no-deps && \
 
 # Zenoh dependencies (zenoh_ros2_sdk mounted as volume at /zenoh_sdk)
 # json5 required for zenoh_ros2_sdk
-RUN pip install eclipse-zenoh>=1.0.0 rosbags>=0.11.0 GitPython>=3.1.18 json5>=0.9.14 \
+# IMPORTANT: eclipse-zenoh version MUST match rmw_zenoh_cpp's bundled zenoh-c version (1.6.x)
+# Mismatched versions (e.g., 1.7.x vs 1.6.x) cause service call failures despite discovery working
+RUN pip install "eclipse-zenoh>=1.6.0,<1.7.0" rosbags>=0.11.0 GitPython>=3.1.18 json5>=0.9.14 \
     && mkdir -p /zenoh_sdk
 
 # Create application directory for Zenoh server

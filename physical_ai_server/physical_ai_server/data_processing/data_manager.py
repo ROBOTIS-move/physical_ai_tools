@@ -28,16 +28,28 @@ import time
 
 import cv2
 from geometry_msgs.msg import Twist
-from huggingface_hub import (
-    DatasetCard,
-    DatasetCardData,
-    HfApi,
-    ModelCard,
-    ModelCardData,
-    snapshot_download,
-    upload_large_folder
-)
-from huggingface_hub.errors import LocalTokenNotFoundError
+def _lazy_import_huggingface():
+    """Lazy import huggingface_hub (will be replaced with alternative later)."""
+    from huggingface_hub import (
+        DatasetCard,
+        DatasetCardData,
+        HfApi,
+        ModelCard,
+        ModelCardData,
+        snapshot_download,
+        upload_large_folder
+    )
+    from huggingface_hub.errors import LocalTokenNotFoundError
+    return {
+        'DatasetCard': DatasetCard,
+        'DatasetCardData': DatasetCardData,
+        'HfApi': HfApi,
+        'ModelCard': ModelCard,
+        'ModelCardData': ModelCardData,
+        'snapshot_download': snapshot_download,
+        'upload_large_folder': upload_large_folder,
+        'LocalTokenNotFoundError': LocalTokenNotFoundError,
+    }
 DEFAULT_FEATURES = {
     'episode_index': {'dtype': 'int64', 'names': None, 'shape': (1,)},
     'frame_index': {'dtype': 'int64', 'names': None, 'shape': (1,)},
@@ -749,7 +761,8 @@ class DataManager:
             print(f'Error uploading dataset: {e}')
 
     def _download_dataset(self, repo_id):
-        snapshot_download(
+        hf = _lazy_import_huggingface()
+        hf['snapshot_download'](
             repo_id,
             repo_type='dataset',
             local_dir=self._save_path,
@@ -778,14 +791,15 @@ class DataManager:
     @staticmethod
     def get_huggingface_user_id():
         def api_call():
-            api = HfApi()
+            hf = _lazy_import_huggingface()
+            api = hf['HfApi']()
             try:
                 user_info = api.whoami()
                 user_ids = [user_info['name']]
                 for org_info in user_info['orgs']:
                     user_ids.append(org_info['name'])
                 return user_ids
-            except LocalTokenNotFoundError as e:
+            except hf['LocalTokenNotFoundError'] as e:
                 print(f'No registered HuggingFace token found: {e}')
                 raise Exception('No registered HuggingFace token found')
             except Exception as e:
@@ -822,7 +836,8 @@ class DataManager:
     @staticmethod
     def register_huggingface_token(hf_token):
         def validate_token():
-            api = HfApi(token=hf_token)
+            hf = _lazy_import_huggingface()
+            api = hf['HfApi'](token=hf_token)
             try:
                 user_info = api.whoami()
                 user_name = user_info['name']
@@ -895,7 +910,8 @@ class DataManager:
                     kwargs['progress_queue'] = DataManager._progress_queue
                     super().__init__(*args, **kwargs)
 
-            result = snapshot_download(
+            hf = _lazy_import_huggingface()
+            result = hf['snapshot_download'](
                 repo_id=repo_id,
                 repo_type=repo_type,
                 local_dir=save_dir,
@@ -941,7 +957,8 @@ class DataManager:
             tags.append(robot_type)
 
         # Create DatasetCardData
-        card_data = DatasetCardData(
+        hf = _lazy_import_huggingface()
+        card_data = hf['DatasetCardData'](
             license='apache-2.0',
             tags=tags,
             task_categories=['robotics'],
@@ -967,7 +984,7 @@ class DataManager:
         template_path = str(template_dir / 'dataset_card_template.md')
 
         # Create card from template
-        card = DatasetCard.from_template(
+        card = hf['DatasetCard'].from_template(
             card_data,
             template_path=template_path,
             dataset_structure=dataset_structure,
@@ -1040,14 +1057,15 @@ class DataManager:
         if dataset_repo:
             card_data_kwargs['datasets'] = [dataset_repo]
 
-        card_data = ModelCardData(**card_data_kwargs)
+        hf = _lazy_import_huggingface()
+        card_data = hf['ModelCardData'](**card_data_kwargs)
 
         # Get template path
         template_dir = Path(__file__).parent
         template_path = str(template_dir / 'model_card_template.md')
 
         # Create card from template
-        card = ModelCard.from_template(
+        card = hf['ModelCard'].from_template(
             card_data,
             template_path=template_path,
         )
@@ -1085,7 +1103,8 @@ class DataManager:
         local_dir,
     ):
         try:
-            api = HfApi()
+            hf = _lazy_import_huggingface()
+            api = hf['HfApi']()
 
             # Verify authentication first
             try:
@@ -1125,7 +1144,7 @@ class DataManager:
 
             with redirect_stdout(log_capture):
                 # Upload folder contents
-                upload_large_folder(
+                hf['upload_large_folder'](
                     repo_id=repo_id,
                     folder_path=local_dir,
                     repo_type=repo_type,
@@ -1164,7 +1183,8 @@ class DataManager:
         repo_type='dataset',
     ):
         try:
-            result = HfApi().delete_repo(repo_id, repo_type=repo_type)
+            hf = _lazy_import_huggingface()
+            result = hf['HfApi']().delete_repo(repo_id, repo_type=repo_type)
             return result
         except Exception as e:
             print(f'Error deleting HuggingFace repo: {e}')
@@ -1175,14 +1195,15 @@ class DataManager:
         author,
         data_type='dataset'
     ):
+        hf = _lazy_import_huggingface()
         repo_id_list = []
         if data_type == 'dataset':
-            dataset_list = HfApi().list_datasets(author=author)
+            dataset_list = hf['HfApi']().list_datasets(author=author)
             for dataset in dataset_list:
                 repo_id_list.append(dataset.id)
 
         elif data_type == 'model':
-            model_list = HfApi().list_models(author=author)
+            model_list = hf['HfApi']().list_models(author=author)
             for model in model_list:
                 repo_id_list.append(model.id)
         reverse = repo_id_list[::-1]
@@ -1192,7 +1213,8 @@ class DataManager:
     def get_collections_repo_list(
         collection_id
     ):
-        collection_list = HfApi().get_collection(collection_id)
+        hf = _lazy_import_huggingface()
+        collection_list = hf['HfApi']().get_collection(collection_id)
         repo_list_in_collection = []
         for item in collection_list.items:
             repo_list_in_collection.append(item.item_id)

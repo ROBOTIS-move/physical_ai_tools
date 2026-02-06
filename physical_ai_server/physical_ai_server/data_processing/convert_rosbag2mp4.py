@@ -129,6 +129,16 @@ class ScaleAIConverter:
             '/robot/camera/cam_right_wrist/image_raw/compressed',
             '/robot/camera/cam_right_wrist/image_raw/compressed/camera_info'
         ),
+        'cam_chest': (
+            '/robot/camera/cam_chest/image_raw/compressed',
+            '/robot/camera/cam_chest/image_raw/compressed/camera_info'
+        ),
+    }
+
+    # Cameras that need downsampling from source fps to target fps
+    # Format: {camera_name: downsample_ratio} (e.g., 2 means keep every 2nd frame)
+    DEFAULT_DOWNSAMPLE_CAMERAS = {
+        'cam_chest': 2,  # 30Hz -> 15Hz
     }
 
     # Meta files to copy
@@ -152,7 +162,8 @@ class ScaleAIConverter:
         joint_offsets: Optional[Dict[str, Dict[str, float]]] = None,
         enable_timestamp_smoothing: bool = True,
         trim_start_sec: float = 0.5,
-        trim_end_sec: float = 0.0
+        trim_end_sec: float = 0.0,
+        downsample_cameras: Optional[Dict[str, int]] = None
     ):
         """
         Initialize the converter.
@@ -173,6 +184,10 @@ class ScaleAIConverter:
                 Default is 0.5 seconds.
             trim_end_sec: Seconds to trim from the end of the recording.
                 Default is 0.0 (no trim).
+            downsample_cameras: Dict of camera names to downsample ratio.
+                Format: {'camera_name': ratio} where ratio=2 means keep every 2nd frame.
+                Example: {'cam_chest': 2} for 30Hz -> 15Hz conversion.
+                If None, uses DEFAULT_DOWNSAMPLE_CAMERAS.
         """
         if make_reader is None or DecoderFactory is None or Writer is None:
             raise ImportError(
@@ -188,6 +203,7 @@ class ScaleAIConverter:
         self.camera_pairs = camera_pairs or self.DEFAULT_CAMERA_PAIRS
         self.exclude_topics = exclude_topics or []
         self.joint_offsets = joint_offsets or {}
+        self.downsample_cameras = downsample_cameras if downsample_cameras is not None else self.DEFAULT_DOWNSAMPLE_CAMERAS
         self._hw_encoder = self._detect_hardware_encoder() if use_hardware_encoding else None
 
     def _detect_hardware_encoder(self) -> Optional[str]:
@@ -317,6 +333,7 @@ class ScaleAIConverter:
         # Read all camera data
         image_data: Dict[str, Dict[int, any]] = defaultdict(dict)
         info_data: Dict[str, Dict[int, any]] = defaultdict(dict)
+        all_timestamps: List[int] = []
 
         with open(mcap_file, 'rb') as f:
             reader = make_reader(f, decoder_factories=[DecoderFactory()])
@@ -337,10 +354,28 @@ class ScaleAIConverter:
                 else:
                     timestamp_ns = message.publish_time
 
+                all_timestamps.append(timestamp_ns)
+
                 if topic in image_topics:
                     image_data[topic][timestamp_ns] = decoded_msg
                 else:
                     info_data[topic][timestamp_ns] = decoded_msg
+
+        # Determine trim boundaries
+        trim_start_ns = 0
+        trim_end_ns = float('inf')
+
+        if all_timestamps and (self.trim_start_sec > 0 or self.trim_end_sec > 0):
+            min_ts = min(all_timestamps)
+            max_ts = max(all_timestamps)
+            duration_sec = (max_ts - min_ts) / 1_000_000_000
+
+            trim_start_ns = min_ts + int(self.trim_start_sec * 1_000_000_000)
+            trim_end_ns = max_ts - int(self.trim_end_sec * 1_000_000_000)
+
+            new_duration = (trim_end_ns - trim_start_ns) / 1_000_000_000
+            print(f'  Trimming camera data: {duration_sec:.2f}s -> {new_duration:.2f}s '
+                  f'(start: {self.trim_start_sec}s, end: {self.trim_end_sec}s)')
 
         # Match cameras
         results = {}
@@ -348,8 +383,9 @@ class ScaleAIConverter:
             images = image_data.get(image_topic, {})
             infos = info_data.get(info_topic, {})
 
-            image_timestamps = set(images.keys())
-            info_timestamps = set(infos.keys())
+            # Apply trim to timestamps
+            image_timestamps = {ts for ts in images.keys() if trim_start_ns <= ts <= trim_end_ns}
+            info_timestamps = {ts for ts in infos.keys() if trim_start_ns <= ts <= trim_end_ns}
             matched_timestamps = image_timestamps & info_timestamps
 
             # Create frames for matched timestamps
@@ -368,6 +404,16 @@ class ScaleAIConverter:
                 except Exception as e:
                     print(f'  Warning: Failed to decode frame at {ts}: {e}')
                     matched_timestamps.discard(ts)
+
+            # Apply downsampling if configured for this camera
+            downsample_ratio = self.downsample_cameras.get(camera_name, 1)
+            if downsample_ratio > 1 and len(frames) > 1:
+                original_count = len(frames)
+                # Keep every Nth frame (0, N, 2N, ...)
+                frames = [f for i, f in enumerate(frames) if i % downsample_ratio == 0]
+                # Update matched_timestamps to reflect downsampled frames
+                matched_timestamps = {f.timestamp_ns for f in frames}
+                print(f'  {camera_name}: Downsampled {original_count} -> {len(frames)} frames (ratio: {downsample_ratio})')
 
             # Apply timestamp smoothing for Scale AI compliance (STD 007)
             smoothed_count = 0
@@ -958,8 +1004,31 @@ class ScaleAIConverter:
             return False
 
         height, width = frames[0].image.shape[:2]
-        encoder = self._hw_encoder or 'libx264'
 
+        # Try hardware encoder first, then fallback to software
+        encoders_to_try = []
+        if self._hw_encoder:
+            encoders_to_try.append(self._hw_encoder)
+        encoders_to_try.append('libx264')  # Always have software fallback
+
+        for encoder in encoders_to_try:
+            success = self._try_encode_video(frames, output_path, encoder, width, height)
+            if success:
+                return True
+            elif encoder != 'libx264':
+                print(f'  Hardware encoder {encoder} failed, trying software encoder...')
+
+        return False
+
+    def _try_encode_video(
+        self,
+        frames: List[FrameData],
+        output_path: str,
+        encoder: str,
+        width: int,
+        height: int
+    ) -> bool:
+        """Try to encode video with specified encoder."""
         cmd = [
             'ffmpeg',
             '-y',
@@ -996,14 +1065,18 @@ class ScaleAIConverter:
 
             if process.returncode != 0:
                 stderr = process.stderr.read().decode()
-                print(f'  FFmpeg error: {stderr}')
+                print(f'  FFmpeg error ({encoder}): {stderr[:500]}')
                 return False
 
-            print(f'  Video saved: {output_path}')
+            print(f'  Video saved: {output_path} (encoder: {encoder})')
             return True
 
+        except BrokenPipeError:
+            # Hardware encoder might not support the input format
+            print(f'  Encoder {encoder} broken pipe (unsupported format)')
+            return False
         except Exception as e:
-            print(f'  Error creating video: {e}')
+            print(f'  Error creating video ({encoder}): {e}')
             return False
 
     def _copy_meta_files(self, input_dir: Path, output_dir: Path):
@@ -1062,19 +1135,13 @@ class ScaleAIConverter:
         copied_meshes = {}
         mesh_count = 0
 
-        # Known ROS package paths to search
-        # Get physical_ai_tools root directory (relative to this script)
-        # Script location: physical_ai_server/physical_ai_server/data_processing/
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        physical_ai_tools_root = os.path.abspath(
-            os.path.join(script_dir, '..', '..', '..')
-        )
-        rosbag_recorder_config = os.path.join(
-            physical_ai_tools_root, 'rosbag_recorder', 'config'
-        )
-
+        # Known ROS package paths to search for mesh files
+        # Use absolute paths to work in both source and installed environments
         ros_pkg_paths = [
-            rosbag_recorder_config,  # physical_ai_tools/rosbag_recorder/config/
+            # Primary location: physical_ai_tools mesh configs (robot environment)
+            '/root/ros2_ws/src/physical_ai_tools/rosbag_recorder/config',
+            # Alternative locations
+            '/root/main_ws/physical_ai_tools/rosbag_recorder/config',
             '/root/main_ws/ai_worker',
             '/root/ros2_ws/src',
             '/root/ros2_ws/install',
@@ -1222,7 +1289,8 @@ def convert_dataset(
     use_hardware_encoding: bool = True,
     exclude_topics: Optional[List[str]] = None,
     joint_offsets: Optional[Dict[str, Dict[str, float]]] = None,
-    enable_timestamp_smoothing: bool = True
+    enable_timestamp_smoothing: bool = True,
+    downsample_cameras: Optional[Dict[str, int]] = None
 ) -> Dict[str, Dict[str, ConversionResult]]:
     """Convert all episodes in a dataset to Scale AI format."""
     converter = ScaleAIConverter(
@@ -1230,7 +1298,8 @@ def convert_dataset(
         use_hardware_encoding=use_hardware_encoding,
         exclude_topics=exclude_topics,
         joint_offsets=joint_offsets,
-        enable_timestamp_smoothing=enable_timestamp_smoothing
+        enable_timestamp_smoothing=enable_timestamp_smoothing,
+        downsample_cameras=downsample_cameras
     )
 
     dataset_path = Path(dataset_path)
@@ -1357,7 +1426,8 @@ def main():
             use_hardware_encoding=not args.no_hw,
             exclude_topics=exclude_topics,
             joint_offsets=joint_offsets,
-            enable_timestamp_smoothing=enable_smoothing
+            enable_timestamp_smoothing=enable_smoothing,
+            downsample_cameras=None  # Use default downsampling config
         )
     else:
         converter = ScaleAIConverter(
@@ -1365,7 +1435,8 @@ def main():
             use_hardware_encoding=not args.no_hw,
             exclude_topics=exclude_topics,
             joint_offsets=joint_offsets,
-            enable_timestamp_smoothing=enable_smoothing
+            enable_timestamp_smoothing=enable_smoothing,
+            downsample_cameras=None  # Use default downsampling config
         )
         results = converter.convert_episode(args.input_path, args.output)
 

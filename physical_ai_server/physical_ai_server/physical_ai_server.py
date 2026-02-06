@@ -773,8 +773,8 @@ class PhysicalAIServer(Node):
                 task_info = request.task_info
                 task_name = f'{self.robot_type}_{task_info.task_name}'
 
-                # Build dataset path
-                dataset_path = self.DEFAULT_SAVE_ROOT_PATH / task_name
+                # Build dataset path (rosbag is saved to /workspace/rosbag2/)
+                dataset_path = Path('/workspace/rosbag2') / task_name
 
                 if not dataset_path.exists():
                     response.success = False

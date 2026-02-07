@@ -189,6 +189,13 @@ Examples:
         help="Robot type identifier (default: 'unknown')",
     )
     parser.add_argument(
+        "--robot-config",
+        type=str,
+        default=None,
+        help="Path to robot config YAML (e.g., ffw_sg2_rev1_config.yaml). "
+             "Provides topic mappings and joint_order.",
+    )
+    parser.add_argument(
         "--chunks-size",
         type=int,
         default=1000,
@@ -267,6 +274,8 @@ Examples:
     logger.info(f"Robot type: {args.robot_type}")
     logger.info(f"Apply trim: {not args.no_trim}")
     logger.info(f"Apply exclude regions: {not args.no_exclude}")
+    if args.robot_config:
+        logger.info(f"Robot config: {args.robot_config}")
     if args.version == "v3.0":
         logger.info(f"Data file size: {args.data_file_size} MB")
         logger.info(f"Video file size: {args.video_file_size} MB")
@@ -291,6 +300,7 @@ Examples:
             output_dir=args.output,
             fps=args.fps,
             robot_type=args.robot_type,
+            robot_config_path=args.robot_config,
             chunks_size=args.chunks_size,
             apply_trim=not args.no_trim,
             apply_exclude_regions=not args.no_exclude,

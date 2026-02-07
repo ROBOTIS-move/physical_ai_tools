@@ -18,20 +18,37 @@
 
 # This file makes the directory a Python package
 
-from .bag_reader import BagReader
 from .metadata_manager import MetadataManager
 from .video_metadata_extractor import VideoMetadataExtractor
-from .rosbag_to_lerobot_converter import (
-    RosbagToLerobotConverter,
-    ConversionConfig,
-    EpisodeData,
-    convert_rosbags_to_lerobot,
-)
-from .rosbag_to_lerobot_v30_converter import (
-    RosbagToLerobotV30Converter,
-    V30ConversionConfig,
-    convert_rosbags_to_lerobot_v30,
-)
+
+try:
+    from .bag_reader import BagReader
+except ImportError:
+    BagReader = None
+
+try:
+    from .rosbag_to_lerobot_converter import (
+        RosbagToLerobotConverter,
+        ConversionConfig,
+        EpisodeData,
+        convert_rosbags_to_lerobot,
+    )
+except ImportError:
+    RosbagToLerobotConverter = None
+    ConversionConfig = None
+    EpisodeData = None
+    convert_rosbags_to_lerobot = None
+
+try:
+    from .rosbag_to_lerobot_v30_converter import (
+        RosbagToLerobotV30Converter,
+        V30ConversionConfig,
+        convert_rosbags_to_lerobot_v30,
+    )
+except ImportError:
+    RosbagToLerobotV30Converter = None
+    V30ConversionConfig = None
+    convert_rosbags_to_lerobot_v30 = None
 
 __all__ = [
     "BagReader",

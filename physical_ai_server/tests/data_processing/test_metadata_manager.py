@@ -19,10 +19,14 @@ import pytest
 import yaml
 
 import sys
+import importlib
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "physical_ai_server"))
-
-from data_processing.metadata_manager import MetadataManager
+# Direct import to avoid __init__.py pulling in ROS2-dependent modules
+_mm_path = str(Path(__file__).parent.parent.parent / "physical_ai_server" / "data_processing" / "metadata_manager.py")
+spec = importlib.util.spec_from_file_location("metadata_manager", _mm_path)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+MetadataManager = mod.MetadataManager
 
 
 class TestMetadataManager:

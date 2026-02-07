@@ -67,6 +67,10 @@ physical_ai_server:
           - head_joint2
         follower_lift:
           - lift_joint
+        follower_mobile:
+          - linear_x
+          - linear_y
+          - angular_z
         leader_arm_left:
           - arm_l_joint1
           - arm_l_joint2

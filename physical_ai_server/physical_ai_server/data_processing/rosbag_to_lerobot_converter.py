@@ -38,6 +38,7 @@ LeRobot v2.1 Dataset Structure:
                 └── episode_{episode:06d}.mp4
 """
 
+import bisect
 import json
 import shutil
 from dataclasses import dataclass, field
@@ -47,10 +48,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+import yaml
 
 from .bag_reader import BagReader
 from .metadata_manager import MetadataManager
-from .quality_analyzer import QualityAnalyzer, QualityConfig, QualityReport
 from .video_metadata_extractor import VideoMetadataExtractor
 
 
@@ -119,7 +120,10 @@ class ConversionConfig:
     use_videos: bool = True
     chunks_size: int = DEFAULT_CHUNK_SIZE
 
-    # Topic mappings (can be overridden from robot_config.yaml)
+    # Robot config file path (e.g., ffw_sg2_rev1_config.yaml)
+    robot_config_path: Optional[str] = None
+
+    # Topic mappings (populated from robot config or auto-detected)
     state_topics: List[str] = field(default_factory=list)
     action_topics: List[str] = field(default_factory=list)
 
@@ -127,8 +131,7 @@ class ConversionConfig:
     apply_trim: bool = True
     apply_exclude_regions: bool = True
 
-    # Quality analysis settings
-    enable_quality_report: bool = True
+    # Staleness thresholds
     quality_warning_multiplier: float = 2.0
     quality_error_multiplier: float = 4.0
 
@@ -165,12 +168,6 @@ class RosbagToLerobotConverter:
         self._metadata_manager = MetadataManager(logger)
         self._video_extractor = VideoMetadataExtractor(logger)
 
-        quality_config = QualityConfig(
-            warning_multiplier=config.quality_warning_multiplier,
-            error_multiplier=config.quality_error_multiplier,
-        )
-        self._quality_analyzer = QualityAnalyzer(quality_config, logger)
-
         self._features: Dict[str, Dict] = {}
         self._tasks: Dict[int, str] = {}
         self._task_to_index: Dict[str, int] = {}
@@ -178,13 +175,19 @@ class RosbagToLerobotConverter:
         self._episodes_stats: Dict[int, Dict] = {}
         self._total_frames = 0
         self._total_episodes = 0
-        self._quality_reports: Dict[int, QualityReport] = {}
         self._staleness_reports: Dict[int, Dict[str, StalenessMetrics]] = {}
 
         self._state_joint_names: List[str] = []
         self._action_joint_names: List[str] = []
         self._camera_mapping: Dict[str, str] = {}  # topic -> camera_name
         self._joint_order: List[str] = []  # Ordered list of joints to include
+        self._joint_order_by_group: Dict[str, List[str]] = {}  # group_key -> joint names
+        self._state_topic_key_map: Dict[str, str] = {}  # topic -> group key
+        self._action_topic_key_map: Dict[str, str] = {}  # topic -> group key
+
+        # Load robot config if provided
+        if config.robot_config_path:
+            self._load_robot_config_file(config.robot_config_path)
 
     def _log_info(self, msg: str):
         if self.logger:
@@ -204,6 +207,82 @@ class RosbagToLerobotConverter:
         else:
             print(f"[WARNING] {msg}")
 
+    def _load_robot_config_file(self, config_path: str):
+        """Load robot config from YAML file (e.g., ffw_sg2_rev1_config.yaml)."""
+        config_path = Path(config_path)
+        if not config_path.exists():
+            self._log_error(f"Robot config not found: {config_path}")
+            return
+
+        try:
+            with open(config_path, 'r') as f:
+                raw_config = yaml.safe_load(f)
+        except Exception as e:
+            self._log_error(f"Failed to load robot config: {e}")
+            return
+
+        # Navigate nested structure: physical_ai_server.ros__parameters.{robot_type}
+        params = raw_config
+        if 'physical_ai_server' in params:
+            params = params['physical_ai_server']
+        if 'ros__parameters' in params:
+            params = params['ros__parameters']
+
+        # Find robot type section (first key that has joint_topic_list)
+        robot_params = None
+        for key, value in params.items():
+            if isinstance(value, dict) and 'joint_topic_list' in value:
+                if self.config.robot_type == "unknown":
+                    self.config.robot_type = key
+                robot_params = value
+                break
+
+        if robot_params is None:
+            self._log_error("No robot parameters found in config file")
+            return
+
+        # Parse joint_topic_list: "key:topic_path" format
+        state_topics = {}
+        action_topics = {}
+        for entry in robot_params.get('joint_topic_list', []):
+            key, topic_path = entry.split(':', 1)
+            if key.startswith('follower_'):
+                state_topics[key] = topic_path
+                self._state_topic_key_map[topic_path] = key
+            elif key.startswith('leader_'):
+                action_topics[key] = topic_path
+                self._action_topic_key_map[topic_path] = key
+
+        self.config.state_topics = list(state_topics.values())
+        self.config.action_topics = list(action_topics.values())
+        self._log_info(
+            f"Loaded topics — state: {list(state_topics.keys())}, "
+            f"action: {list(action_topics.keys())}"
+        )
+
+        # Parse camera_topic_list: "cam_name:topic_path" format
+        for entry in robot_params.get('camera_topic_list', []):
+            cam_name, topic_path = entry.split(':', 1)
+            self._camera_mapping[topic_path] = cam_name
+
+        # Parse joint_order (nested dict: group_key -> [joint_names])
+        joint_order = robot_params.get('joint_order', {})
+        if isinstance(joint_order, dict):
+            self._joint_order_by_group = {}
+            flattened = []
+            for key, joints in joint_order.items():
+                if isinstance(joints, list):
+                    self._joint_order_by_group[key] = joints
+                    flattened.extend(joints)
+                else:
+                    self._joint_order_by_group[key] = [joints]
+                    flattened.append(joints)
+            self._joint_order = flattened
+            self._log_info(
+                f"Loaded joint_order: {list(self._joint_order_by_group.keys())} "
+                f"(total {len(self._joint_order)} joints)"
+            )
+
     def _log_staleness_summary(self, staleness_metrics: Dict[str, StalenessMetrics]):
         for topic, metrics in staleness_metrics.items():
             if metrics.status == "GOOD":
@@ -213,30 +292,6 @@ class RosbagToLerobotConverter:
                 f"warnings={metrics.stale_warning_count}, errors={metrics.stale_error_count}, "
                 f"max={metrics.max_staleness_ms:.1f}ms, mean={metrics.mean_staleness_ms:.1f}ms"
             )
-
-    def _analyze_rosbag_quality(self, bag_path: Path) -> QualityReport:
-        reader = BagReader(bag_path, self.logger)
-        if not reader.open():
-            self._log_error(f"Failed to open rosbag for quality analysis: {bag_path}")
-            return QualityReport(
-                source_bag=str(bag_path),
-                duration_sec=0.0,
-                total_messages=0,
-            )
-
-        topic_timestamps: Dict[str, List[float]] = {}
-        topic_types = reader.get_topic_types()
-
-        for topic, msg, timestamp in reader.read_messages():
-            if topic not in topic_timestamps:
-                topic_timestamps[topic] = []
-            topic_timestamps[topic].append(timestamp)
-
-        return self._quality_analyzer.analyze_rosbag(
-            bag_path=bag_path,
-            topic_timestamps=topic_timestamps,
-            topic_types=topic_types,
-        )
 
     def convert_single_rosbag(
         self,
@@ -250,14 +305,11 @@ class RosbagToLerobotConverter:
 
         self._log_info(f"Converting rosbag: {bag_path} (episode {episode_index})")
 
-        robot_config = self._metadata_manager.load_robot_config(bag_path)
-        if robot_config:
-            self._update_config_from_robot_config(robot_config)
-
-        if self.config.enable_quality_report:
-            quality_report = self._analyze_rosbag_quality(bag_path)
-            self._quality_reports[episode_index] = quality_report
-            self._quality_analyzer.print_summary(quality_report)
+        # Load per-episode robot_config.yaml if exists and no global config was loaded
+        if not self.config.robot_config_path:
+            robot_config = self._metadata_manager.load_robot_config(bag_path)
+            if robot_config:
+                self._update_config_from_robot_config(robot_config)
 
         trim_points = None
         exclude_regions = []
@@ -274,6 +326,28 @@ class RosbagToLerobotConverter:
 
         video_files = self._find_video_files(bag_path)
         episode_data.video_files = video_files
+
+        # Align parquet rows to video frame count (LeRobot requires 1:1 match)
+        if video_files:
+            video_frame_counts = {}
+            for cam_name, vpath in video_files.items():
+                fc = self._get_video_frame_count(vpath)
+                if fc is not None:
+                    video_frame_counts[cam_name] = fc
+
+            if video_frame_counts:
+                target_frames = min(video_frame_counts.values())
+                if episode_data.length > target_frames:
+                    excess = episode_data.length - target_frames
+                    self._log_info(
+                        f"Trimming parquet from {episode_data.length} to "
+                        f"{target_frames} rows to match video frames "
+                        f"(removing {excess} from end)"
+                    )
+                    episode_data.timestamps = episode_data.timestamps[:target_frames]
+                    episode_data.observation_state = episode_data.observation_state[:target_frames]
+                    episode_data.action = episode_data.action[:target_frames]
+                    episode_data.length = target_frames
 
         task_markers = self._metadata_manager.get_task_markers(bag_path)
         if task_markers:
@@ -294,6 +368,9 @@ class RosbagToLerobotConverter:
             topics = robot_config["state_topics"]
             if isinstance(topics, dict):
                 self.config.state_topics = list(topics.values())
+                # Build topic -> group key mapping
+                for key, topic_path in topics.items():
+                    self._state_topic_key_map[topic_path] = key
             elif isinstance(topics, list):
                 self.config.state_topics = topics
 
@@ -301,6 +378,8 @@ class RosbagToLerobotConverter:
             topics = robot_config["action_topics"]
             if isinstance(topics, dict):
                 self.config.action_topics = list(topics.values())
+                for key, topic_path in topics.items():
+                    self._action_topic_key_map[topic_path] = key
             elif isinstance(topics, list):
                 self.config.action_topics = topics
 
@@ -311,31 +390,76 @@ class RosbagToLerobotConverter:
             self._camera_mapping = robot_config["camera_mapping"]
             self._log_info(f"Loaded camera mapping: {self._camera_mapping}")
 
-        # Prefer total_joint_order (flat list) over joint_order (nested dict)
-        if "total_joint_order" in robot_config:
-            self._joint_order = robot_config["total_joint_order"]
-            self._log_info(
-                f"Loaded total_joint_order with {len(self._joint_order)} joints"
-            )
-        elif "joint_order" in robot_config:
+        # Load joint_order (nested dict) for per-group ordering
+        if "joint_order" in robot_config:
             joint_order = robot_config["joint_order"]
-            # Handle nested dict structure (flatten values)
             if isinstance(joint_order, dict):
+                self._joint_order_by_group = {}
                 flattened = []
                 for key, joints in joint_order.items():
                     if isinstance(joints, list):
+                        self._joint_order_by_group[key] = joints
                         flattened.extend(joints)
                     else:
+                        self._joint_order_by_group[key] = [joints]
                         flattened.append(joints)
                 self._joint_order = flattened
                 self._log_info(
-                    f"Loaded joint_order (flattened from dict) with {len(self._joint_order)} joints"
+                    f"Loaded joint_order by group: {list(self._joint_order_by_group.keys())} "
+                    f"(total {len(self._joint_order)} joints)"
                 )
             else:
                 self._joint_order = joint_order
                 self._log_info(
                     f"Loaded joint_order with {len(self._joint_order)} joints"
                 )
+
+        # Prefer total_joint_order (flat list) if explicitly provided
+        if "total_joint_order" in robot_config:
+            self._joint_order = robot_config["total_joint_order"]
+            self._log_info(
+                f"Overriding with total_joint_order: {len(self._joint_order)} joints"
+            )
+
+    def _extract_velocity_from_odometry(self, msg) -> Optional[np.ndarray]:
+        """Extract velocity values from Odometry message."""
+        if hasattr(msg, "twist") and hasattr(msg.twist, "twist"):
+            twist = msg.twist.twist
+            return np.array([
+                twist.linear.x,
+                twist.linear.y,
+                twist.angular.z,
+            ], dtype=np.float32)
+        return None
+
+    def _extract_velocity_from_twist(self, msg) -> Optional[np.ndarray]:
+        """Extract velocity values from Twist message."""
+        if hasattr(msg, "linear") and hasattr(msg, "angular"):
+            return np.array([
+                msg.linear.x,
+                msg.linear.y,
+                msg.angular.z,
+            ], dtype=np.float32)
+        return None
+
+    def _get_topic_group_key(self, topic: str, role: str) -> str:
+        """Get the group key for a topic, using config mapping or deriving from path."""
+        if role == "state" and topic in self._state_topic_key_map:
+            return self._state_topic_key_map[topic]
+        if role == "action" and topic in self._action_topic_key_map:
+            return self._action_topic_key_map[topic]
+        # Derive from topic path
+        parts = topic.strip("/").split("/")
+        for part in parts:
+            if "follower" in part or "leader" in part:
+                role_word = "follower" if "follower" in part else "leader"
+                body_part = part.replace(f"_{role_word}", "").replace(f"{role_word}_", "")
+                return f"{role_word}_{body_part}"
+        if "odom" in topic.lower():
+            return "follower_mobile"
+        if "cmd_vel" in topic.lower():
+            return "leader_mobile"
+        return topic
 
     def _extract_joint_data(
         self,
@@ -362,15 +486,23 @@ class RosbagToLerobotConverter:
             else float("inf")
         )
 
-        # Collect state and action messages
-        state_messages: List[Tuple[float, np.ndarray]] = []
-        # Group action messages by topic to handle multiple action sources
+        # Group both state and action messages by topic
+        state_messages_by_topic: Dict[str, List[Tuple[float, np.ndarray]]] = {}
+        state_joint_names_by_topic: Dict[str, List[str]] = {}
         action_messages_by_topic: Dict[str, List[Tuple[float, np.ndarray]]] = {}
         action_joint_names_by_topic: Dict[str, List[str]] = {}
 
         topic_types = reader.get_topic_types()
 
-        for topic, msg, timestamp in reader.read_messages():
+        # Build topic filter to avoid decoding unnecessary messages (TF, CameraInfo, etc.)
+        topics_to_read = None
+        if self.config.state_topics or self.config.action_topics:
+            topics_to_read = list(
+                set(self.config.state_topics + self.config.action_topics)
+            )
+            self._log_info(f"Reading {len(topics_to_read)} topics (filtered)")
+
+        for topic, msg, timestamp in reader.read_messages(topic_filter=topics_to_read):
             # Skip if outside trim bounds
             if timestamp < trim_start or timestamp > trim_end:
                 continue
@@ -379,51 +511,68 @@ class RosbagToLerobotConverter:
             if self._is_in_exclude_region(timestamp, exclude_regions):
                 continue
 
-            # Process state topics (JointState)
+            topic_type = topic_types.get(topic, "")
+
+            # Process state topics
             if self._is_state_topic(topic, topic_types):
-                if hasattr(msg, "position") and msg.position:
-                    msg_names = (
-                        list(msg.name) if hasattr(msg, "name") and msg.name else []
-                    )
-                    positions = np.array(msg.position, dtype=np.float32)
+                positions = None
+                joint_names = []
 
-                    # Filter by joint_order if specified
-                    if self._joint_order and msg_names:
-                        filtered_positions = self._filter_positions_by_joint_order(
-                            positions, msg_names, self._joint_order
-                        )
-                        if filtered_positions is not None:
-                            state_messages.append((timestamp, filtered_positions))
-                            # Set state joint names from joint_order
-                            if not self._state_joint_names:
-                                self._state_joint_names = list(self._joint_order)
+                if "Odometry" in topic_type:
+                    positions = self._extract_velocity_from_odometry(msg)
+                    group_key = self._get_topic_group_key(topic, "state")
+                    if group_key in self._joint_order_by_group:
+                        joint_names = self._joint_order_by_group[group_key]
                     else:
-                        state_messages.append((timestamp, positions))
-                        # Capture joint names on first message
-                        if not self._state_joint_names and msg_names:
-                            self._state_joint_names = msg_names
+                        joint_names = ["linear_x", "linear_y", "angular_z"]
+                elif hasattr(msg, "position") and msg.position:
+                    positions = np.array(msg.position, dtype=np.float32)
+                    joint_names = list(msg.name) if hasattr(msg, "name") and msg.name else []
 
-            # Process action topics (JointTrajectory or JointState)
+                if positions is not None:
+                    if topic not in state_messages_by_topic:
+                        state_messages_by_topic[topic] = []
+                    state_messages_by_topic[topic].append((timestamp, positions))
+                    if topic not in state_joint_names_by_topic and joint_names:
+                        state_joint_names_by_topic[topic] = joint_names
+
+            # Process action topics
             elif self._is_action_topic(topic, topic_types):
-                positions = self._extract_action_positions(msg)
+                positions = None
+                joint_names = []
+
+                if "Twist" in topic_type:
+                    positions = self._extract_velocity_from_twist(msg)
+                    group_key = self._get_topic_group_key(topic, "action")
+                    if group_key in self._joint_order_by_group:
+                        joint_names = self._joint_order_by_group[group_key]
+                    else:
+                        joint_names = ["linear_x", "linear_y", "angular_z"]
+                else:
+                    positions = self._extract_action_positions(msg)
+                    joint_names = self._extract_joint_names(msg)
+
                 if positions is not None:
                     if topic not in action_messages_by_topic:
                         action_messages_by_topic[topic] = []
                     action_messages_by_topic[topic].append((timestamp, positions))
+                    if topic not in action_joint_names_by_topic and joint_names:
+                        action_joint_names_by_topic[topic] = joint_names
 
-                    # Capture action joint names per topic
-                    if topic not in action_joint_names_by_topic:
-                        names = self._extract_joint_names(msg)
-                        if names:
-                            action_joint_names_by_topic[topic] = names
-
-        if not state_messages:
+        if not state_messages_by_topic:
             self._log_warning(f"No state messages found in {bag_path}")
             return None
 
+        state_messages = self._merge_state_messages(
+            state_messages_by_topic, state_joint_names_by_topic
+        )
         action_messages = self._merge_action_messages(
             action_messages_by_topic, action_joint_names_by_topic
         )
+
+        if not state_messages:
+            self._log_warning(f"No valid merged state messages in {bag_path}")
+            return None
 
         episode, staleness_metrics = self._resample_to_fps(
             episode, state_messages, action_messages, trim_start
@@ -439,10 +588,20 @@ class RosbagToLerobotConverter:
         if self.config.state_topics:
             return topic in self.config.state_topics
 
-        # Default heuristics
+        # Default heuristics — check action indicators first to avoid false positives
         topic_type = topic_types.get(topic, "")
-        if "JointState" in topic_type:
-            if "follower" in topic.lower() or "state" in topic.lower():
+        topic_lower = topic.lower()
+        is_action_indicator = (
+            "leader" in topic_lower
+            or "action" in topic_lower
+            or "command" in topic_lower
+            or "cmd_vel" in topic_lower
+        )
+        if "JointState" in topic_type or "JointTrajectory" in topic_type:
+            if not is_action_indicator and "follower" in topic_lower:
+                return True
+        if "Odometry" in topic_type:
+            if not is_action_indicator:
                 return True
         return False
 
@@ -453,12 +612,16 @@ class RosbagToLerobotConverter:
 
         # Default heuristics
         topic_type = topic_types.get(topic, "")
+        topic_lower = topic.lower()
         if "JointTrajectory" in topic_type or "JointState" in topic_type:
             if (
-                "leader" in topic.lower()
-                or "action" in topic.lower()
-                or "command" in topic.lower()
+                "leader" in topic_lower
+                or "action" in topic_lower
+                or "command" in topic_lower
             ):
+                return True
+        if "Twist" in topic_type:
+            if "leader" in topic_lower or "cmd_vel" in topic_lower:
                 return True
         return False
 
@@ -543,27 +706,40 @@ class RosbagToLerobotConverter:
         if not action_messages_by_topic:
             return []
 
-        # Sort topics for consistent ordering
-        sorted_topics = sorted(action_messages_by_topic.keys())
+        # Determine topic ordering using group keys
+        topic_to_group: Dict[str, str] = {}
+        for topic in action_messages_by_topic.keys():
+            group_key = self._get_topic_group_key(topic, "action")
+            topic_to_group[topic] = group_key
 
-        # Build combined joint names
+        # Sort topics by their group key for consistent ordering
+        sorted_topics = sorted(
+            action_messages_by_topic.keys(),
+            key=lambda t: topic_to_group.get(t, t)
+        )
+
+        # Build combined joint names, applying per-group joint_order if available
         combined_names = []
         for topic in sorted_topics:
-            names = action_joint_names_by_topic.get(topic, [])
-            combined_names.extend(names)
+            group_key = topic_to_group[topic]
+            if group_key in self._joint_order_by_group:
+                combined_names.extend(self._joint_order_by_group[group_key])
+            else:
+                names = action_joint_names_by_topic.get(topic, [])
+                combined_names.extend(names)
         self._action_joint_names = combined_names
 
-        # Get all unique timestamps
-        all_timestamps = set()
-        for msgs in action_messages_by_topic.values():
-            for t, _ in msgs:
-                all_timestamps.add(t)
+        # Use timestamps from the first topic as reference
+        reference_topic = sorted_topics[0]
+        reference_timestamps = sorted(
+            t for t, _ in action_messages_by_topic[reference_topic]
+        )
 
-        # For each timestamp, concatenate actions from all topics
+        # For each reference timestamp, concatenate actions from all topics
         # Only include timestamps where ALL topics have valid previous values
         merged_messages: List[Tuple[float, np.ndarray]] = []
 
-        for timestamp in sorted(all_timestamps):
+        for timestamp in reference_timestamps:
             combined_action = []
             all_topics_have_data = True
 
@@ -573,7 +749,24 @@ class RosbagToLerobotConverter:
                     msgs, timestamp, tolerance=0.05
                 )
                 if prev_value is not None:
-                    combined_action.extend(prev_value.tolist())
+                    # Apply per-group joint_order filtering if available
+                    group_key = topic_to_group[topic]
+                    if group_key in self._joint_order_by_group:
+                        group_names = action_joint_names_by_topic.get(topic, [])
+                        target_names = self._joint_order_by_group[group_key]
+                        if group_names:
+                            filtered = self._filter_positions_by_joint_order(
+                                prev_value, group_names, target_names
+                            )
+                            if filtered is not None:
+                                combined_action.extend(filtered.tolist())
+                            else:
+                                all_topics_have_data = False
+                                break
+                        else:
+                            combined_action.extend(prev_value.tolist())
+                    else:
+                        combined_action.extend(prev_value.tolist())
                 else:
                     all_topics_have_data = False
                     break
@@ -585,14 +778,117 @@ class RosbagToLerobotConverter:
 
         return merged_messages
 
+    def _merge_state_messages(
+        self,
+        state_messages_by_topic: Dict[str, List[Tuple[float, np.ndarray]]],
+        state_joint_names_by_topic: Dict[str, List[str]],
+    ) -> List[Tuple[float, np.ndarray]]:
+        """Merge state messages from multiple topics into a single state vector.
+
+        Uses joint_order_by_group to filter/reorder each topic's joints,
+        then concatenates them in sorted group key order.
+        """
+        if not state_messages_by_topic:
+            return []
+
+        # If only one topic and no grouping needed, use simple path
+        if len(state_messages_by_topic) == 1 and not self._joint_order_by_group:
+            topic = list(state_messages_by_topic.keys())[0]
+            names = state_joint_names_by_topic.get(topic, [])
+            if names:
+                self._state_joint_names = names
+            return state_messages_by_topic[topic]
+
+        # Determine topic ordering using group keys
+        topic_to_group: Dict[str, str] = {}
+        for topic in state_messages_by_topic.keys():
+            group_key = self._get_topic_group_key(topic, "state")
+            topic_to_group[topic] = group_key
+
+        # Sort topics by their group key for consistent ordering
+        sorted_topics = sorted(
+            state_messages_by_topic.keys(),
+            key=lambda t: topic_to_group.get(t, t)
+        )
+
+        # Build combined joint names, applying per-group joint_order if available
+        combined_names = []
+        for topic in sorted_topics:
+            group_key = topic_to_group[topic]
+            if group_key in self._joint_order_by_group:
+                combined_names.extend(self._joint_order_by_group[group_key])
+            else:
+                names = state_joint_names_by_topic.get(topic, [])
+                combined_names.extend(names)
+        self._state_joint_names = combined_names
+
+        # Use timestamps from the first topic as reference
+        # (all joint topics publish at ~100Hz, so any topic works)
+        # This avoids creating the full cross-product of timestamps
+        reference_topic = sorted_topics[0]
+        reference_timestamps = sorted(
+            t for t, _ in state_messages_by_topic[reference_topic]
+        )
+
+        # For each reference timestamp, merge state from all topics using causal sync
+        merged_messages: List[Tuple[float, np.ndarray]] = []
+
+        for timestamp in reference_timestamps:
+            combined_state = []
+            all_topics_have_data = True
+
+            for topic in sorted_topics:
+                msgs = state_messages_by_topic[topic]
+                prev_value, _ = self._find_previous_value_in_list(
+                    msgs, timestamp, tolerance=0.05
+                )
+                if prev_value is not None:
+                    # Apply per-group joint_order filtering if available
+                    group_key = topic_to_group[topic]
+                    if group_key in self._joint_order_by_group:
+                        group_names = state_joint_names_by_topic.get(topic, [])
+                        target_names = self._joint_order_by_group[group_key]
+                        if group_names:
+                            filtered = self._filter_positions_by_joint_order(
+                                prev_value, group_names, target_names
+                            )
+                            if filtered is not None:
+                                combined_state.extend(filtered.tolist())
+                            else:
+                                all_topics_have_data = False
+                                break
+                        else:
+                            combined_state.extend(prev_value.tolist())
+                    else:
+                        combined_state.extend(prev_value.tolist())
+                else:
+                    all_topics_have_data = False
+                    break
+
+            if all_topics_have_data and combined_state:
+                merged_messages.append(
+                    (timestamp, np.array(combined_state, dtype=np.float32))
+                )
+
+        self._log_info(
+            f"Merged state from {len(sorted_topics)} topics: "
+            f"{len(merged_messages)} merged samples, {len(combined_names)} dimensions"
+        )
+
+        return merged_messages
+
     def _find_previous_value_in_list(
         self,
         messages: List[Tuple[float, np.ndarray]],
         target_time: float,
         tolerance: float = float("inf"),
+        _keys_cache: Dict[int, List[float]] = {},
     ) -> Tuple[Optional[np.ndarray], float]:
         """
         Find the most recent message value at or before target time (causal sync).
+
+        Uses binary search (bisect) for O(log n) performance.
+        Messages must be sorted by timestamp.
 
         Returns:
             Tuple of (value, staleness_ms) where staleness_ms is how old the value is.
@@ -601,17 +897,19 @@ class RosbagToLerobotConverter:
         if not messages:
             return None, 0.0
 
-        best_time: Optional[float] = None
-        best_value: Optional[np.ndarray] = None
+        # Cache timestamp keys for repeated lookups on the same list
+        list_id = id(messages)
+        if list_id not in _keys_cache or len(_keys_cache[list_id]) != len(messages):
+            _keys_cache[list_id] = [t for t, _ in messages]
+        keys = _keys_cache[list_id]
 
-        for msg_time, value in messages:
-            if msg_time <= target_time:
-                if best_time is None or msg_time > best_time:
-                    best_time = msg_time
-                    best_value = value
-
-        if best_value is None or best_time is None:
+        # Binary search: find rightmost index where time <= target_time
+        idx = bisect.bisect_right(keys, target_time) - 1
+        if idx < 0:
             return None, 0.0
+
+        best_time = keys[idx]
+        best_value = messages[idx][1]
 
         staleness_ms = (target_time - best_time) * 1000.0
         if staleness_ms > tolerance * 1000.0:
@@ -775,9 +1073,13 @@ class RosbagToLerobotConverter:
         messages: List[Tuple[float, np.ndarray]],
         target_time: float,
         expected_interval_sec: float,
+        _keys_cache: Dict[int, List[float]] = {},
     ) -> Tuple[Optional[np.ndarray], float]:
         """
         Find the most recent message value at or before target time (causal sync).
+
+        Uses binary search (bisect) for O(log n) performance.
+        Messages must be sorted by timestamp.
 
         Args:
             messages: List of (timestamp, value) tuples
@@ -790,23 +1092,29 @@ class RosbagToLerobotConverter:
         if not messages:
             return None, 0.0
 
-        best_time: Optional[float] = None
-        best_value: Optional[np.ndarray] = None
+        # Cache timestamp keys for repeated lookups on the same list
+        list_id = id(messages)
+        if list_id not in _keys_cache or len(_keys_cache[list_id]) != len(messages):
+            _keys_cache[list_id] = [t for t, _ in messages]
+        keys = _keys_cache[list_id]
 
-        for msg_time, value in messages:
-            if msg_time <= target_time:
-                if best_time is None or msg_time > best_time:
-                    best_time = msg_time
-                    best_value = value
-
-        if best_value is None or best_time is None:
+        # Binary search: find rightmost index where time <= target_time
+        idx = bisect.bisect_right(keys, target_time) - 1
+        if idx < 0:
             return None, 0.0
+
+        best_time = keys[idx]
+        best_value = messages[idx][1]
 
         staleness_ms = (target_time - best_time) * 1000.0
         return best_value, staleness_ms
 
     def _find_video_files(self, bag_path: Path) -> Dict[str, Path]:
-        """Find MP4 video files in the rosbag directory."""
+        """Find MP4 video files in the rosbag directory.
+
+        Supports ScaleAI converter output (cam_*.mp4 in root dir)
+        and legacy format (videos/ subdirectory).
+        """
         video_files = {}
 
         search_paths = [bag_path, bag_path / "videos"]
@@ -815,43 +1123,40 @@ class RosbagToLerobotConverter:
             if not search_path.exists():
                 continue
 
-            for mp4_file in search_path.glob("*_compressed.mp4"):
+            for mp4_file in sorted(search_path.glob("*.mp4")):
                 camera_name = self._get_camera_name_for_video(mp4_file.stem)
                 if camera_name not in video_files:
                     video_files[camera_name] = mp4_file
 
-            for mp4_file in search_path.glob("*.mp4"):
-                if "_compressed" not in mp4_file.stem:
-                    camera_name = self._get_camera_name_for_video(mp4_file.stem)
-                    if camera_name not in video_files:
-                        video_files[camera_name] = mp4_file
+        if video_files:
+            self._log_info(f"Found video files: {list(video_files.keys())}")
 
         return video_files
 
     def _get_camera_name_for_video(self, filename: str) -> str:
-        """Get camera name from video filename using camera_mapping if available."""
+        """Get camera name from video filename.
+
+        ScaleAI converter outputs files like 'cam_left_head.mp4',
+        so the stem is already the camera name.
+        """
         name = filename.replace("_compressed", "")
 
+        # Direct match: ScaleAI converter uses cam_name as filename
         if self._camera_mapping:
+            # Check if filename matches any known camera name
             for topic, camera_name in self._camera_mapping.items():
+                if name == camera_name:
+                    return camera_name
+                # Legacy: sanitized topic match
                 sanitized_topic = topic.replace("/", "_").lstrip("_")
                 if sanitized_topic in name or name in sanitized_topic:
-                    self._log_info(
-                        f"Mapped video '{filename}' to camera '{camera_name}'"
-                    )
                     return camera_name
 
-        return self._extract_camera_name_fallback(name)
+        # Filename is already the camera name (e.g., cam_left_head)
+        if name.startswith("cam_"):
+            return name
 
-    def _extract_camera_name_fallback(self, filename: str) -> str:
-        """Fallback: extract camera name from video filename heuristically."""
-        parts = filename.split("_")
-        if "camera" in parts:
-            idx = parts.index("camera")
-            if idx + 1 < len(parts):
-                return parts[idx + 1]
-
-        return filename.replace("/", "_").replace(".", "_")
+        return name
 
     def _get_video_dimensions(self, video_path: Path) -> Tuple[int, int]:
         """Get video height and width using OpenCV."""
@@ -868,6 +1173,21 @@ class RosbagToLerobotConverter:
         except Exception as e:
             self._log_warning(f"Failed to get video dimensions: {e}")
         return 480, 640
+
+    def _get_video_frame_count(self, video_path: Path) -> Optional[int]:
+        """Get the number of frames in a video file using OpenCV."""
+        try:
+            import cv2
+
+            cap = cv2.VideoCapture(str(video_path))
+            if cap.isOpened():
+                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                cap.release()
+                if frame_count > 0:
+                    return frame_count
+        except Exception as e:
+            self._log_warning(f"Failed to get video frame count: {e}")
+        return None
 
     def convert_multiple_rosbags(
         self,
@@ -903,62 +1223,8 @@ class RosbagToLerobotConverter:
         self._build_features(episodes_data)
         self._write_dataset(episodes_data)
 
-        if self.config.enable_quality_report and self._quality_reports:
-            self._write_quality_reports(output_dir)
-
         self._log_info(f"Successfully converted {len(episodes_data)} episodes")
         return True
-
-    def _write_quality_reports(self, output_dir: Path):
-        meta_dir = output_dir / "meta"
-        meta_dir.mkdir(parents=True, exist_ok=True)
-
-        combined_report: Dict[str, Any] = {
-            "overall_status": "GOOD",
-            "total_warnings": 0,
-            "total_errors": 0,
-            "episodes": {},
-        }
-
-        has_error = False
-        has_warning = False
-
-        for episode_idx, report in self._quality_reports.items():
-            episode_key = f"episode_{episode_idx:06d}"
-            episode_report = report.to_dict()
-
-            staleness = self._staleness_reports.get(episode_idx, {})
-            if staleness:
-                episode_report["staleness"] = {
-                    name: metrics.to_dict() for name, metrics in staleness.items()
-                }
-                for metrics in staleness.values():
-                    combined_report["total_warnings"] += metrics.stale_warning_count
-                    combined_report["total_errors"] += metrics.stale_error_count
-                    if metrics.status == "ERROR":
-                        has_error = True
-                    elif metrics.status == "WARNING":
-                        has_warning = True
-
-            combined_report["episodes"][episode_key] = episode_report
-            combined_report["total_warnings"] += report.total_warnings
-            combined_report["total_errors"] += report.total_errors
-
-            if report.overall_status == "ERROR":
-                has_error = True
-            elif report.overall_status == "WARNING":
-                has_warning = True
-
-        if has_error:
-            combined_report["overall_status"] = "ERROR"
-        elif has_warning:
-            combined_report["overall_status"] = "WARNING"
-
-        report_path = meta_dir / "quality_report.json"
-        with open(report_path, "w", encoding="utf-8") as f:
-            json.dump(combined_report, f, indent=2, ensure_ascii=False)
-
-        self._log_info(f"Wrote quality report: {report_path}")
 
     def _build_features(self, episodes_data: List[EpisodeData]):
         """Build feature definitions from episode data."""

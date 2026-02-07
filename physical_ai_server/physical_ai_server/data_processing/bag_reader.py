@@ -14,44 +14,32 @@
 #
 # Author: Dongyun Kim
 
-"""ROSbag file reader for extracting messages and metadata."""
+"""ROSbag file reader for extracting messages and metadata.
+
+Uses the mcap Python library directly to avoid rosbag2_py compatibility
+issues (e.g., type_description_hash version mismatch).
+"""
 
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from rosbag2_py import SequentialReader, StorageOptions, ConverterOptions
-from rclpy.serialization import deserialize_message
-from sensor_msgs.msg import JointState
-from trajectory_msgs.msg import JointTrajectory
-
-try:
-    from rosbag_recorder.msg import ImageMetadata
-
-    HAS_IMAGE_METADATA = True
-except ImportError:
-    HAS_IMAGE_METADATA = False
+from mcap.reader import make_reader
+from mcap_ros2.decoder import DecoderFactory
 
 
 class BagReader:
     """
     ROSbag file reader for extracting messages.
 
-    Handles both MCAP and SQLite3 (db3) formats.
+    Reads MCAP files using the mcap Python library with mcap_ros2 decoder.
     """
 
     def __init__(self, bag_path: Path, logger=None):
-        """
-        Initialize BagReader.
-
-        Args:
-            bag_path: Path to the ROSbag directory
-            logger: Optional logger instance
-        """
         self.bag_path = Path(bag_path)
         self.logger = logger
-        self._reader: Optional[SequentialReader] = None
         self._topic_type_map: Dict[str, str] = {}
-        self._storage_id: str = "mcap"
+        self._mcap_file: Optional[str] = None
+        self._decoder_factory = DecoderFactory()
 
     def _log_info(self, msg: str):
         if self.logger:
@@ -61,63 +49,59 @@ class BagReader:
         if self.logger:
             self.logger.error(msg)
 
-    def _detect_storage_format(self) -> Optional[str]:
-        """
-        Detect the storage format of the bag file.
+    def _find_mcap_file(self) -> Optional[str]:
+        """Find the MCAP file to read."""
+        # If bag_path is a file, use it directly
+        if self.bag_path.is_file() and self.bag_path.suffix == '.mcap':
+            return str(self.bag_path)
 
-        Returns:
-            'mcap' or 'sqlite3' if found, None otherwise
-        """
-        mcap_files = list(self.bag_path.glob("*.mcap"))
-        if mcap_files:
-            return "mcap"
+        # If bag_path is a directory, find the MCAP file
+        if self.bag_path.is_dir():
+            # Prefer episode.mcap (ScaleAI converter output)
+            episode_mcap = self.bag_path / 'episode.mcap'
+            if episode_mcap.exists():
+                return str(episode_mcap)
 
-        db3_files = list(self.bag_path.glob("*.db3"))
-        if db3_files:
-            return "sqlite3"
+            # Fall back to any .mcap file
+            mcap_files = sorted(self.bag_path.glob('*.mcap'))
+            if mcap_files:
+                return str(mcap_files[0])
 
         return None
 
     def open(self) -> bool:
-        """
-        Open the bag file for reading.
-
-        Returns:
-            True if successful, False otherwise
-        """
-        storage_id = self._detect_storage_format()
-        if storage_id is None:
-            self._log_error(f"No bag file found in: {self.bag_path}")
+        """Open the bag file for reading. Returns True if successful."""
+        self._mcap_file = self._find_mcap_file()
+        if self._mcap_file is None:
+            self._log_error(f"No MCAP file found in: {self.bag_path}")
             return False
 
-        self._storage_id = storage_id
-
         try:
-            self._reader = SequentialReader()
-            storage_options = StorageOptions(
-                uri=str(self.bag_path), storage_id=storage_id
-            )
-            converter_options = ConverterOptions(
-                input_serialization_format="cdr", output_serialization_format="cdr"
-            )
-            self._reader.open(storage_options, converter_options)
+            # Read topic types from summary
+            with open(self._mcap_file, 'rb') as f:
+                reader = make_reader(f, decoder_factories=[self._decoder_factory])
+                summary = reader.get_summary()
+                if summary is None:
+                    self._log_error(f"Failed to read MCAP summary: {self._mcap_file}")
+                    return False
 
-            # Build topic type map
-            topic_types = self._reader.get_all_topics_and_types()
-            self._topic_type_map = {t.name: t.type for t in topic_types}
+                for channel_id, channel in summary.channels.items():
+                    schema_id = channel.schema_id
+                    schema = summary.schemas.get(schema_id)
+                    schema_name = schema.name if schema else "unknown"
+                    self._topic_type_map[channel.topic] = schema_name
 
+            self._log_info(
+                f"Opened MCAP: {self._mcap_file} "
+                f"({len(self._topic_type_map)} topics)"
+            )
             return True
         except Exception as e:
-            self._log_error(f"Failed to open bag file: {e}")
+            self._log_error(f"Failed to open MCAP file: {e}")
             return False
 
     def get_topic_types(self) -> Dict[str, str]:
-        """
-        Get mapping of topic names to their message types.
-
-        Returns:
-            Dictionary mapping topic names to type strings
-        """
+        """Get mapping of topic names to their message types."""
         return self._topic_type_map.copy()
 
     def read_messages(
@@ -127,29 +111,26 @@ class BagReader:
         Read messages from the bag file.
 
         Args:
-            topic_filter: Optional list of topic names to filter
+            topic_filter: Optional list of topic names. Only these topics
+                will be decoded, significantly improving performance.
 
         Yields:
             Tuple of (topic_name, deserialized_message, timestamp_sec)
         """
-        if self._reader is None:
-            self._log_error("Bag file not opened. Call open() first.")
+        if self._mcap_file is None:
+            self._log_error("MCAP file not opened. Call open() first.")
             return
 
-        while self._reader.has_next():
-            topic, data, timestamp = self._reader.read_next()
+        topic_set = set(topic_filter) if topic_filter else None
 
-            # Apply topic filter if specified
-            if topic_filter and topic not in topic_filter:
-                continue
-
-            timestamp_sec = timestamp / 1e9
-            topic_type = self._topic_type_map.get(topic, "")
-
-            # Deserialize based on message type
-            msg = self._deserialize_message(data, topic_type, topic)
-            if msg is not None:
-                yield topic, msg, timestamp_sec
+        with open(self._mcap_file, 'rb') as f:
+            reader = make_reader(f, decoder_factories=[self._decoder_factory])
+            for schema, channel, message, decoded_msg in reader.iter_decoded_messages(
+                topics=topic_filter
+            ):
+                timestamp_sec = message.log_time / 1e9
+                if decoded_msg is not None:
+                    yield channel.topic, decoded_msg, timestamp_sec
 
     def read_raw_messages(self) -> Iterator[Tuple[str, bytes, float, str]]:
         """
@@ -158,61 +139,25 @@ class BagReader:
         Yields:
             Tuple of (topic_name, raw_data, timestamp_sec, topic_type)
         """
-        if self._reader is None:
-            self._log_error("Bag file not opened. Call open() first.")
+        if self._mcap_file is None:
+            self._log_error("MCAP file not opened. Call open() first.")
             return
 
-        while self._reader.has_next():
-            topic, data, timestamp = self._reader.read_next()
-            timestamp_sec = timestamp / 1e9
-            topic_type = self._topic_type_map.get(topic, "")
-            yield topic, data, timestamp_sec, topic_type
-
-    def _deserialize_message(
-        self, data: bytes, topic_type: str, topic: str
-    ) -> Optional[Any]:
-        """
-        Deserialize a message based on its type.
-
-        Args:
-            data: Raw serialized message data
-            topic_type: Message type string
-            topic: Topic name (for logging)
-
-        Returns:
-            Deserialized message or None if unsupported/failed
-        """
-        try:
-            if HAS_IMAGE_METADATA and "ImageMetadata" in topic_type:
-                return deserialize_message(data, ImageMetadata)
-            elif topic_type == "sensor_msgs/msg/JointState":
-                return deserialize_message(data, JointState)
-            elif topic_type == "trajectory_msgs/msg/JointTrajectory":
-                return deserialize_message(data, JointTrajectory)
-            else:
-                # Return None for unsupported types
-                return None
-        except Exception as e:
-            self._log_error(f"Failed to deserialize {topic_type} from {topic}: {e}")
-            return None
+        with open(self._mcap_file, 'rb') as f:
+            reader = make_reader(f)
+            for schema, channel, message in reader.iter_messages():
+                timestamp_sec = message.log_time / 1e9
+                topic_type = self._topic_type_map.get(channel.topic, "")
+                yield channel.topic, message.data, timestamp_sec, topic_type
 
     def get_time_range(self) -> Tuple[float, float]:
-        """
-        Get the time range of the bag file.
-
-        Note: This requires reading through the entire bag file.
-        Consider using metadata.yaml for faster access.
-
-        Returns:
-            Tuple of (start_time, end_time) in seconds
-        """
+        """Get the time range of the bag file."""
         min_time = float("inf")
         max_time = float("-inf")
 
-        if self._reader is None:
+        if self._mcap_file is None:
             return (0.0, 0.0)
 
-        # Read through all messages to find time range
         for _, _, timestamp_sec, _ in self.read_raw_messages():
             min_time = min(min_time, timestamp_sec)
             max_time = max(max_time, timestamp_sec)
@@ -224,15 +169,13 @@ class BagReader:
 
     def close(self):
         """Close the bag reader."""
-        self._reader = None
+        self._mcap_file = None
         self._topic_type_map = {}
 
     def __enter__(self):
-        """Context manager entry."""
         self.open()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
         self.close()
         return False

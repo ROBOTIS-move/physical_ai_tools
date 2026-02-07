@@ -17,10 +17,17 @@ from pathlib import Path
 import pytest
 
 import sys
+import importlib
 
+# Direct import to avoid __init__.py pulling in ROS2-dependent modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "physical_ai_server"))
-
-from data_processing.video_metadata_extractor import VideoMetadataExtractor
+spec = importlib.util.spec_from_file_location(
+    "video_metadata_extractor",
+    str(Path(__file__).parent.parent.parent / "physical_ai_server" / "data_processing" / "video_metadata_extractor.py"),
+)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+VideoMetadataExtractor = mod.VideoMetadataExtractor
 
 
 class TestVideoMetadataExtractor:
@@ -33,6 +40,24 @@ class TestVideoMetadataExtractor:
     def extractor(self):
         return VideoMetadataExtractor()
 
+    # New naming convention tests
+    def test_extract_camera_name_new_left_head(self, extractor):
+        topic = "/robot/camera/cam_left_head/image_raw/compressed"
+        assert extractor.extract_camera_name_from_topic(topic) == "cam_left_head"
+
+    def test_extract_camera_name_new_right_head(self, extractor):
+        topic = "/robot/camera/cam_right_head/image_raw/compressed"
+        assert extractor.extract_camera_name_from_topic(topic) == "cam_right_head"
+
+    def test_extract_camera_name_new_left_wrist(self, extractor):
+        topic = "/robot/camera/cam_left_wrist/image_raw/compressed"
+        assert extractor.extract_camera_name_from_topic(topic) == "cam_left_wrist"
+
+    def test_extract_camera_name_new_right_wrist(self, extractor):
+        topic = "/robot/camera/cam_right_wrist/image_raw/compressed"
+        assert extractor.extract_camera_name_from_topic(topic) == "cam_right_wrist"
+
+    # Legacy naming convention tests
     def test_extract_camera_name_zed(self, extractor):
         topic = "/zed/zed_node/left/image_rect_color/compressed"
         assert extractor.extract_camera_name_from_topic(topic) == "cam_head"

@@ -19,12 +19,36 @@
 """Unit tests for RosbagToLerobotConverter."""
 
 import json
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+
+# Mock ROS2 modules that are not available outside Docker
+for mod_name in [
+    "rosbag2_py", "rclpy", "rclpy.serialization",
+    "sensor_msgs", "sensor_msgs.msg",
+    "trajectory_msgs", "trajectory_msgs.msg",
+    "nav_msgs", "nav_msgs.msg",
+    "geometry_msgs", "geometry_msgs.msg",
+    "rosbag_recorder", "rosbag_recorder.msg",
+]:
+    if mod_name not in sys.modules:
+        sys.modules[mod_name] = types.ModuleType(mod_name)
+
+# Add mock classes to sensor_msgs.msg etc.
+sys.modules["sensor_msgs.msg"].JointState = MagicMock
+sys.modules["trajectory_msgs.msg"].JointTrajectory = MagicMock
+sys.modules["nav_msgs.msg"].Odometry = MagicMock
+sys.modules["geometry_msgs.msg"].Twist = MagicMock
+sys.modules["rosbag2_py"].SequentialReader = MagicMock
+sys.modules["rosbag2_py"].StorageOptions = MagicMock
+sys.modules["rosbag2_py"].ConverterOptions = MagicMock
+sys.modules["rclpy.serialization"].deserialize_message = MagicMock
 
 from physical_ai_server.data_processing.rosbag_to_lerobot_converter import (
     ConversionConfig,
@@ -114,17 +138,12 @@ class TestRosbagToLerobotConverter(unittest.TestCase):
         self.assertEqual(self.converter._total_episodes, 0)
         self.assertEqual(self.converter._total_frames, 0)
 
-    def test_extract_camera_name(self):
-        test_cases = [
-            ("camera_head_image_raw_compressed", "head"),
-            ("camera_wrist_left_compressed", "wrist"),
-            ("zed_left_image", "zed"),
-            ("simple_video", "simple"),
-        ]
-        for filename, expected_contains in test_cases:
-            result = self.converter._extract_camera_name(filename)
-            self.assertIsInstance(result, str)
-            self.assertGreater(len(result), 0)
+    def test_get_topic_group_key_basic(self):
+        result = self.converter._get_topic_group_key(
+            "/robot/arm_left_follower/joint_states", "state")
+        self.assertIsInstance(result, str)
+        self.assertGreater(len(result), 0)
+        self.assertIn("follower", result)
 
     def test_is_in_exclude_region(self):
         exclude_regions = [
@@ -138,24 +157,24 @@ class TestRosbagToLerobotConverter(unittest.TestCase):
         self.assertTrue(self.converter._is_in_exclude_region(5.5, exclude_regions))
         self.assertFalse(self.converter._is_in_exclude_region(7.0, exclude_regions))
 
-    def test_find_nearest_value(self):
+    def test_find_previous_value_in_list(self):
         messages = [
             (0.0, np.array([1.0])),
             (1.0, np.array([2.0])),
             (2.0, np.array([3.0])),
         ]
 
-        result = self.converter._find_nearest_value(messages, 0.4)
+        result, staleness = self.converter._find_previous_value_in_list(messages, 0.4)
         np.testing.assert_array_equal(result, np.array([1.0]))
 
-        result = self.converter._find_nearest_value(messages, 0.6)
+        result, staleness = self.converter._find_previous_value_in_list(messages, 1.5)
         np.testing.assert_array_equal(result, np.array([2.0]))
 
-        result = self.converter._find_nearest_value(messages, 1.9)
+        result, staleness = self.converter._find_previous_value_in_list(messages, 2.0)
         np.testing.assert_array_equal(result, np.array([3.0]))
 
-    def test_find_nearest_value_empty(self):
-        result = self.converter._find_nearest_value([], 1.0)
+    def test_find_previous_value_in_list_empty(self):
+        result, staleness = self.converter._find_previous_value_in_list([], 1.0)
         self.assertIsNone(result)
 
     def test_build_features(self):
@@ -233,7 +252,7 @@ class TestRosbagToLerobotConverter(unittest.TestCase):
         ]
 
         self.converter.config.fps = 10
-        result = self.converter._resample_to_fps(
+        result, staleness = self.converter._resample_to_fps(
             episode, state_messages, action_messages, 0.0
         )
 
@@ -241,6 +260,140 @@ class TestRosbagToLerobotConverter(unittest.TestCase):
         self.assertEqual(len(result.timestamps), result.length)
         self.assertEqual(len(result.observation_state), result.length)
         self.assertEqual(len(result.action), result.length)
+
+    def test_is_state_topic_new_naming(self):
+        topic_types = {
+            "/robot/arm_left_follower/joint_states": "sensor_msgs/msg/JointState",
+            "/robot/arm_right_follower/joint_states": "sensor_msgs/msg/JointState",
+            "/robot/head_follower/joint_states": "sensor_msgs/msg/JointState",
+            "/odom": "nav_msgs/msg/Odometry",
+            "/robot/arm_left_leader/joint_states": "sensor_msgs/msg/JointState",
+            "/cmd_vel": "geometry_msgs/msg/Twist",
+        }
+        self.assertTrue(self.converter._is_state_topic(
+            "/robot/arm_left_follower/joint_states", topic_types))
+        self.assertTrue(self.converter._is_state_topic("/odom", topic_types))
+        self.assertFalse(self.converter._is_state_topic(
+            "/robot/arm_left_leader/joint_states", topic_types))
+        self.assertFalse(self.converter._is_state_topic("/cmd_vel", topic_types))
+
+    def test_is_action_topic_new_naming(self):
+        topic_types = {
+            "/robot/arm_left_follower/joint_states": "sensor_msgs/msg/JointState",
+            "/robot/arm_left_leader/joint_states": "sensor_msgs/msg/JointState",
+            "/cmd_vel": "geometry_msgs/msg/Twist",
+            "/odom": "nav_msgs/msg/Odometry",
+        }
+        self.assertTrue(self.converter._is_action_topic(
+            "/robot/arm_left_leader/joint_states", topic_types))
+        self.assertTrue(self.converter._is_action_topic("/cmd_vel", topic_types))
+        self.assertFalse(self.converter._is_action_topic(
+            "/robot/arm_left_follower/joint_states", topic_types))
+        self.assertFalse(self.converter._is_action_topic("/odom", topic_types))
+
+    def test_merge_state_messages_multi_topic(self):
+        state_msgs = {
+            "/robot/arm_left_follower/joint_states": [
+                (0.0, np.array([1.0, 2.0], dtype=np.float32)),
+                (0.01, np.array([1.1, 2.1], dtype=np.float32)),
+            ],
+            "/robot/arm_right_follower/joint_states": [
+                (0.0, np.array([3.0, 4.0], dtype=np.float32)),
+                (0.01, np.array([3.1, 4.1], dtype=np.float32)),
+            ],
+        }
+        state_names = {
+            "/robot/arm_left_follower/joint_states": ["j1", "j2"],
+            "/robot/arm_right_follower/joint_states": ["j3", "j4"],
+        }
+
+        merged = self.converter._merge_state_messages(state_msgs, state_names)
+
+        self.assertGreater(len(merged), 0)
+        # Merged vector should be 4 dimensions (2 + 2)
+        self.assertEqual(len(merged[0][1]), 4)
+        self.assertEqual(self.converter._state_joint_names, ["j1", "j2", "j3", "j4"])
+
+    def test_merge_state_messages_with_joint_order(self):
+        self.converter._joint_order_by_group = {
+            "follower_arm_left": ["j1", "j2"],
+            "follower_arm_right": ["j3", "j4"],
+        }
+        self.converter._state_topic_key_map = {
+            "/robot/arm_left_follower/joint_states": "follower_arm_left",
+            "/robot/arm_right_follower/joint_states": "follower_arm_right",
+        }
+
+        state_msgs = {
+            "/robot/arm_left_follower/joint_states": [
+                (0.0, np.array([1.0, 2.0], dtype=np.float32)),
+            ],
+            "/robot/arm_right_follower/joint_states": [
+                (0.0, np.array([3.0, 4.0], dtype=np.float32)),
+            ],
+        }
+        state_names = {
+            "/robot/arm_left_follower/joint_states": ["j1", "j2"],
+            "/robot/arm_right_follower/joint_states": ["j3", "j4"],
+        }
+
+        merged = self.converter._merge_state_messages(state_msgs, state_names)
+
+        self.assertEqual(len(merged), 1)
+        np.testing.assert_array_almost_equal(
+            merged[0][1], [1.0, 2.0, 3.0, 4.0]
+        )
+
+    def test_get_topic_group_key(self):
+        self.assertEqual(
+            self.converter._get_topic_group_key(
+                "/robot/arm_left_follower/joint_states", "state"),
+            "follower_arm_left"
+        )
+        self.assertEqual(
+            self.converter._get_topic_group_key(
+                "/robot/head_leader/joint_states", "action"),
+            "leader_head"
+        )
+        self.assertEqual(
+            self.converter._get_topic_group_key("/odom", "state"),
+            "follower_mobile"
+        )
+        self.assertEqual(
+            self.converter._get_topic_group_key("/cmd_vel", "action"),
+            "leader_mobile"
+        )
+
+    def test_update_config_from_robot_config_with_grouped_joint_order(self):
+        robot_config = {
+            "robot_type": "ffw_sg2_rev1",
+            "state_topics": {
+                "follower_arm_left": "/robot/arm_left_follower/joint_states",
+                "follower_arm_right": "/robot/arm_right_follower/joint_states",
+            },
+            "action_topics": {
+                "leader_arm_left": "/robot/arm_left_leader/joint_states",
+                "leader_arm_right": "/robot/arm_right_leader/joint_states",
+            },
+            "joint_order": {
+                "follower_arm_left": ["j1", "j2"],
+                "follower_arm_right": ["j3", "j4"],
+                "leader_arm_left": ["j1", "j2"],
+                "leader_arm_right": ["j3", "j4"],
+            },
+        }
+
+        self.converter._update_config_from_robot_config(robot_config)
+
+        self.assertEqual(self.converter.config.robot_type, "ffw_sg2_rev1")
+        self.assertIn("follower_arm_left", self.converter._joint_order_by_group)
+        self.assertEqual(
+            self.converter._joint_order_by_group["follower_arm_left"], ["j1", "j2"])
+        self.assertEqual(
+            self.converter._state_topic_key_map["/robot/arm_left_follower/joint_states"],
+            "follower_arm_left"
+        )
+        self.assertEqual(self.converter._joint_order, ["j1", "j2", "j3", "j4", "j1", "j2", "j3", "j4"])
 
 
 class TestInfoJsonGeneration(unittest.TestCase):

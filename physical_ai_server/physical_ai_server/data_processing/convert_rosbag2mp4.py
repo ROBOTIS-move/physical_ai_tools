@@ -22,11 +22,11 @@ Scale AI Data Converter.
 Converts rosbag2 MCAP files to Scale AI format:
 - Image topics → MP4 video (removed from MCAP)
 - MCAP is modified: image topics removed, unmatched camera_info removed
-- Meta files (meta_data.json, metadata.yaml, robot.urdf) are copied
+- Meta files (episode_info.json, metadata.yaml, robot.urdf) are copied
 
 Output structure:
     episode/
-    ├── meta_data.json      (copied)
+    ├── episode_info.json   (copied)
     ├── metadata.yaml       (copied)
     ├── robot.urdf          (copied)
     ├── cam_left_head.mp4   (new - replaces image topic)
@@ -84,6 +84,7 @@ class ConversionResult:
     frame_count: int = 0
     dropped_image_only: int = 0
     dropped_info_only: int = 0
+    dropped_frames_filled: int = 0
     timestamps_smoothed: int = 0
     message: str = ""
 
@@ -98,6 +99,7 @@ class CameraMatchResult:
     frames: List[FrameData] = field(default_factory=list)
     dropped_image_only: int = 0
     dropped_info_only: int = 0
+    dropped_frames_filled: int = 0
     timestamps_smoothed: int = 0
     # Mapping from original timestamp to smoothed timestamp (for MCAP rewriting)
     timestamp_mapping: Dict[int, int] = field(default_factory=dict)
@@ -129,26 +131,21 @@ class ScaleAIConverter:
             '/robot/camera/cam_right_wrist/image_raw/compressed',
             '/robot/camera/cam_right_wrist/image_raw/compressed/camera_info'
         ),
-        'cam_chest': (
-            '/robot/camera/cam_chest/image_raw/compressed',
-            '/robot/camera/cam_chest/image_raw/compressed/camera_info'
-        ),
     }
 
     # Cameras that need downsampling from source fps to target fps
     # Format: {camera_name: downsample_ratio} (e.g., 2 means keep every 2nd frame)
-    DEFAULT_DOWNSAMPLE_CAMERAS = {
-        'cam_chest': 2,  # 30Hz -> 15Hz
-    }
+    DEFAULT_DOWNSAMPLE_CAMERAS = {}
 
     # Meta files to copy
-    META_FILES = ['meta_data.json', 'metadata.yaml', 'robot.urdf']
+    META_FILES = ['episode_info.json', 'metadata.yaml', 'robot.urdf']
 
     # Timestamp smoothing configuration for Scale AI compliance (STD 007: 69ms threshold)
     # Smooth intervals exceeding 68ms to random value between 67-68ms
     # This ensures natural-looking intervals well below the 69ms threshold
     SMOOTHING_CONFIG = {
         'threshold_ms': 68.0,             # Trigger smoothing above 68ms
+        'max_smooth_ms': 71.0,            # Do NOT smooth above this (real drop)
         'target_min_ms': 67.0,            # Smoothed interval min
         'target_max_ms': 68.0,            # Smoothed interval max
     }
@@ -209,6 +206,7 @@ class ScaleAIConverter:
     def _detect_hardware_encoder(self) -> Optional[str]:
         """Detect available hardware encoder on Jetson."""
         encoders_to_try = [
+            'h264_nvenc',      # NVIDIA NVENC (Jetson Orin)
             'h264_nvmpi',      # Jetson multimedia API
             'h264_v4l2m2m',    # V4L2 memory-to-memory
         ]
@@ -265,9 +263,29 @@ class ScaleAIConverter:
             matched_info_timestamps[result.info_topic] = result.matched_timestamps
             timestamp_mappings[result.info_topic] = result.timestamp_mapping
 
+        # Step 1.5: Trim all cameras to same frame count (align end)
+        cameras_with_frames = {
+            name: result for name, result in camera_results.items() if result.frames
+        }
+        if cameras_with_frames:
+            frame_counts = {name: len(r.frames) for name, r in cameras_with_frames.items()}
+            min_frames = min(frame_counts.values())
+            max_frames = max(frame_counts.values())
+
+            if min_frames < max_frames:
+                print(f'\n  Aligning cameras to {min_frames} frames '
+                      f'(trimming {max_frames - min_frames} from end)')
+                for name, result in cameras_with_frames.items():
+                    if len(result.frames) > min_frames:
+                        trimmed = len(result.frames) - min_frames
+                        result.frames = result.frames[:min_frames]
+                        result.matched_timestamps = {f.timestamp_ns for f in result.frames}
+                        print(f'    {name}: trimmed {trimmed} frames from end')
+
         # Step 2: Create MP4 videos
         print('\n[Step 2] Creating MP4 videos...')
         video_results = {}
+        total_dropped = 0
         for camera_name, result in camera_results.items():
             if result.frames:
                 video_path = output_dir / f'{camera_name}.mp4'
@@ -278,9 +296,11 @@ class ScaleAIConverter:
                     frame_count=len(result.frames),
                     dropped_image_only=result.dropped_image_only,
                     dropped_info_only=result.dropped_info_only,
+                    dropped_frames_filled=result.dropped_frames_filled,
                     timestamps_smoothed=result.timestamps_smoothed,
                     message='Video created' if success else 'Failed to create video'
                 )
+                total_dropped += result.dropped_frames_filled
             else:
                 video_results[camera_name] = ConversionResult(
                     success=False,
@@ -297,9 +317,17 @@ class ScaleAIConverter:
             timestamp_mappings
         )
 
-        # Step 4: Copy meta files
+        # Step 4: Copy meta files and record drop info
         print('\n[Step 4] Copying meta files...')
         self._copy_meta_files(input_path, output_dir)
+
+        # Write dropped frame info to episode_info.json
+        self._write_drop_info(input_path, output_dir, video_results)
+
+        if total_dropped == 0:
+            print('\n  Result: No frame drops — ScaleAI deliverable')
+        else:
+            print(f'\n  Result: {total_dropped} total frames filled — internal learning only')
 
         # Update results with mcap path
         for camera_name in video_results:
@@ -415,7 +443,14 @@ class ScaleAIConverter:
                 matched_timestamps = {f.timestamp_ns for f in frames}
                 print(f'  {camera_name}: Downsampled {original_count} -> {len(frames)} frames (ratio: {downsample_ratio})')
 
+            # Fill dropped frames by duplicating previous frame
+            original_frame_count = len(frames)
+            dropped_frames_filled = 0
+            if len(frames) > 1:
+                frames, dropped_frames_filled = self._fill_dropped_frames(frames)
+
             # Apply timestamp smoothing for Scale AI compliance (STD 007)
+            # After drop filling, remaining jitter (68-71ms) is smoothed to 67-68ms
             smoothed_count = 0
             warnings = []
             timestamp_mapping: Dict[int, int] = {}
@@ -434,20 +469,70 @@ class ScaleAIConverter:
                 info_topic=info_topic,
                 matched_timestamps=matched_timestamps,
                 frames=frames,
-                dropped_image_only=len(image_timestamps) - len(matched_timestamps),
-                dropped_info_only=len(info_timestamps) - len(matched_timestamps),
+                dropped_image_only=len(image_timestamps - matched_timestamps),
+                dropped_info_only=len(info_timestamps - matched_timestamps),
+                dropped_frames_filled=dropped_frames_filled,
                 timestamps_smoothed=smoothed_count,
                 timestamp_mapping=timestamp_mapping
             )
 
+            drop_msg = f', {dropped_frames_filled} drops filled' if dropped_frames_filled > 0 else ''
             smooth_msg = f', {smoothed_count} timestamps smoothed' if smoothed_count > 0 else ''
-            print(f'  {camera_name}: {len(frames)} matched, '
-                  f'{results[camera_name].dropped_image_only} image-only dropped, '
-                  f'{results[camera_name].dropped_info_only} info-only dropped{smooth_msg}')
+            print(f'  {camera_name}: {original_frame_count} matched, '
+                  f'{len(frames)} total (after fill){drop_msg}{smooth_msg}')
             for warn in warnings:
                 print(f'    WARNING: {warn}')
 
         return results
+
+    def _fill_dropped_frames(
+        self,
+        frames: List[FrameData]
+    ) -> Tuple[List[FrameData], int]:
+        """
+        Detect frame drops and fill gaps by duplicating the previous frame.
+
+        A drop is detected when the gap between consecutive frames exceeds 71ms.
+        For each gap, N duplicated frames are inserted where N = round(gap / target_interval) - 1.
+
+        Args:
+            frames: List of frames sorted by timestamp.
+
+        Returns:
+            Tuple of (filled_frames, dropped_count).
+        """
+        if len(frames) <= 1:
+            return frames, 0
+
+        target_interval_ns = int(1_000_000_000 / self.fps)  # ~66.7ms for 15fps
+        drop_threshold_ns = int(self.SMOOTHING_CONFIG['max_smooth_ms'] * 1_000_000)  # 71ms
+
+        filled_frames: List[FrameData] = [frames[0]]
+        dropped_count = 0
+
+        for i in range(1, len(frames)):
+            gap_ns = frames[i].timestamp_ns - frames[i - 1].timestamp_ns
+
+            if gap_ns > drop_threshold_ns:
+                # Frame drop detected — fill with duplicated previous frame
+                n_missing = round(gap_ns / target_interval_ns) - 1
+                prev_frame = frames[i - 1]
+
+                for j in range(n_missing):
+                    dup_ts = prev_frame.timestamp_ns + (j + 1) * target_interval_ns
+                    filled_frames.append(FrameData(
+                        timestamp_ns=dup_ts,
+                        image=prev_frame.image,
+                        camera_info=prev_frame.camera_info,
+                    ))
+                    dropped_count += 1
+
+                print(f'    Drop detected: {gap_ns / 1_000_000:.1f}ms gap, '
+                      f'filled {n_missing} frames')
+
+            filled_frames.append(frames[i])
+
+        return filled_frames, dropped_count
 
     def _smooth_frame_timestamps(
         self,
@@ -486,6 +571,7 @@ class ScaleAIConverter:
 
         # Convert ms to ns
         threshold_ns = int(cfg['threshold_ms'] * 1_000_000)  # 68ms
+        max_smooth_ns = int(cfg['max_smooth_ms'] * 1_000_000)  # 71ms
         target_min_ns = int(cfg['target_min_ms'] * 1_000_000)  # 67ms
         target_max_ns = int(cfg['target_max_ms'] * 1_000_000)  # 68ms
 
@@ -503,8 +589,9 @@ class ScaleAIConverter:
             curr_ts = original_ts + cumulative_adjustment_ns
             interval_ns = curr_ts - prev_ts
 
-            # Only smooth if exceeds 68ms threshold
-            if interval_ns > threshold_ns:
+            # Only smooth jitter: 68ms < interval <= 71ms
+            # Do NOT smooth real drops (> 71ms) — preserve original timestamps
+            if threshold_ns < interval_ns <= max_smooth_ns:
                 # Generate random target between 67-68ms
                 target_interval_ns = random.randint(target_min_ns, target_max_ns)
                 target_ts = prev_ts + target_interval_ns
@@ -973,6 +1060,7 @@ class ScaleAIConverter:
 
         cfg = self.SMOOTHING_CONFIG
         threshold_ns = int(cfg['threshold_ms'] * 1_000_000)
+        max_smooth_ns = int(cfg['max_smooth_ms'] * 1_000_000)
         target_min_ns = int(cfg['target_min_ms'] * 1_000_000)
         target_max_ns = int(cfg['target_max_ms'] * 1_000_000)
 
@@ -986,8 +1074,9 @@ class ScaleAIConverter:
             curr_ts = original_ts + cumulative_adj
             interval = curr_ts - prev_smoothed
 
-            if interval > threshold_ns:
-                # Smooth to random value between 67-68ms
+            # Only smooth jitter: 68ms < interval <= 71ms
+            # Do NOT smooth real drops (> 71ms)
+            if threshold_ns < interval <= max_smooth_ns:
                 target_interval = random.randint(target_min_ns, target_max_ns)
                 smoothed_ts = prev_smoothed + target_interval
                 cumulative_adj += (smoothed_ts - curr_ts)
@@ -1044,7 +1133,7 @@ class ScaleAIConverter:
 
         if encoder == 'libx264':
             cmd.extend(['-preset', 'fast', '-crf', '23'])
-        elif encoder in ['h264_nvmpi', 'h264_v4l2m2m']:
+        elif encoder in ['h264_nvenc', 'h264_nvmpi', 'h264_v4l2m2m']:
             cmd.extend(['-b:v', '8M'])
 
         cmd.append(output_path)
@@ -1083,6 +1172,11 @@ class ScaleAIConverter:
         """Copy meta files to output directory, including mesh files for URDF."""
         for filename in self.META_FILES:
             src = input_dir / filename
+            # Backward compatibility: old recordings may use meta_data.json
+            if not src.exists() and filename == 'episode_info.json':
+                legacy_src = input_dir / 'meta_data.json'
+                if legacy_src.exists():
+                    src = legacy_src
             if src.exists():
                 dst = output_dir / filename
                 if filename == 'robot.urdf':
@@ -1090,7 +1184,44 @@ class ScaleAIConverter:
                     self._copy_urdf_with_meshes(str(src), str(dst), str(output_dir))
                 else:
                     shutil.copy2(src, dst)
-                    print(f'  Copied: {filename}')
+                    print(f'  Copied: {src.name} -> {filename}')
+
+    def _write_drop_info(
+        self,
+        input_dir: Path,
+        output_dir: Path,
+        video_results: Dict[str, 'ConversionResult']
+    ):
+        """Write dropped frame info to episode_info.json."""
+        meta_path = output_dir / 'episode_info.json'
+        meta = {}
+
+        # Read existing episode_info.json if it was copied
+        if meta_path.exists():
+            try:
+                with open(meta_path, 'r') as f:
+                    meta = json.load(f)
+            except Exception:
+                pass
+
+        # Add drop info per camera
+        dropped_per_camera = {}
+        total_dropped = 0
+        for camera_name, result in video_results.items():
+            if result.success:
+                dropped_per_camera[camera_name] = result.dropped_frames_filled
+                total_dropped += result.dropped_frames_filled
+
+        meta['dropped_frames'] = {
+            'total': total_dropped,
+            'per_camera': dropped_per_camera,
+            'scaleable_deliverable': total_dropped == 0,
+        }
+
+        with open(meta_path, 'w') as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+
+        print(f'  Updated episode_info.json with dropped_frames info')
 
     def _copy_urdf_with_meshes(
         self,

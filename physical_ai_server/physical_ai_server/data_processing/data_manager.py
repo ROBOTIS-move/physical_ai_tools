@@ -231,7 +231,7 @@ class DataManager:
             'needs_review': needs_review,
         }
 
-        meta_data_path = os.path.join(rosbag_path, 'meta_data.json')
+        meta_data_path = os.path.join(rosbag_path, 'episode_info.json')
         try:
             with open(meta_data_path, 'w') as f:
                 json.dump(meta_data, f, indent=2)
@@ -254,11 +254,16 @@ class DataManager:
             return None
 
         episode_path = self._save_rosbag_path + f'/{prev_episode}'
-        meta_data_path = os.path.join(episode_path, 'meta_data.json')
+        meta_data_path = os.path.join(episode_path, 'episode_info.json')
 
         if not os.path.exists(meta_data_path):
-            print(f'[DataManager] No meta_data.json at: {meta_data_path}')
-            return None
+            # Backward compatibility: check old name
+            legacy_path = os.path.join(episode_path, 'meta_data.json')
+            if os.path.exists(legacy_path):
+                meta_data_path = legacy_path
+            else:
+                print(f'[DataManager] No episode_info.json at: {meta_data_path}')
+                return None
 
         try:
             with open(meta_data_path, 'r') as f:

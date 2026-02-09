@@ -21,7 +21,6 @@ import json
 import os
 from pathlib import Path
 import queue
-import re
 import shutil
 import socket
 import subprocess
@@ -29,8 +28,6 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 
-import cv2
-from geometry_msgs.msg import Twist
 from huggingface_hub import (
     DatasetCard,
     DatasetCardData,
@@ -41,34 +38,17 @@ from huggingface_hub import (
     upload_large_folder
 )
 from huggingface_hub.errors import LocalTokenNotFoundError
-DEFAULT_FEATURES = {
-    'episode_index': {'dtype': 'int64', 'names': None, 'shape': (1,)},
-    'frame_index': {'dtype': 'int64', 'names': None, 'shape': (1,)},
-    'index': {'dtype': 'int64', 'names': None, 'shape': (1,)},
-    'task_index': {'dtype': 'int64', 'names': None, 'shape': (1,)},
-    'timestamp': {'dtype': 'float32', 'names': None, 'shape': (1,)}
-}
-from nav_msgs.msg import Odometry
-import numpy as np
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_server.data_processing.data_converter import DataConverter
-from physical_ai_server.data_processing.lerobot_dataset_wrapper import LeRobotDatasetWrapper
 from physical_ai_server.data_processing.progress_tracker import (
     HuggingFaceProgressTqdm
 )
 from physical_ai_server.device_manager.cpu_checker import CPUChecker
 from physical_ai_server.device_manager.ram_checker import RAMChecker
 from physical_ai_server.device_manager.storage_checker import StorageChecker
-import requests
-from sensor_msgs.msg import JointState
-from trajectory_msgs.msg import JointTrajectory
 
 
 class DataManager:
-    RECORDING = False
-    RECORD_COMPLETED = True
-    RAM_LIMIT_GB = 2  # GB
-    SKIP_TIME = 0.1  # Seconds
 
     # Progress queue for multiprocessing communication
     _progress_queue = None
@@ -82,11 +62,9 @@ class DataManager:
         self._save_repo_name = f'{robot_type}_{task_info.task_name}'
         self._save_path = save_root_path / self._save_repo_name
         self._save_rosbag_path = '/workspace/rosbag2/' + self._save_repo_name
-        self._on_saving = False
         self._single_task = len(task_info.task_instruction) == 1
         self._task_info = task_info
 
-        self._lerobot_dataset = None
         # Find next available episode number from existing folders
         self._record_episode_count = self._find_next_episode_number()
         self._start_time_s = 0
@@ -94,8 +72,6 @@ class DataManager:
         self._status = 'idle'  # Start in idle state (simplified mode)
         self._cpu_checker = CPUChecker()
         self.data_converter = DataConverter()
-        self.force_save_for_safety = False
-        self._stop_save_completed = False
         self.current_instruction = ''
         self._current_task = 0
         self._init_task_limits()
@@ -450,249 +426,6 @@ class DataManager:
         # Legacy: return self._task_info.record_rosbag2
         return True
 
-    def update_state_machine(self):
-        """
-        Update state machine for rosbag2-only recording mode.
-
-        This method manages state transitions without data processing:
-        - warmup -> run -> save -> reset -> run (loop)
-        - Or finish at any point
-
-        Returns:
-            bool: True if recording completed, False otherwise
-        """
-        if self._start_time_s == 0:
-            self._start_time_s = time.perf_counter()
-
-        if self._status == 'warmup':
-            self._current_task = 0
-            self._current_scenario_number = 0
-            if not self._check_time(self._task_info.warmup_time_s, 'run'):
-                return self.RECORDING
-
-        elif self._status == 'run':
-            if not self._check_time(self._task_info.episode_time_s, 'save'):
-                # Update current instruction during run
-                self.current_instruction = self._task_info.task_instruction[
-                    self._current_task % len(self._task_info.task_instruction)
-                ]
-                return self.RECORDING
-
-        elif self._status == 'save':
-            # For rosbag2-only mode, no video encoding needed
-            self._record_episode_count += 1
-            self._get_current_scenario_number()
-            self._current_task += 1
-
-            # Check if we've reached the target episode count
-            if self._record_episode_count < self._task_info.num_episodes:
-                # Not finished yet, go to reset for next episode
-                self._status = 'reset'
-                self._start_time_s = 0
-            else:
-                # Finished!
-                self._status = 'finish'
-
-        elif self._status == 'reset':
-            if not self._single_task:
-                if not self._check_time(self.SKIP_TIME, 'run'):
-                    return self.RECORDING
-            else:
-                if not self._check_time(self._task_info.reset_time_s, 'run'):
-                    return self.RECORDING
-
-        elif self._status == 'skip_task':
-            if not self._check_time(self.SKIP_TIME, 'run'):
-                return self.RECORDING
-
-        elif self._status == 'stop':
-            return self.RECORDING
-
-        elif self._status == 'finish':
-            return self.RECORD_COMPLETED
-
-        if self._record_episode_count >= self._task_info.num_episodes:
-            return self.RECORD_COMPLETED
-
-        return self.RECORDING
-
-    def record(
-            self,
-            images,
-            state,
-            action):
-
-        if self._start_time_s == 0:
-            self._start_time_s = time.perf_counter()
-
-        if self._status == 'warmup':
-            self._current_task = 0
-            self._current_scenario_number = 0
-            if not self._check_time(self._task_info.warmup_time_s, 'run'):
-                return self.RECORDING
-
-        elif self._status == 'run':
-            if not self._check_time(self._task_info.episode_time_s, 'save'):
-                if RAMChecker.get_free_ram_gb() < self.RAM_LIMIT_GB:
-                    if not self._single_task:
-                        self._status = 'finish'
-                    else:
-                        self.record_early_save()
-                    return self.RECORDING
-                frame = self.create_frame(images, state, action)
-                if self._task_info.use_optimized_save_mode:
-                    self._lerobot_dataset.add_frame_without_write_image(
-                        frame,
-                        self.current_instruction)
-                else:
-                    self._lerobot_dataset.add_frame(
-                        frame,
-                        self.current_instruction)
-
-        elif self._status == 'save':
-            if self._on_saving:
-                if (
-                    self._lerobot_dataset.check_video_encoding_completed()
-                    or (
-                        not self._single_task
-                        and self._lerobot_dataset.check_append_buffer_completed()
-                    )
-                ):
-                    self._episode_reset()
-                    self._record_episode_count += 1
-                    self._get_current_scenario_number()
-                    self._current_task += 1
-                    self._on_saving = False
-
-                    # Check if we've reached the target episode count
-                    if (self._record_episode_count <
-                            self._task_info.num_episodes):
-                        # Not finished yet, go to reset for next episode
-                        self._status = 'reset'
-                        self._start_time_s = 0
-                    else:
-                        # Finished! Set status to 'finish' to skip reset
-                        self._status = 'finish'
-            else:
-                self.save()
-                self._on_saving = True
-
-        elif self._status == 'reset':
-            if not self._single_task:
-                if not self._check_time(self.SKIP_TIME, 'run'):
-                    return self.RECORDING
-            else:
-                if not self._check_time(self._task_info.reset_time_s, 'run'):
-                    return self.RECORDING
-
-        elif self._status == 'skip_task':
-            if not self._check_time(self.SKIP_TIME, 'run'):
-                return self.RECORDING
-
-        elif self._status == 'stop':
-            if not self._stop_save_completed:
-                if self._on_saving:
-                    if self._lerobot_dataset.check_video_encoding_completed():
-                        self._on_saving = False
-                        self._episode_reset()
-                        self._record_episode_count += 1
-                        self._get_current_scenario_number()
-                        self._current_task += 1
-                        self._stop_save_completed = True
-                else:
-                    self.save()
-                    self._proceed_time = 0
-                    self._on_saving = True
-            return self.RECORDING
-
-        elif self._status == 'finish':
-            if self._on_saving:
-                if self._lerobot_dataset.check_video_encoding_completed():
-                    self._on_saving = False
-                    self._episode_reset()
-                    if (self._task_info.push_to_hub and
-                            self._record_episode_count > 0):
-                        self._upload_dataset(
-                            self._task_info.tags,
-                            self._task_info.private_mode)
-                    return self.RECORD_COMPLETED
-            else:
-                self.save()
-                if not self._single_task:
-                    self._lerobot_dataset.video_encoding()
-                self._proceed_time = 0
-                self._on_saving = True
-
-        if self._record_episode_count >= self._task_info.num_episodes:
-            if self._lerobot_dataset.check_video_encoding_completed():
-                if (self._task_info.push_to_hub and
-                        self._record_episode_count > 0):
-                    self._upload_dataset(
-                        self._task_info.tags,
-                        self._task_info.private_mode)
-                return self.RECORD_COMPLETED
-
-        return self.RECORDING
-
-    def save(self):
-        if self._lerobot_dataset.episode_buffer is None:
-            return
-        if self._task_info.use_optimized_save_mode:
-            if not self._single_task:
-                self._lerobot_dataset.save_episode_without_video_encoding()
-            else:
-                self._lerobot_dataset.save_episode_without_write_image()
-        else:
-            if self._lerobot_dataset.episode_buffer['size'] > 0:
-                self._lerobot_dataset.save_episode()
-
-    def create_frame(
-            self,
-            images: dict,
-            state: list,
-            action: list) -> dict:
-
-        frame = {}
-        for camera_name, image in images.items():
-            frame[f'observation.images.{camera_name}'] = image
-        frame['observation.state'] = np.array(state)
-        frame['action'] = np.array(action)
-        self.current_instruction = self._task_info.task_instruction[
-            self._current_task % len(self._task_info.task_instruction)
-        ]
-        return frame
-
-    def record_early_save(self):
-        """Trigger early save for current episode."""
-        # For rosbag2-only mode, always allow early save
-        if self._lerobot_dataset is None:
-            self._status = 'save'
-        elif self._lerobot_dataset.episode_buffer is not None:
-            self._status = 'save'
-
-    def record_stop(self):
-        self._status = 'stop'
-
-    def record_finish(self):
-        self._status = 'finish'
-
-    def re_record(self):
-        """Re-record current episode (discard current and restart)."""
-        self._stop_save_completed = False
-        self._episode_reset()
-        self._status = 'reset'
-        self._start_time_s = 0
-
-    def record_skip_task(self):
-        self._stop_save_completed = False
-        self._episode_reset()
-        self._status = 'skip_task'
-        self._get_current_scenario_number()
-        self._current_task += 1
-
-    def record_next_episode(self):
-        self._status = 'save'
-
     def get_current_record_status(self):
         current_status = TaskStatus()
         current_status.robot_type = self._robot_type
@@ -756,220 +489,14 @@ class DataManager:
 
         return current_status
 
-    def _get_current_scenario_number(self):
-        task_count = len(self._task_info.task_instruction)
-        if task_count == 0:
-            return
-        next_task_index = (self._current_task + 1) % task_count
-        if next_task_index == 0:
-            self._current_scenario_number += 1
-
     def _get_encoding_progress(self):
-        """Get video encoding progress (LeRobot mode only)."""
-        min_encoding_percentage = 100
-        is_saving = False
-
-        # For rosbag2-only mode, no encoding
-        if self._lerobot_dataset is None:
-            return False, 100.0
-
-        if hasattr(self._lerobot_dataset, 'encoders') and \
-                self._lerobot_dataset.encoders is not None:
-            if self._lerobot_dataset.encoders:
-                is_saving = True
-                for key, values in self._lerobot_dataset.encoders.items():
-                    min_encoding_percentage = min(
-                        min_encoding_percentage,
-                        values.get_encoding_status()['progress_percentage'])
-
-        return is_saving, float(min_encoding_percentage)
-
-    def convert_msgs_to_raw_datas(
-            self,
-            image_msgs,
-            follower_msgs,
-            total_joint_order,
-            leader_msgs=None,
-            leader_joint_order=None) -> tuple:
-
-        camera_data = {}
-        follower_data = []
-        leader_data = []
-
-        if image_msgs is not None:
-            for key, value in image_msgs.items():
-                camera_data[key] = cv2.cvtColor(
-                    self.data_converter.compressed_image2cvmat(value),
-                    cv2.COLOR_BGR2RGB)
-        if follower_msgs is not None:
-            for key, value in follower_msgs.items():
-                if value is not None:
-                    follower_data.extend(self.joint_msgs2tensor_array(
-                        value, total_joint_order))
-        if leader_msgs is not None:
-            for key, value in leader_joint_order.items():
-                # remove joint_order. from key
-                prefix_key = key.replace('joint_order.', '')
-                if prefix_key not in leader_msgs:
-                    return camera_data, follower_data, None
-                elif leader_msgs[prefix_key] is not None:
-                    leader_data.extend(self.joint_msgs2tensor_array(
-                        leader_msgs[prefix_key], value))
-                else:
-                    return camera_data, follower_data, None
-
-        return camera_data, follower_data, leader_data
-
-    def joint_msgs2tensor_array(self, msg_data, joint_order=None):
-        if isinstance(msg_data, JointTrajectory):
-            return self.data_converter.joint_trajectory2tensor_array(
-                msg_data, joint_order)
-        elif isinstance(msg_data, JointState):
-            return self.data_converter.joint_state2tensor_array(
-                msg_data, joint_order)
-        elif isinstance(msg_data, Odometry):
-            return self.data_converter.odometry2tensor_array(msg_data)
-        elif isinstance(msg_data, Twist):
-            return self.data_converter.twist2tensor_array(msg_data)
-        else:
-            raise ValueError(f'Unsupported message type: {type(msg_data)}')
+        """Get encoding progress. Always returns not-saving for rosbag2-only mode."""
+        return False, 100.0
 
     def _episode_reset(self):
         """Reset episode state for next recording."""
-        # For rosbag2-only mode, just reset timing
-        if self._lerobot_dataset is None:
-            self._start_time_s = 0
-            gc.collect()
-            return
-
-        # For LeRobot mode, clear episode buffer
-        if (
-            self._lerobot_dataset
-            and hasattr(self._lerobot_dataset, 'episode_buffer')
-            or self._current_task == 0
-        ):
-            if self._lerobot_dataset.episode_buffer is not None:
-                for key, value in self._lerobot_dataset.episode_buffer.items():
-                    if isinstance(value, list):
-                        value.clear()
-                    del value
-                self._lerobot_dataset.episode_buffer.clear()
-            self._lerobot_dataset.episode_buffer = None
         self._start_time_s = 0
         gc.collect()
-
-    def _check_time(self, limit_time, next_status):
-        self._proceed_time = time.perf_counter() - self._start_time_s
-        if self._proceed_time >= limit_time:
-            self._status = next_status
-            self._start_time_s = 0
-            self._proceed_time = 0
-            return True
-        else:
-            return False
-
-    def _check_dataset_exists(self, repo_id, root):
-        # Local dataset check
-        if os.path.exists(root):
-            dataset_necessary_folders = ['meta', 'videos', 'data']
-            invalid_foler = False
-            for folder in dataset_necessary_folders:
-                if not os.path.exists(os.path.join(root, folder)):
-                    print(f'Dataset {repo_id} is incomplete, missing {folder} folder.')
-                    invalid_foler = True
-            if not invalid_foler:
-                return True
-            else:
-                print(f'Dataset {repo_id} is incomplete, re-creating dataset.')
-                shutil.rmtree(root)
-
-        if self._task_info.push_to_hub:
-            # Huggingface dataset check
-            url = f'https://huggingface.co/api/datasets/{repo_id}'
-            response = requests.get(url)
-            url_exist_code = 200
-
-            if response.status_code == url_exist_code:
-                print(f'Dataset {repo_id} exists on Huggingface, downloading...')
-                self._download_dataset(repo_id)
-                return True
-
-        return False
-
-    def check_lerobot_dataset(self, images, joint_list):
-        try:
-            if self._lerobot_dataset is None:
-                if self._check_dataset_exists(
-                        self._save_repo_name,
-                        self._save_path):
-                    self._lerobot_dataset = LeRobotDatasetWrapper(
-                        self._save_repo_name,
-                        self._save_path
-                    )
-                else:
-                    self._lerobot_dataset = self._create_dataset(
-                        self._save_repo_name,
-                        images, joint_list)
-
-                if not self._task_info.use_optimized_save_mode:
-                    self._lerobot_dataset.start_image_writer(
-                            num_processes=1,
-                            num_threads=1
-                        )
-            self._lerobot_dataset.set_robot_type(self._robot_type)
-
-            return True
-        except Exception as e:
-            print(f'Error checking lerobot dataset: {e}')
-            return False
-
-    def _create_dataset(
-            self,
-            repo_id,
-            images,
-            joint_list) -> LeRobotDatasetWrapper:
-
-        features = DEFAULT_FEATURES.copy()
-        for camera_name, image in images.items():
-            features[f'observation.images.{camera_name}'] = {
-                'dtype': 'video',
-                'names': ['height', 'width', 'channels'],
-                'shape': image.shape
-            }
-
-        features['observation.state'] = {
-            'dtype': 'float32',
-            'names': joint_list,
-            'shape': (len(joint_list),)
-        }
-
-        features['action'] = {
-            'dtype': 'float32',
-            'names': joint_list,
-            'shape': (len(joint_list),)
-        }
-        return LeRobotDatasetWrapper.create(
-                repo_id=repo_id,
-                fps=self._task_info.fps,
-                features=features,
-                use_videos=True
-            )
-
-    def _upload_dataset(self, tags, private=False):
-        try:
-            self._lerobot_dataset.push_to_hub(
-                tags=tags,
-                private=private,
-                upload_large_folder=True)
-        except Exception as e:
-            print(f'Error uploading dataset: {e}')
-
-    def _download_dataset(self, repo_id):
-        snapshot_download(
-            repo_id,
-            repo_type='dataset',
-            local_dir=self._save_path,
-        )
 
     def convert_action_to_joint_trajectory_msg(self, action):
         joint_trajectory_msgs = self.data_converter.tensor_array2joint_trajectory(

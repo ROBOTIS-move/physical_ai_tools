@@ -18,17 +18,23 @@
 
 import threading
 
-from lerobot.datasets.compute_stats import (
-    get_feature_stats
-)
-from lerobot.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.datasets.utils import (
-    validate_episode_buffer,
-    validate_frame,
-    write_episode,
-    write_episode_stats,
-    write_info
-)
+try:
+    from lerobot.datasets.compute_stats import (
+        get_feature_stats
+    )
+    from lerobot.datasets.lerobot_dataset import LeRobotDataset
+    from lerobot.datasets.utils import (
+        validate_episode_buffer,
+        validate_frame,
+        write_episode,
+        write_episode_stats,
+        write_info
+    )
+    LEROBOT_AVAILABLE = True
+except ImportError:
+    LEROBOT_AVAILABLE = False
+    LeRobotDataset = object
+
 import numpy as np
 from physical_ai_server.video_encoder.ffmpeg_encoder import FFmpegEncoder
 
@@ -36,6 +42,11 @@ from physical_ai_server.video_encoder.ffmpeg_encoder import FFmpegEncoder
 class LeRobotDatasetWrapper(LeRobotDataset):
 
     def __init__(self, *args, **kwargs):
+        if not LEROBOT_AVAILABLE:
+            raise ImportError(
+                "LeRobot is not available. This class requires lerobot to be installed. "
+                "Use Docker mode for training instead of local mode."
+            )
         super().__init__(*args, **kwargs)
         self.encoders = {}
         self.total_frame_buffer = None

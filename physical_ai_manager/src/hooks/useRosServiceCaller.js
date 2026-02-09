@@ -401,26 +401,25 @@ export function useRosServiceCaller() {
   const browseFile = useCallback(
     async (action, currentPath = '', targetName = '', targetFiles = null, targetFolders = null) => {
       try {
+        // Ensure target_files is always an array
+        let filesArray = [];
+        if (targetFiles) {
+          filesArray = Array.isArray(targetFiles) ? targetFiles : [targetFiles];
+        }
+
+        // Ensure target_folders is always an array
+        let foldersArray = [];
+        if (targetFolders) {
+          foldersArray = Array.isArray(targetFolders) ? targetFolders : [targetFolders];
+        }
+
         const requestData = {
           action: action,
           current_path: currentPath,
           target_name: targetName,
-          target_folders: targetFolders,
+          target_files: filesArray,
+          target_folders: foldersArray,
         };
-
-        // Only add target_files if we actually have files to search for
-        if (targetFiles && targetFiles.length > 0) {
-          requestData.target_files = targetFiles;
-        } else {
-          requestData.target_files = [];
-        }
-
-        // Only add target_folders if we actually have folders to search for
-        if (targetFolders && targetFolders.length > 0) {
-          requestData.target_folders = targetFolders;
-        } else {
-          requestData.target_folders = [];
-        }
 
         const result = await callService(
           '/browse_file',
@@ -567,6 +566,93 @@ export function useRosServiceCaller() {
     [callService]
   );
 
+  const getReplayData = useCallback(
+    async (bagPath) => {
+      try {
+        // Extract host from rosbridgeUrl (ws://host:9090 -> host)
+        const urlMatch = rosbridgeUrl.match(/ws:\/\/([^:]+):/);
+        const host = urlMatch ? urlMatch[1] : 'localhost';
+        const videoServerPort = 8082;
+
+        const apiUrl = `http://${host}:${videoServerPort}/replay-data${bagPath}`;
+        console.log('Fetching replay data from HTTP API:', apiUrl);
+
+        const response = await fetch(apiUrl);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('getReplayData HTTP response:', result);
+
+        // Transform to match the expected format from ROS service
+        return {
+          success: result.success,
+          message: result.message,
+          video_files: result.video_files || [],
+          video_topics: result.video_topics || [],
+          video_names: result.video_names || [],
+          video_fps: result.video_fps || [],
+          frame_indices: result.frame_indices || [],
+          frame_timestamps: result.frame_timestamps || [],
+          joint_timestamps: result.joint_timestamps || [],
+          joint_names: result.joint_names || [],
+          joint_positions: result.joint_positions || [],
+          action_timestamps: result.action_timestamps || [],
+          action_names: result.action_names || [],
+          action_values: result.action_values || [],
+          start_time: result.start_time || 0,
+          end_time: result.end_time || 0,
+          duration: result.duration || 0,
+          video_server_port: videoServerPort,
+          bag_path: bagPath,
+          // Extended metadata
+          robot_type: result.robot_type || '',
+          recording_date: result.recording_date || null,
+          file_size_bytes: result.file_size_bytes || 0,
+          task_markers: result.task_markers || [],
+          trim_points: result.trim_points || null,
+          exclude_regions: result.exclude_regions || [],
+          frame_counts: result.frame_counts || {},
+        };
+      } catch (error) {
+        console.error('Failed to get replay data:', error);
+        throw new Error(`${error.message || error}`);
+      }
+    },
+    [rosbridgeUrl]
+  );
+
+  const getRosbagList = useCallback(
+    async (folderPath) => {
+      try {
+        // Extract host from rosbridgeUrl (ws://host:9090 -> host)
+        const urlMatch = rosbridgeUrl.match(/ws:\/\/([^:]+):/);
+        const host = urlMatch ? urlMatch[1] : 'localhost';
+        const videoServerPort = 8082;
+
+        const apiUrl = `http://${host}:${videoServerPort}/rosbag-list${folderPath}`;
+        console.log('Fetching rosbag list from HTTP API:', apiUrl);
+
+        const response = await fetch(apiUrl);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('getRosbagList HTTP response:', result);
+
+        return result;
+      } catch (error) {
+        console.error('Failed to get rosbag list:', error);
+        throw new Error(`${error.message || error}`);
+      }
+    },
+    [rosbridgeUrl]
+  );
+
   return {
     callService,
     sendRecordCommand,
@@ -585,5 +671,7 @@ export function useRosServiceCaller() {
     getDatasetInfo,
     controlHfServer,
     getTrainingInfo,
+    getReplayData,
+    getRosbagList,
   };
 }

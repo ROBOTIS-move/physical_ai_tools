@@ -47,6 +47,7 @@ const SingleTaskFontSizeNumber = 'clamp(1.5rem, 1.5vw, 2rem)';
 
 export default function EpisodeStatus() {
   const currentEpisodeNumber = useSelector((state) => state.tasks.taskStatus.currentEpisodeNumber);
+  const numEpisodes = useSelector((state) => state.tasks.taskInfo.numEpisodes);
   const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
 
   return (
@@ -63,7 +64,15 @@ export default function EpisodeStatus() {
           fontSize: useMultiTaskMode ? MultiTaskFontSizeNumber : SingleTaskFontSizeNumber,
         }}
       >
-        <span className="font-bold">{currentEpisodeNumber}</span>
+        {useMultiTaskMode ? (
+          <span className="font-bold">{currentEpisodeNumber}</span>
+        ) : (
+          <>
+            <span className="font-bold">{currentEpisodeNumber}</span>
+            <span className="text-gray-600">{' / '}</span>
+            <span className="text-gray-600">{numEpisodes}</span>
+          </>
+        )}
       </div>
     </div>
   );

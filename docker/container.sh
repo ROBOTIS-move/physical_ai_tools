@@ -4,6 +4,17 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 CONTAINER_NAME="physical_ai_server"
 
+# Auto-detect architecture for correct Dockerfile selection
+MACHINE_ARCH=$(uname -m)
+if [ "$MACHINE_ARCH" = "aarch64" ] || [ "$MACHINE_ARCH" = "arm64" ]; then
+    export ARCH="arm64"
+    echo "Detected ARM64 architecture (Jetson)"
+else
+    export ARCH="amd64"
+    echo "Detected AMD64 architecture (x86_64)"
+fi
+
+
 # Function to display help
 show_help() {
     echo "Usage: $0 [command]"
@@ -32,11 +43,11 @@ start_container() {
 
     echo "Starting physical_ai_server container..."
 
-    # Pull the latest images
-    docker compose -f "${SCRIPT_DIR}/docker-compose.yml" pull
+    # Pull the latest images (ignore errors for images that need to be built locally)
+    docker compose -f "${SCRIPT_DIR}/docker-compose.yml" pull --ignore-pull-failures || true
 
-    # Run docker-compose
-    docker compose -f "${SCRIPT_DIR}/docker-compose.yml" up -d
+    # Run docker-compose (build if image doesn't exist)
+    docker compose -f "${SCRIPT_DIR}/docker-compose.yml" up -d --build
 }
 
 # Function to enter the container

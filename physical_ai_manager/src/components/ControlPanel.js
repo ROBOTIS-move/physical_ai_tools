@@ -22,6 +22,7 @@ import { MdPlayArrow, MdCheck, MdCancel } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import CompactSystemStatus from './CompactSystemStatus';
 import EpisodeStatus from './EpisodeStatus';
+import ProgressBar from './ProgressBar';
 import SystemStatus from './SystemStatus';
 import Tooltip from './Tooltip';
 import PageType from '../constants/pageType';
@@ -547,8 +548,11 @@ export default function ControlPanel() {
         </div>
         {!useMultiTaskMode && (
           <div className="w-full flex flex-col items-center gap-1">
-            <div className="flex px-3 w-full justify-center text-xl text-gray-500 font-bold whitespace-nowrap">
-              {taskStatus.proceedTime} (s)
+            <div className="w-full max-w-xl flex flex-col items-center gap-1">
+              <div className="flex px-3 w-full justify-end text-xl text-gray-500 font-bold whitespace-nowrap ">
+                {taskStatus.proceedTime} / {taskStatus.totalTime} (s)
+              </div>
+              <ProgressBar percent={taskStatus.progress} />
             </div>
           </div>
         )}

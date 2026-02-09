@@ -1184,7 +1184,7 @@ class DataManager:
             license='apache-2.0',
         )
         card.save(str(readme_path))
-        print('✅ Dataset README.md created using HuggingFace Hub')
+        print('Dataset README.md created using HuggingFace Hub')
 
     @staticmethod
     def _create_model_card(local_dir, readme_path):
@@ -1211,10 +1211,10 @@ class DataManager:
                 try:
                     with open(config_path, 'r', encoding='utf-8') as f:
                         train_config = json.load(f)
-                    print(f'✓ Found train_config.json at {config_path}')
+                    print(f'Found train_config.json at {config_path}')
                     break
                 except Exception as e:
-                    print(f'⚠️ Error reading {config_path}: {e}')
+                    print(f'Error reading {config_path}: {e}')
                     continue
 
         # If not found, search recursively (slower fallback)
@@ -1223,14 +1223,14 @@ class DataManager:
                 try:
                     with open(config_path, 'r', encoding='utf-8') as f:
                         train_config = json.load(f)
-                    print(f'✓ Found train_config.json at {config_path}')
+                    print(f'Found train_config.json at {config_path}')
                     break
                 except Exception as e:
-                    print(f'⚠️ Error reading {config_path}: {e}')
+                    print(f'Error reading {config_path}: {e}')
                     continue
 
         if train_config is None:
-            print(f'⚠️ train_config.json not found in {local_dir}')
+            print(f'train_config.json not found in {local_dir}')
 
         dataset_repo = ''
         if train_config:
@@ -1262,7 +1262,7 @@ class DataManager:
             template_path=template_path,
         )
         card.save(str(readme_path))
-        print('✅ Model README.md created using HuggingFace Hub')
+        print('Model README.md created using HuggingFace Hub')
 
     @staticmethod
     def _create_readme_if_not_exists(local_dir, repo_type):
@@ -1284,7 +1284,7 @@ class DataManager:
             if repo_type == 'dataset':
                 DataManager._create_dataset_card(local_dir, readme_path)
         except Exception as e:
-            print(f'⚠️ Warning: Failed to create README.md: {e}')
+            print(f'Warning: Failed to create README.md: {e}')
             import traceback
             print(f'Traceback: {traceback.format_exc()}')
 
@@ -1366,7 +1366,7 @@ class DataManager:
         dot_cache_path = Path(local_dir) / '.cache'
         if dot_cache_path.exists():
             shutil.rmtree(dot_cache_path)
-            print(f'🗑️ Deleted {local_dir}/.cache folder before upload')
+            print(f'Deleted {local_dir}/.cache folder before upload')
 
     @staticmethod
     def delete_huggingface_repo(

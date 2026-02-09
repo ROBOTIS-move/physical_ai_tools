@@ -53,9 +53,9 @@ class VideoMetadataExtractor:
         topic_lower = topic.lower()
         if "zed" in topic_lower:
             return "cam_head"
-        elif "camera_left" in topic_lower:
+        elif "camera_left" in topic_lower or "cam_left" in topic_lower:
             return "cam_wrist_left"
-        elif "camera_right" in topic_lower:
+        elif "camera_right" in topic_lower or "cam_right" in topic_lower:
             return "cam_wrist_right"
         elif "head" in topic_lower:
             return "cam_head"
@@ -187,7 +187,7 @@ class VideoMetadataExtractor:
         """Find the matching topic for a video file."""
         for topic in image_metadata_by_topic.keys():
             sanitized = topic.replace("/", "_").lstrip("_")
-            if sanitized == video_name:
+            if sanitized == video_name or sanitized == video_name.lstrip("_"):
                 return topic
         return None
 

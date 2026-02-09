@@ -2,3 +2,14 @@
 	path = lerobot
 	url = https://github.com/huggingface/lerobot.git
   branch = feature-robotis
+[submodule "third_party/lerobot/lerobot"]
+	path = third_party/lerobot/lerobot
+	url = https://github.com/huggingface/lerobot.git
+	branch = main
+[submodule "third_party/zenoh_ros2_sdk"]
+	path = third_party/zenoh_ros2_sdk
+	url = https://github.com/ROBOTIS-GIT/zenoh_ros2_sdk.git
+	branch = feature-1.0.0
+[submodule "third_party/groot/Isaac-GR00T"]
+	path = third_party/groot/Isaac-GR00T
+	url = https://github.com/NVIDIA/Isaac-GR00T.git

@@ -1,0 +1,174 @@
+# NVIDIA Isaac GR00T N1.6 Docker Container with Zenoh Communication Support (AMD64)
+# This container provides isolated GR00T environment with Zenoh-based communication
+# for training (finetuning) and inference commands from physical_ai_server (ROS2)
+#
+# Based on official NVIDIA GR00T Dockerfile with Physical AI Tools integration
+# Build context: physical_ai_tools/third_party/groot/
+# Usage: docker build -f Dockerfile.amd64 -t robotis/groot-zenoh:amd64 .
+
+# NVIDIA PyTorch base image (same as official GR00T Dockerfile)
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:25.04-py3
+FROM ${BASE_IMAGE}
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute
+
+# Set up locale
+RUN apt-get update && apt-get install -y locales \
+    && locale-gen en_US en_US.UTF-8 \
+    && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
+    && rm -rf /var/lib/apt/lists/*
+ENV LANG=en_US.UTF-8
+
+# Install system dependencies (from official GR00T Dockerfile)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    yasm \
+    cmake \
+    libtool \
+    git \
+    pkg-config \
+    libass-dev \
+    libfreetype6-dev \
+    libvorbis-dev \
+    autoconf \
+    automake \
+    texinfo \
+    tmux \
+    ffmpeg \
+    libegl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (fast Python package manager)
+RUN pip install --upgrade pip setuptools uv
+
+# Fix constraint file issues (from official GR00T Dockerfile)
+RUN sed -i s/dill==0.3.9/dill==0.3.8/g /etc/pip/constraint.txt 2>/dev/null || true \
+    && sed -i s/scipy==1.15.2/scipy==1.15.3/g /etc/pip/constraint.txt 2>/dev/null || true
+
+# Install GR00T dependencies (from pyproject.toml)
+# Core dependencies
+RUN pip install --no-cache-dir \
+    "albumentations==1.4.18" \
+    "av==15.0.0" \
+    "diffusers==0.35.1" \
+    "dm-tree==0.1.8" \
+    "lmdb==1.7.5" \
+    "msgpack==1.1.0" \
+    "msgpack-numpy==0.4.8" \
+    "pandas==2.2.3" \
+    "peft==0.17.1" \
+    "termcolor==3.2.0" \
+    "transformers==4.53.0" \
+    "tyro==0.9.17" \
+    "click==8.1.8" \
+    "datasets==3.6.0" \
+    "einops==0.8.1" \
+    "gymnasium==1.2.2" \
+    "matplotlib==3.10.1" \
+    "numpy==1.26.4" \
+    "omegaconf==2.3.0" \
+    "scipy==1.15.3" \
+    "torchcodec==0.4.0" \
+    "wandb==0.23.0" \
+    "pyzmq==27.0.1" \
+    "deepspeed==0.17.6"
+
+# Additional dependencies from official Dockerfile
+RUN pip install --no-cache-dir \
+    imageio \
+    h5py \
+    boto3 \
+    timm \
+    tianshou \
+    openai \
+    "decord==0.6.0"
+
+# NOTE: pytorch3d is in official Dockerfile but not actually imported in GR00T code
+# Skipping it to reduce build time (CUDA kernel compilation takes 20+ minutes)
+# If needed later, uncomment below:
+# RUN mkdir -p /opt && cd /opt && git clone https://github.com/facebookresearch/pytorch3d.git && cd pytorch3d && pip install .
+
+# Create working directory for GR00T
+WORKDIR /gr00t
+
+# Copy GR00T source from submodule
+# Build context is third_party/groot/, so paths are relative to that
+COPY Isaac-GR00T/ ./
+
+# Patch pyproject.toml to allow Python 3.12 (base image uses 3.12)
+# GR00T officially requires 3.10 but code is compatible with 3.12
+RUN sed -i 's/requires-python = "==3.10.\*"/requires-python = ">=3.10"/' pyproject.toml
+
+# Install GR00T package (use pip directly, not uv with --system)
+RUN pip install -e . --no-deps && \
+    pip install flash-attn --no-build-isolation
+
+# Zenoh dependencies (zenoh_ros2_sdk mounted as volume at /zenoh_sdk)
+# json5 required for zenoh_ros2_sdk
+# IMPORTANT: eclipse-zenoh version MUST match rmw_zenoh_cpp's bundled zenoh-c version (1.6.x)
+# Mismatched versions (e.g., 1.7.x vs 1.6.x) cause service call failures despite discovery working
+RUN pip install "eclipse-zenoh>=1.6.0,<1.7.0" rosbags>=0.11.0 GitPython>=3.1.18 json5>=0.9.14 \
+    && mkdir -p /zenoh_sdk
+
+# Create application directory for Zenoh server
+WORKDIR /app
+
+# Copy entrypoint and executor scripts from build context
+COPY entrypoint.sh /entrypoint.sh
+COPY executor.py /app/executor.py
+
+# Make entrypoint executable
+RUN chmod +x /entrypoint.sh
+
+# Setup EGL/Vulkan configuration (from official GR00T Dockerfile)
+RUN mkdir -p /usr/share/glvnd/egl_vendor.d && \
+    cat >/usr/share/glvnd/egl_vendor.d/10_nvidia.json <<'EOF'
+{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_nvidia.so.0"
+    }
+}
+EOF
+
+RUN mkdir -p /usr/share/vulkan/icd.d && \
+    cat >/usr/share/vulkan/icd.d/nvidia_icd.json <<'EOF'
+{
+    "file_format_version": "1.0.0",
+    "ICD": {
+        "library_path": "libGLX_nvidia.so.0",
+        "api_version": "1.2.140"
+    }
+}
+EOF
+
+# Environment variables for HuggingFace cache (mapped via volume)
+ENV HF_HOME=/root/.cache/huggingface
+ENV TORCH_HOME=/root/.cache/torch
+
+# Zenoh configuration
+ENV ZENOH_ROUTER_IP=127.0.0.1
+ENV ZENOH_ROUTER_PORT=7447
+ENV ZENOH_SHM_ENABLED=true
+ENV ZENOH_SDK_PATH=/zenoh_sdk
+
+# Shared Memory configuration for Zenoh
+ENV ZENOH_TRANSPORT_SHM_ENABLED=true
+
+# GR00T workspace configuration
+ENV GROOT_WORKSPACE=/workspace
+
+# Default working directory
+WORKDIR /gr00t
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import zenoh; import gr00t; print('GR00T + Zenoh OK')" || exit 1
+
+# Entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command: start Zenoh server for receiving training/inference commands
+CMD ["server"]

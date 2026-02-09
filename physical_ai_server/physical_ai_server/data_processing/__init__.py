@@ -20,6 +20,7 @@
 
 from .metadata_manager import MetadataManager
 from .video_metadata_extractor import VideoMetadataExtractor
+from .replay_data_handler import ReplayDataHandler
 
 try:
     from .bag_reader import BagReader
@@ -54,6 +55,7 @@ __all__ = [
     "BagReader",
     "MetadataManager",
     "VideoMetadataExtractor",
+    "ReplayDataHandler",
     "RosbagToLerobotConverter",
     "ConversionConfig",
     "EpisodeData",

@@ -28,6 +28,7 @@ setup(
         'mcap',
         'mcap-ros2-support',
         'matplotlib',
+        'psutil',
     ],
     zip_safe=True,
     author=authors,

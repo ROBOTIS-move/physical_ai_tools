@@ -13,10 +13,12 @@
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
   <depend>physical_ai_interfaces</depend>
   <depend>message_filters</depend>
   <depend>cv_bridge</depend>
   <depend>trajectory_msgs</depend>
+  <depend>rosbag2_py</depend>
   <depend>rosbag_recorder</depend>
   <exec_depend>web_video_server</exec_depend>
   <exec_depend>rosbridge_suite</exec_depend>

@@ -18,17 +18,43 @@ import React, { useState, useCallback, useEffect } from 'react';
 import clsx from 'clsx';
 import { useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
-import { MdOutlineFileDownload, MdClose } from 'react-icons/md';
+import {
+  MdOutlineFileDownload,
+  MdClose,
+  MdKey,
+  MdExpandMore,
+  MdExpandLess,
+} from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import TokenInputPopup from './TokenInputPopup';
 import HFStatus from '../constants/HFStatus';
 import { DEFAULT_PATHS } from '../constants/paths';
 
-// HuggingFace repository name validation
-const validateHfRepoName = (repoName) => {
-  if (!repoName) return { isValid: false, message: '' };
+// HuggingFace repository ID validation (includes username/repo format)
+const validateHfRepoId = (repoId) => {
+  if (!repoId) return { isValid: false, message: '' };
 
-  // Check length (max 96 characters)
+  const trimmed = repoId.trim();
+
+  // Check for username/repo format
+  if (!trimmed.includes('/')) {
+    return {
+      isValid: false,
+      message: 'Format: username/model-name (e.g., ROBOTIS/act_ai_worker)',
+    };
+  }
+
+  const parts = trimmed.split('/');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return {
+      isValid: false,
+      message: 'Format: username/model-name (e.g., ROBOTIS/act_ai_worker)',
+    };
+  }
+
+  const [username, repoName] = parts;
+
+  // Check length (max 96 characters for repo name)
   if (repoName.length > 96) {
     return {
       isValid: false,
@@ -59,10 +85,10 @@ const validateHfRepoName = (repoName) => {
 
   // Check for allowed characters only (alphanumeric, '-', '_', '.')
   const allowedPattern = /^[a-zA-Z0-9._-]+$/;
-  if (!allowedPattern.test(repoName)) {
+  if (!allowedPattern.test(repoName) || !allowedPattern.test(username)) {
     return {
       isValid: false,
-      message: 'Repository name can only contain letters, numbers, "-", "_", and "."',
+      message: 'Names can only contain letters, numbers, "-", "_", and "."',
     };
   }
 
@@ -84,76 +110,34 @@ const STYLES = {
     'focus:ring-blue-500',
     'focus:border-transparent'
   ),
-  selectUserID: clsx(
-    'text-md',
-    'w-full',
-    'max-w-120',
-    'min-w-60',
-    'h-8',
-    'px-2',
-    'border',
-    'border-gray-300',
-    'rounded-md',
-    'focus:outline-none',
-    'focus:ring-2',
-    'focus:ring-blue-500',
-    'focus:border-transparent'
-  ),
-  loadUserButton: clsx('px-3', 'py-1', 'text-md', 'font-medium', 'rounded-xl', 'transition-colors'),
   cancelButton: clsx('px-6', 'py-2', 'text-sm', 'font-medium', 'rounded-lg', 'transition-colors'),
 };
 
 const PolicyDownloadModal = ({ isOpen, onClose, onDownloadComplete }) => {
   const hfStatus = useSelector((state) => state.editDataset.hfStatus);
-  // const downloadStatus = useSelector((state) => state.editDataset.downloadStatus);
 
-  const { controlHfServer, registerHFUser, getRegisteredHFUser } = useRosServiceCaller();
+  const { controlHfServer, registerHFUser } = useRosServiceCaller();
 
   // Local states
-  const [hfRepoId, setHfRepoId] = useState('');
-  const [userId, setUserId] = useState('');
+  const [repoId, setRepoId] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
-  const [finalStatus, setFinalStatus] = useState(null); // Store final SUCCESS/FAILED status
-  const [userIdList, setUserIdList] = useState([]);
+  const [finalStatus, setFinalStatus] = useState(null);
+  const [showTokenSection, setShowTokenSection] = useState(false);
   const [showTokenPopup, setShowTokenPopup] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [tokenRegistered, setTokenRegistered] = useState(false);
 
   // Validation states
-  const [repoValidation, setRepoValidation] = useState({ isValid: true, message: '' });
+  const [repoValidation, setRepoValidation] = useState({ isValid: false, message: '' });
 
   // Computed values
   const isHfStatusReady =
     hfStatus === HFStatus.IDLE || hfStatus === HFStatus.SUCCESS || hfStatus === HFStatus.FAILED;
 
   const downloadButtonEnabled =
-    !isDownloading &&
-    hfRepoId?.trim() &&
-    userId?.trim() &&
-    repoValidation.isValid &&
-    isHfStatusReady;
+    !isDownloading && repoId?.trim() && repoValidation.isValid && isHfStatusReady;
 
   const canCloseModal = !isDownloading;
-
-  // Button variants helper function
-  const getButtonVariant = (variant, isActive = true, isLoading = false) => {
-    const variants = {
-      blue: {
-        active: 'bg-blue-200 text-blue-800 hover:bg-blue-300',
-        disabled: 'bg-gray-200 text-gray-500 cursor-not-allowed',
-      },
-      red: {
-        active: 'bg-red-200 text-red-800 hover:bg-red-300',
-        disabled: 'bg-gray-200 text-gray-500 cursor-not-allowed',
-      },
-      green: {
-        active: 'bg-green-200 text-green-800 hover:bg-green-300',
-        disabled: 'bg-gray-200 text-gray-500 cursor-not-allowed',
-      },
-    };
-
-    const isDisabled = !isActive || isLoading;
-    return variants[variant]?.[isDisabled ? 'disabled' : 'active'] || '';
-  };
 
   // Token related handlers
   const handleTokenSubmit = async (token) => {
@@ -167,99 +151,53 @@ const PolicyDownloadModal = ({ isOpen, onClose, onDownloadComplete }) => {
       const result = await registerHFUser(token);
       console.log('registerHFUser result:', result);
 
-      if (result && result.user_id_list) {
-        setUserIdList(result.user_id_list);
+      if (result && result.success) {
+        setTokenRegistered(true);
         setShowTokenPopup(false);
-        toast.success('User ID list updated successfully!');
+        toast.success('Token registered successfully!');
       } else {
-        toast.error('Failed to get user ID list from response');
+        toast.error('Failed to register token: ' + (result?.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error registering HF user:', error);
-      toast.error(`Failed to register user: ${error.message}`);
+      console.error('Error registering HF token:', error);
+      toast.error(`Failed to register token: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleLoadUserId = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const result = await getRegisteredHFUser();
-      console.log('getRegisteredHFUser result:', result);
-
-      if (result && result.user_id_list) {
-        if (result.success) {
-          setUserIdList(result.user_id_list);
-          toast.success('User ID list loaded successfully!');
-        } else {
-          toast.error('Failed to get user ID list:\n' + result.message);
-        }
-      } else {
-        toast.error('Failed to get user ID list from response');
-      }
-    } catch (error) {
-      console.error('Error loading HF user list:', error);
-      toast.error(`Failed to load user ID list: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getRegisteredHFUser]);
-
   // Input handlers with validation
   const handleRepoIdChange = (value) => {
-    let repo_id = '';
-
-    if (value.includes('/')) {
-      const head = value.split('/')[0];
-      const tail = value.split('/')[1];
-
-      if (userIdList.includes(head)) {
-        setUserId(head);
-        repo_id = tail;
-      } else {
-        // If the head is not in userIdList, treat the whole value as repo_id
-        repo_id = value;
-      }
-    } else {
-      repo_id = value;
-    }
-
-    setHfRepoId(repo_id);
-    const validation = validateHfRepoName(repo_id.trim());
+    setRepoId(value);
+    const validation = validateHfRepoId(value.trim());
     setRepoValidation(validation);
   };
 
   // Download operation
   const handleDownloadPolicy = async () => {
-    if (!hfRepoId || hfRepoId.trim() === '') {
-      toast.error('Please enter a Repository ID first');
-      return;
-    }
-
-    if (!userId || userId.trim() === '') {
-      toast.error('Please select a User ID first');
+    if (!repoId || repoId.trim() === '') {
+      toast.error('Please enter a Repository ID');
       return;
     }
 
     // Additional validation check
-    const validation = validateHfRepoName(hfRepoId.trim());
+    const validation = validateHfRepoId(repoId.trim());
     if (!validation.isValid) {
-      toast.error(`Invalid repository name: ${validation.message}`);
+      toast.error(`Invalid repository ID: ${validation.message}`);
       return;
     }
 
     setIsDownloading(true);
     try {
-      const repoId = userId + '/' + hfRepoId.trim();
-      const result = await controlHfServer('download', repoId, 'model');
+      const trimmedRepoId = repoId.trim();
+      const result = await controlHfServer('download', trimmedRepoId, 'model');
       console.log('Download policy result:', result);
 
-      toast.success(`Policy download started successfully for ${repoId}!`);
+      toast.success(`Policy download started for ${trimmedRepoId}!`);
 
       // Call the completion callback if provided
       if (onDownloadComplete) {
-        onDownloadComplete(repoId);
+        onDownloadComplete(trimmedRepoId);
       }
     } catch (error) {
       console.error('Error downloading policy:', error);
@@ -271,9 +209,9 @@ const PolicyDownloadModal = ({ isOpen, onClose, onDownloadComplete }) => {
 
   const handleCancelDownload = async () => {
     try {
-      const result = await controlHfServer('cancel', hfRepoId, 'model');
+      const result = await controlHfServer('cancel', repoId, 'model');
       console.log('Cancel download result:', result);
-      toast.success(`Cancelling... (${hfRepoId})`);
+      toast.success(`Cancelling download...`);
     } catch (error) {
       console.error('Error canceling download:', error);
       toast.error(`Failed to cancel download: ${error.message}`);
@@ -282,24 +220,11 @@ const PolicyDownloadModal = ({ isOpen, onClose, onDownloadComplete }) => {
 
   // Handle finish button click
   const handleFinish = () => {
+    if (onDownloadComplete && finalStatus === HFStatus.SUCCESS) {
+      onDownloadComplete(repoId.trim());
+    }
     onClose();
   };
-
-  // Auto-load User ID list on component mount
-  useEffect(() => {
-    if (isOpen) {
-      handleLoadUserId();
-    }
-  }, [isOpen, handleLoadUserId]);
-
-  // track hf status update
-  useEffect(() => {
-    if (hfStatus === HFStatus.DOWNLOADING) {
-      setIsDownloading(true);
-    } else {
-      setIsDownloading(false);
-    }
-  }, [hfStatus]);
 
   // Track HF status updates
   useEffect(() => {
@@ -307,20 +232,19 @@ const PolicyDownloadModal = ({ isOpen, onClose, onDownloadComplete }) => {
       setIsDownloading(true);
       setFinalStatus(null);
     } else if (hfStatus === HFStatus.SUCCESS || hfStatus === HFStatus.FAILED) {
-      // Download completed (success or failed) - only process once
       setIsDownloading(false);
-      setFinalStatus(hfStatus); // Store the final status
+      setFinalStatus(hfStatus);
     }
-  }, [hfStatus, isDownloading]);
+  }, [hfStatus]);
 
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setHfRepoId('');
-      setUserId('');
-      setRepoValidation({ isValid: true, message: '' });
+      setRepoId('');
+      setRepoValidation({ isValid: false, message: '' });
       setIsDownloading(false);
       setFinalStatus(null);
+      setShowTokenSection(false);
     }
   }, [isOpen]);
 
@@ -354,210 +278,175 @@ const PolicyDownloadModal = ({ isOpen, onClose, onDownloadComplete }) => {
 
             {/* Modal Content */}
             <div className="flex-1 p-6 overflow-y-auto">
-              {/* Download Policy Section Header */}
-              <div className="w-full flex flex-col items-start justify-start gap-2 bg-gray-50 border border-gray-200 p-3 mb-2 rounded-md">
-                <div className="w-full flex items-center rounded-md font-medium gap-2">
-                  <MdOutlineFileDownload className="text-lg text-blue-600" />
-                  Download Policy
-                </div>
-                <div className="text-sm text-gray-600">
-                  <div className="mb-1">
-                    Downloads policy model from Hugging Face hub to local directory
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {/* User ID Selection */}
-                <div className="bg-white p-4 rounded-md flex flex-col items-start justify-center gap-4 shadow-md">
-                  <div className="w-full flex items-center justify-start">
-                    <span className="text-lg font-bold">User ID Configuration</span>
-                  </div>
-                  <div
-                    className={clsx('w-full flex flex-row gap-3', {
-                      'opacity-50': isDownloading,
-                    })}
-                  >
-                    <select
-                      className={STYLES.selectUserID}
-                      value={userId || ''}
-                      onChange={(e) => setUserId(e.target.value)}
-                      disabled={isDownloading}
-                    >
-                      <option value="">Select User ID</option>
-                      {userIdList.map((id) => (
-                        <option key={id} value={id}>
-                          {id}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex gap-2">
-                      <button
-                        className={clsx(
-                          STYLES.loadUserButton,
-                          getButtonVariant('blue', true, isLoading)
-                        )}
-                        onClick={() => {
-                          if (!isLoading) {
-                            handleLoadUserId();
-                          }
-                        }}
-                        disabled={isLoading}
-                      >
-                        {isLoading ? 'Loading...' : 'Load'}
-                      </button>
-                      <button
-                        className={clsx(
-                          STYLES.loadUserButton,
-                          getButtonVariant('green', true, isLoading)
-                        )}
-                        onClick={() => {
-                          if (!isLoading) {
-                            setShowTokenPopup(true);
-                          }
-                        }}
-                        disabled={isLoading}
-                      >
-                        Change
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
+              {/* Download Policy Section */}
+              <div className="space-y-4">
                 {/* Repository ID Input */}
-                <div className="w-full bg-white p-4 rounded-md flex flex-col items-start justify-center gap-2 shadow-md">
-                  <div className="w-full flex flex-col gap-3">
-                    <div className="w-full flex flex-col gap-2">
-                      <span className="text-lg font-bold">Repository ID</span>
-                      <div className="relative">
-                        <div
-                          className={clsx(
-                            'flex items-center border rounded-md overflow-hidden bg-white focus-within:ring-2',
-                            {
-                              'border-gray-300 focus-within:ring-blue-500 focus-within:border-transparent':
-                                repoValidation.isValid || !hfRepoId,
-                              'border-red-300 focus-within:ring-red-500 focus-within:border-transparent':
-                                !repoValidation.isValid && hfRepoId,
-                            }
-                          )}
-                        >
-                          <div className="px-3 py-2 bg-gray-50 border-r border-gray-300 text-gray-700 font-medium flex items-center">
-                            <span className="text-sm">{userId || 'username'}</span>
-                            <span className="mx-1 text-gray-400">/</span>
-                          </div>
-                          <input
-                            className={clsx(
-                              'flex-1 px-3 py-2 text-sm bg-transparent border-none outline-none',
-                              {
-                                'bg-gray-100 cursor-not-allowed text-gray-500': isDownloading,
-                                'text-gray-900': !isDownloading,
-                              }
-                            )}
-                            type="text"
-                            placeholder="Enter repository id or username/repo"
-                            value={hfRepoId || ''}
-                            onChange={(e) => handleRepoIdChange(e.target.value)}
-                            disabled={isDownloading}
-                          />
-                        </div>
-                        <div className="mt-1 text-xs">
-                          <div className="text-gray-500">
-                            Full repository path:{' '}
-                            <span className="font-mono text-blue-600">
-                              {userId || ''}/{hfRepoId || ''}
-                            </span>
-                          </div>
-                          {!repoValidation.isValid && hfRepoId && (
-                            <div className="text-red-500 mt-1">⚠️ {repoValidation.message}</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                <div className="w-full bg-white p-4 rounded-md flex flex-col gap-3 border border-gray-200">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-lg font-bold text-gray-800">Policy Repository ID</span>
+                    <p className="text-sm text-gray-500">
+                      Enter the full repository path (e.g., ROBOTIS/act_ai_worker)
+                    </p>
+                  </div>
 
-                    {/* Info message: Policy save path with folder icon */}
-                    <div className="w-full flex flex-row items-center mt-1">
-                      <span className="text-xs text-gray-600 flex items-center gap-1">
-                        <MdOutlineFileDownload className="inline-block w-4 h-4 text-blue-700 mr-1" />
-                        The policy will be saved in{' '}
+                  <div className="relative">
+                    <input
+                      className={clsx(STYLES.textInput, {
+                        'border-red-300 focus:ring-red-500': !repoValidation.isValid && repoId,
+                        'border-blue-300 focus:ring-blue-500': repoValidation.isValid,
+                        'bg-gray-100 cursor-not-allowed': isDownloading,
+                      })}
+                      type="text"
+                      placeholder="username/model-name"
+                      value={repoId}
+                      onChange={(e) => handleRepoIdChange(e.target.value)}
+                      disabled={isDownloading}
+                    />
+                    {repoId && (
+                      <div className="mt-1 text-xs">
+                        {repoValidation.isValid ? (
+                          <span className="text-blue-600">Valid repository ID</span>
+                        ) : (
+                          <span className="text-red-500">{repoValidation.message}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Save path info */}
+                  {repoValidation.isValid && (
+                    <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                      <MdOutlineFileDownload className="text-blue-600" />
+                      <span>
+                        Will be saved to:{' '}
                         <span className="font-mono text-blue-700">
                           {DEFAULT_PATHS.POLICY_MODEL_PATH}
                         </span>
                       </span>
                     </div>
+                  )}
 
-                    {/* Download Button and Status */}
-                    <div className="w-full flex flex-row items-center justify-start gap-3 mt-2">
+                  {/* Download Button and Status */}
+                  <div className="flex items-center gap-3 mt-2">
+                    <button
+                      className={clsx(
+                        'px-6',
+                        'py-2',
+                        'text-sm',
+                        'font-medium',
+                        'rounded-lg',
+                        'transition-colors',
+                        'flex',
+                        'items-center',
+                        'gap-2',
+                        {
+                          'bg-blue-500 text-white hover:bg-blue-600': downloadButtonEnabled,
+                          'bg-gray-300 text-gray-500 cursor-not-allowed': !downloadButtonEnabled,
+                        }
+                      )}
+                      onClick={handleDownloadPolicy}
+                      disabled={!downloadButtonEnabled}
+                    >
+                      <MdOutlineFileDownload className="w-5 h-5" />
+                      Download
+                    </button>
+
+                    {/* Cancel Button */}
+                    {isDownloading && (
                       <button
                         className={clsx(
-                          'px-6',
+                          STYLES.cancelButton,
+                          'bg-red-500 text-white hover:bg-red-600'
+                        )}
+                        onClick={handleCancelDownload}
+                      >
+                        Cancel
+                      </button>
+                    )}
+
+                    {/* Status */}
+                    {isDownloading && (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        <span className="text-sm text-gray-500">Downloading...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Token Registration Section (Collapsible) */}
+                <div className="border border-gray-200 rounded-md overflow-hidden">
+                  <button
+                    className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+                    onClick={() => setShowTokenSection(!showTokenSection)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <MdKey className="text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">
+                        Token Registration (Optional)
+                      </span>
+                      {tokenRegistered && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                          Registered
+                        </span>
+                      )}
+                    </div>
+                    {showTokenSection ? (
+                      <MdExpandLess className="text-gray-500" />
+                    ) : (
+                      <MdExpandMore className="text-gray-500" />
+                    )}
+                  </button>
+
+                  {showTokenSection && (
+                    <div className="px-4 py-3 bg-white border-t border-gray-200">
+                      <p className="text-xs text-gray-500 mb-3">
+                        Required only for private models. Public models don't need a token.
+                      </p>
+                      <button
+                        className={clsx(
+                          'px-4',
                           'py-2',
                           'text-sm',
                           'font-medium',
                           'rounded-lg',
                           'transition-colors',
+                          'flex',
+                          'items-center',
+                          'gap-2',
                           {
-                            'bg-blue-500 text-white hover:bg-blue-600': downloadButtonEnabled,
-                            'bg-gray-300 text-gray-500 cursor-not-allowed': !downloadButtonEnabled,
+                            'bg-blue-500 text-white hover:bg-blue-600': !isLoading,
+                            'bg-gray-300 text-gray-500 cursor-not-allowed': isLoading,
                           }
                         )}
-                        onClick={handleDownloadPolicy}
-                        disabled={!downloadButtonEnabled}
+                        onClick={() => setShowTokenPopup(true)}
+                        disabled={isLoading}
                       >
-                        <div className="flex items-center justify-center gap-2">
-                          <MdOutlineFileDownload className="w-6 h-6" />
-                          Download
-                        </div>
+                        <MdKey className="w-4 h-4" />
+                        {tokenRegistered ? 'Update Token' : 'Register Token'}
                       </button>
-
-                      {/* Cancel Button */}
-                      <button
-                        className={clsx(STYLES.cancelButton, {
-                          'bg-red-500 text-white hover:bg-red-600': isDownloading,
-                          'bg-gray-300 text-gray-500 cursor-not-allowed': !isDownloading,
-                        })}
-                        onClick={handleCancelDownload}
-                        disabled={!isDownloading}
-                      >
-                        Cancel
-                      </button>
-
-                      {/* Status */}
-                      <div className="flex flex-row items-center justify-start gap-2">
-                        <span className="text-sm text-gray-500">
-                          {isDownloading && '⏳ Downloading...'}
-                          {!isDownloading && hfStatus}{' '}
-                        </span>
-                        {/* Spinner for model downloads - right next to status text */}
-                        {isDownloading && (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                        )}
-                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Modal Footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
-              <button
-                onClick={handleFinish}
-                className={clsx('px-4 py-2 text-sm font-medium rounded-md transition-colors', {
-                  'bg-green-500 text-white hover:bg-green-600': finalStatus === HFStatus.SUCCESS,
-                  'bg-gray-500 text-white hover:bg-gray-600 cursor-not-allowed':
-                    finalStatus === HFStatus.FAILED,
-                  'bg-gray-300 text-gray-500 cursor-not-allowed': !finalStatus,
-                })}
-                disabled={!finalStatus}
-              >
-                Finish
-              </button>
+              {finalStatus === HFStatus.SUCCESS && (
+                <button
+                  onClick={handleFinish}
+                  className="px-4 py-2 text-sm font-medium rounded-md transition-colors bg-blue-500 text-white hover:bg-blue-600"
+                >
+                  Use This Policy
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
                 disabled={!canCloseModal}
               >
-                {isDownloading ? 'Downloading...' : 'Cancel'}
+                {isDownloading ? 'Downloading...' : 'Close'}
               </button>
             </div>
           </div>

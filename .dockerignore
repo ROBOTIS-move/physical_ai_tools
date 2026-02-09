@@ -1,0 +1,35 @@
+# Large data directories (volume mounted at runtime)
+docker/huggingface/
+docker/workspace/
+
+# Third-party submodule source (each has its own Dockerfile)
+third_party/lerobot/lerobot/
+third_party/lerobot/workspace/
+third_party/groot/Isaac-GR00T/
+third_party/groot/workspace/
+
+# Git
+.git/
+**/.git/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+
+# IDE
+**/.idea/
+**/.vscode/
+
+# Node modules
+**/node_modules/
+
+# Docs
+docs/
+
+# Large model files (should be volume mounted)
+**/*.safetensors
+**/*.bin
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.onnx

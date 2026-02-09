@@ -126,7 +126,7 @@ export function useRosTopicSubscription() {
           utterance.rate = 1.2;
           utterance.volume = 1.0;
           window.speechSynthesis.speak(utterance);
-          console.log(`🔊 Speech: "${text}"`);
+          console.log(`Speech: "${text}"`);
         } else {
           console.warn('Speech synthesis not available, falling back to beep');
           playBeep();
@@ -200,6 +200,10 @@ export function useRosTopicSubscription() {
 
   const subscribeToTaskStatus = useCallback(async () => {
     try {
+      const RECORDING_BEEP_FREQUENCY = 1000;
+      const RECORDING_BEEP_DURATION = 400;
+      const BEEP_DELAY = 100;
+
       const ros = await rosConnectionManager.getConnection(rosbridgeUrl);
       if (!ros) return;
 
@@ -229,6 +233,17 @@ export function useRosTopicSubscription() {
 
         const currentPhase = msg.phase;
         const previousPhase = previousPhaseRef.current;
+
+        if (currentPhase === TaskPhase.RECORDING && previousPhase !== TaskPhase.RECORDING) {
+          console.log('Recording started - playing beep sound');
+
+          setTimeout(() => {
+            playBeep(RECORDING_BEEP_FREQUENCY, RECORDING_BEEP_DURATION);
+          }, BEEP_DELAY);
+
+          toast.success('Recording started!');
+        }
+
         previousPhaseRef.current = currentPhase;
 
         // Calculate progress percentage
@@ -315,7 +330,7 @@ export function useRosTopicSubscription() {
     } catch (error) {
       console.error('Failed to subscribe to task status topic:', error);
     }
-  }, [dispatch, rosbridgeUrl]);
+  }, [dispatch, rosbridgeUrl, playBeep]);
 
   const subscribeToActionEvent = useCallback(async () => {
     try {

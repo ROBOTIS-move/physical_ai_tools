@@ -26,19 +26,24 @@ import time
 import traceback
 from typing import Optional
 
+import yaml
+
 from ament_index_python.packages import get_package_share_directory
 from physical_ai_interfaces.msg import (
+    BrowserItem,
     HFOperationStatus,
     TaskInfo,
     TaskStatus,
     TrainingStatus,
 )
 from physical_ai_interfaces.srv import (
+    BrowseFile,
     ControlHfServer,
     GetDatasetList,
     GetHFUser,
     GetModelWeightList,
     GetPolicyList,
+    GetReplayData,
     GetRobotTypeList,
     GetSavedPolicyList,
     GetTrainingInfo,
@@ -53,14 +58,17 @@ from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.data_processing.hf_api_worker import HfApiWorker
 from physical_ai_server.data_processing.mp4_conversion_worker import Mp4ConversionWorker
-from physical_ai_server.inference.inference_manager import InferenceManager
+from physical_ai_server.data_processing.replay_data_handler import ReplayDataHandler
+from physical_ai_server.inference.zenoh_inference_manager import ZenohInferenceManager
 from physical_ai_server.timer.timer_manager import TimerManager
-from physical_ai_server.training.training_manager import TrainingManager
+from physical_ai_server.training.zenoh_training_manager import ZenohTrainingManager
+from physical_ai_server.utils.file_browse_utils import FileBrowseUtils
 from physical_ai_server.utils.parameter_utils import (
     declare_parameters,
     load_parameters,
     log_parameters,
 )
+from physical_ai_server.utils.video_file_server import VideoFileServer
 
 import rclpy
 from rclpy.node import Node
@@ -73,6 +81,7 @@ class PhysicalAIServer(Node):
     DEFAULT_TOPIC_TIMEOUT = 5.0  # seconds
     PUB_QOS_SIZE = 10
     TRAINING_STATUS_TIMER_FREQUENCY = 0.5  # seconds
+    VIDEO_SERVER_PORT = 8082  # Port for video file server
 
     class RosbagNotReadyException(Exception):
         """Exception raised when rosbag recording cannot start yet."""
@@ -114,8 +123,9 @@ class PhysicalAIServer(Node):
         self.timer_manager: Optional[TimerManager] = None
         self.heartbeat_timer: Optional[TimerManager] = None
         self.training_timer: Optional[TimerManager] = None
-        self.inference_manager: Optional[InferenceManager] = None
-        self.training_manager: Optional[TrainingManager] = None
+        # Zenoh managers for inference/training (Docker container communication)
+        self.inference_manager: Optional[ZenohInferenceManager] = None
+        self.training_manager: Optional[ZenohTrainingManager] = None
 
         # Initialize HF API Worker
         self.hf_api_worker: Optional[HfApiWorker] = None
@@ -125,6 +135,42 @@ class PhysicalAIServer(Node):
         # Initialize MP4 Conversion Worker
         self.mp4_conversion_worker: Optional[Mp4ConversionWorker] = None
         self.mp4_status_timer: Optional[TimerManager] = None
+
+        # Initialize ReplayDataHandler for replay viewer
+        self.replay_data_handler = ReplayDataHandler(logger=self.get_logger())
+
+        # Initialize FileBrowseUtils for file browsing
+        self.file_browse_utils = FileBrowseUtils(
+            max_workers=8,
+            logger=self.get_logger()
+        )
+
+        # Initialize Video File Server for replay viewer
+        self._init_video_server()
+
+    def _init_video_server(self):
+        """Initialize the video file server for replay viewer."""
+        try:
+            # Allow serving files from home directory and workspace
+            allowed_paths = [
+                str(Path.home()),
+                '/workspace',  # Docker workspace directory
+            ]
+            self.video_server = VideoFileServer(
+                port=self.VIDEO_SERVER_PORT,
+                allowed_paths=allowed_paths,
+                replay_data_handler=self.replay_data_handler
+            )
+            self.video_server.start()
+            self.get_logger().info(
+                f'Video file server started on port {self.VIDEO_SERVER_PORT}'
+            )
+            self.get_logger().info(
+                f'Replay data API available at http://0.0.0.0:{self.VIDEO_SERVER_PORT}/replay-data/'
+            )
+        except Exception as e:
+            self.get_logger().error(f'Failed to start video server: {e}')
+            self.video_server = None
 
     def _init_ros_publisher(self):
         self.get_logger().info('Initializing ROS publishers...')
@@ -156,6 +202,8 @@ class PhysicalAIServer(Node):
             ),
             ('/huggingface/control', ControlHfServer, self.control_hf_server_callback),
             ('/training/get_training_info', GetTrainingInfo, self.get_training_info_callback),
+            ('/replay/get_data', GetReplayData, self.get_replay_data_callback),
+            ('/browse_file', BrowseFile, self.browse_file_callback),
         ]
 
         for service_name, service_type, callback in service_definitions:
@@ -246,7 +294,7 @@ class PhysicalAIServer(Node):
         # Register joystick handler for immediate processing
         self.communicator.register_joystick_handler(self.handle_joystick_trigger)
 
-        self.inference_manager = InferenceManager()
+        self.inference_manager = ZenohInferenceManager(node=self)
         self.get_logger().info(
             f'ROS parameters initialized successfully for robot type: {robot_type}')
 
@@ -551,8 +599,8 @@ class PhysicalAIServer(Node):
         """
         try:
             if request.command == SendTrainingCommand.Request.START:
-                # Initialize training components
-                self.training_manager = TrainingManager()
+                # Initialize training components (ROS2 services with rmw_zenoh)
+                self.training_manager = ZenohTrainingManager(node=self)
                 self.training_timer = TimerManager(node=self)
                 self._setup_training_status_timer()
 
@@ -568,7 +616,7 @@ class PhysicalAIServer(Node):
 
                 # Log training request details
                 output_folder_name = request.training_info.output_folder_name
-                weight_save_root_path = TrainingManager.get_weight_save_root_path()
+                weight_save_root_path = ZenohTrainingManager.get_weight_save_root_path()
                 self.get_logger().info(
                     f'Training request - Output: {output_folder_name}, '
                     f'Resume: {resume}, Model path: {resume_model_path}'
@@ -946,7 +994,7 @@ class PhysicalAIServer(Node):
         return response
 
     def get_policy_list_callback(self, request, response):
-        policy_list = InferenceManager.get_available_policies()
+        policy_list = ZenohInferenceManager.get_available_policies()
         if not policy_list:
             self.get_logger().warning('No policies available')
             response.success = False
@@ -961,7 +1009,7 @@ class PhysicalAIServer(Node):
     def get_available_list_callback(self, request, response):
         response.success = True
         response.message = 'Policy and device lists retrieved successfully'
-        response.policy_list, response.device_list = TrainingManager.get_available_list()
+        response.policy_list, response.device_list = ZenohTrainingManager.get_available_list()
         return response
 
     def get_user_list_callback(self, request, response):
@@ -1016,7 +1064,7 @@ class PhysicalAIServer(Node):
         return response
 
     def get_model_weight_list_callback(self, request, response):
-        save_root_path = TrainingManager.get_weight_save_root_path()
+        save_root_path = ZenohTrainingManager.get_weight_save_root_path()
         try:
             if not save_root_path.exists():
                 response.success = False
@@ -1041,7 +1089,7 @@ class PhysicalAIServer(Node):
         return response
 
     def get_saved_policies_callback(self, request, response):
-        saved_policy_path, saved_policy_type = InferenceManager.get_saved_policies()
+        saved_policy_path, saved_policy_type = ZenohInferenceManager.get_saved_policies()
         if not saved_policy_path and not saved_policy_type:
             self.get_logger().warning('No saved policies found')
             response.saved_policy_path = []
@@ -1071,7 +1119,7 @@ class PhysicalAIServer(Node):
 
             # Clean up path (remove leading/trailing whitespace)
             train_config_path = request.train_config_path.strip()
-            weight_save_root_path = TrainingManager.get_weight_save_root_path()
+            weight_save_root_path = ZenohTrainingManager.get_weight_save_root_path()
             config_path = weight_save_root_path / train_config_path
 
             # Check if config file exists
@@ -1295,6 +1343,123 @@ class PhysicalAIServer(Node):
             self.get_logger().error(f'Error in HF server callback: {str(e)}')
             response.success = False
             response.message = f'Error in HF server callback: {str(e)}'
+            return response
+
+    def get_replay_data_callback(self, request, response):
+        """Handle replay data request for viewing recorded ROSbag data."""
+        try:
+            bag_path = request.bag_path
+            self.get_logger().info(f'Getting replay data for: {bag_path}')
+
+            result = self.replay_data_handler.get_replay_data(bag_path)
+
+            response.success = result.get('success', False)
+            response.message = result.get('message', '')
+
+            if response.success:
+                response.video_files = result.get('video_files', [])
+                response.video_topics = result.get('video_topics', [])
+                response.video_fps = result.get('video_fps', [])
+                response.frame_indices = result.get('frame_indices', [])
+                response.frame_timestamps = result.get('frame_timestamps', [])
+                response.joint_timestamps = result.get('joint_timestamps', [])
+                response.joint_names = result.get('joint_names', [])
+                response.joint_positions = result.get('joint_positions', [])
+                response.action_timestamps = result.get('action_timestamps', [])
+                response.action_names = result.get('action_names', [])
+                response.action_values = result.get('action_values', [])
+                response.start_time = result.get('start_time', 0.0)
+                response.end_time = result.get('end_time', 0.0)
+                response.duration = result.get('duration', 0.0)
+                response.video_server_port = self.VIDEO_SERVER_PORT
+                response.bag_path = bag_path
+
+            return response
+
+        except Exception as e:
+            self.get_logger().error(f'Error in get_replay_data_callback: {str(e)}')
+            response.success = False
+            response.message = f'Error getting replay data: {str(e)}'
+            return response
+
+    def browse_file_callback(self, request, response):
+        """Handle file browsing requests."""
+        try:
+            if request.action == 'get_path':
+                result = self.file_browse_utils.handle_get_path_action(
+                    request.current_path)
+            elif request.action == 'go_parent':
+                target_files = None
+                target_folders = None
+
+                if hasattr(request, 'target_files') and request.target_files:
+                    target_files = set(request.target_files)
+                if hasattr(request, 'target_folders') and request.target_folders:
+                    target_folders = set(request.target_folders)
+
+                if target_files or target_folders:
+                    result = self.file_browse_utils.handle_go_parent_with_target_check(
+                        request.current_path,
+                        target_files,
+                        target_folders)
+                else:
+                    result = self.file_browse_utils.handle_go_parent_action(
+                        request.current_path)
+            elif request.action == 'browse':
+                target_files = None
+                target_folders = None
+
+                if hasattr(request, 'target_files') and request.target_files:
+                    target_files = set(request.target_files)
+                if hasattr(request, 'target_folders') and request.target_folders:
+                    target_folders = set(request.target_folders)
+
+                if target_files or target_folders:
+                    result = self.file_browse_utils.handle_browse_with_target_check(
+                        request.current_path,
+                        request.target_name,
+                        target_files,
+                        target_folders)
+                else:
+                    result = self.file_browse_utils.handle_browse_action(
+                        request.current_path, request.target_name)
+            else:
+                result = {
+                    'success': False,
+                    'message': f'Unknown action: {request.action}',
+                    'current_path': '',
+                    'parent_path': '',
+                    'selected_path': '',
+                    'items': []
+                }
+
+            response.success = result['success']
+            response.message = result['message']
+            response.current_path = result['current_path']
+            response.parent_path = result['parent_path']
+            response.selected_path = result['selected_path']
+
+            response.items = []
+            for item_dict in result['items']:
+                item = BrowserItem()
+                item.name = item_dict['name']
+                item.full_path = item_dict['full_path']
+                item.is_directory = item_dict['is_directory']
+                item.size = item_dict['size']
+                item.modified_time = item_dict['modified_time']
+                item.has_target_file = item_dict.get('has_target_file', False)
+                response.items.append(item)
+
+            return response
+
+        except Exception as e:
+            self.get_logger().error(f'Error in browse_file_callback: {str(e)}')
+            response.success = False
+            response.message = f'Error: {str(e)}'
+            response.current_path = ''
+            response.parent_path = ''
+            response.selected_path = ''
+            response.items = []
             return response
 
     def handle_joystick_trigger(self, joystick_mode: str):
@@ -1575,6 +1740,7 @@ class PhysicalAIServer(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+
     node = PhysicalAIServer()
     try:
         rclpy.spin(node)

@@ -17,11 +17,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
+import { MdFolderOpen } from 'react-icons/md';
 import TaskInstructionInput from './TaskInstructionInput';
 import TagInput from './TagInput';
+import FileBrowserModal from './FileBrowserModal';
 import TaskPhase from '../constants/taskPhases';
 import { setTaskInfo, setUseMultiTaskMode } from '../features/tasks/taskSlice';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
+import { DEFAULT_PATHS } from '../constants/paths';
 
 const InfoPanel = () => {
   const dispatch = useDispatch();
@@ -34,6 +37,8 @@ const InfoPanel = () => {
   const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
   const [isConverting, setIsConverting] = useState(false);
   const [convertError, setConvertError] = useState('');
+  const [hasSeenConverting, setHasSeenConverting] = useState(false);
+  const [showDatasetBrowserModal, setShowDatasetBrowserModal] = useState(false);
 
   const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
 
@@ -79,10 +84,13 @@ const InfoPanel = () => {
   useEffect(() => {
     if (taskStatus.phase === TaskPhase.CONVERTING) {
       setIsConverting(true);
-    } else if (isConverting && taskStatus.phase === TaskPhase.READY) {
+      setHasSeenConverting(true);
+    } else if (isConverting && hasSeenConverting && taskStatus.phase === TaskPhase.READY) {
+      // Only reset after CONVERTING phase was actually received from server
       setIsConverting(false);
+      setHasSeenConverting(false);
     }
-  }, [taskStatus.phase, isConverting]);
+  }, [taskStatus.phase, isConverting, hasSeenConverting]);
 
   // Handler for Convert MP4 button
   const handleConvertMp4 = useCallback(async () => {
@@ -105,6 +113,22 @@ const InfoPanel = () => {
       setIsConverting(false);
     }
   }, [info.taskName, sendRecordCommand]);
+
+  // Handler for dataset folder selection from FileBrowserModal
+  const handleDatasetFolderSelect = useCallback(
+    (selectedItem) => {
+      const folderName = selectedItem.name;
+      const robotType = taskStatus?.robotType;
+      // Remove {robotType}_ prefix if present
+      const prefix = robotType ? `${robotType}_` : '';
+      const taskName = prefix && folderName.startsWith(prefix)
+        ? folderName.slice(prefix.length)
+        : folderName;
+      dispatch(setTaskInfo({ ...info, taskName }));
+      setShowDatasetBrowserModal(false);
+    },
+    [taskStatus?.robotType, info, dispatch]
+  );
 
   // Check if Convert MP4 button should be enabled
   const canConvertMp4 = taskStatus.phase === TaskPhase.READY && info.taskName && !isConverting;
@@ -345,6 +369,25 @@ const InfoPanel = () => {
               'Convert MP4'
             )}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowDatasetBrowserModal(true)}
+            className={clsx(
+              'px-3',
+              'py-2',
+              'text-sm',
+              'font-medium',
+              'rounded-lg',
+              'transition-colors',
+              'flex',
+              'items-center',
+              'gap-1',
+              'bg-blue-500 text-white hover:bg-blue-600'
+            )}
+          >
+            <MdFolderOpen size={16} />
+            Browse
+          </button>
         </div>
         {/* Progress indicator during conversion */}
         {isConverting && taskStatus.phase === TaskPhase.CONVERTING && (
@@ -377,6 +420,20 @@ const InfoPanel = () => {
           {taskStatus?.robotType}_{info.taskName}
         </div>
       </div>
+
+      {/* Dataset folder browser modal */}
+      <FileBrowserModal
+        isOpen={showDatasetBrowserModal}
+        onClose={() => setShowDatasetBrowserModal(false)}
+        onFileSelect={handleDatasetFolderSelect}
+        title="Select Dataset Folder"
+        selectButtonText="Select"
+        allowDirectorySelect={true}
+        allowFileSelect={false}
+        initialPath={DEFAULT_PATHS.ROSBAG2_PATH}
+        defaultPath={DEFAULT_PATHS.ROSBAG2_PATH}
+        homePath=""
+      />
     </div>
   );
 };

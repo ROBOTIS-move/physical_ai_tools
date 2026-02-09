@@ -35,6 +35,7 @@ export const DEFAULT_PATHS = {
   // File browser defaults
   POLICY_MODEL_PATH: `${LEROBOT_OUTPUTS_PATH}/train/`,
   DATASET_PATH: `${DOT_CACHE_PATH}/huggingface/lerobot/`,
+  ROSBAG2_PATH: '/workspace/rosbag2/',
 };
 
 /**

@@ -238,7 +238,8 @@ class PhysicalAIServer(Node):
 
         # Declare string parameters separately (urdf_path is a single string)
         urdf_param_name = f'{robot_type}.urdf_path'
-        self.declare_parameter(urdf_param_name, '')
+        if not self.has_parameter(urdf_param_name):
+            self.declare_parameter(urdf_param_name, '')
 
         # Load list parameters
         self.params = load_parameters(
@@ -1688,17 +1689,20 @@ class PhysicalAIServer(Node):
             self._last_mp4_status = status
 
             # Update task status with conversion progress if converting
-            if current_status == 'Converting' and self.data_manager is not None:
+            if current_status == 'Converting' and self.communicator is not None:
                 progress = status.get('progress', {})
                 percentage = progress.get('percentage', 0.0)
-                # Update encoding_progress field for frontend display
-                current_record_status = self.data_manager.get_current_record_status()
+                if self.data_manager is not None:
+                    current_record_status = self.data_manager.get_current_record_status()
+                else:
+                    current_record_status = TaskStatus()
+                    if hasattr(self, 'robot_type'):
+                        current_record_status.robot_type = self.robot_type
                 current_record_status.phase = TaskStatus.CONVERTING
                 current_record_status.encoding_progress = percentage
-                if self.communicator is not None:
-                    self.communicator.publish_status(status=current_record_status)
+                self.communicator.publish_status(status=current_record_status)
 
-            # Handle completion or failure
+            # Handle completion or failure - publish final status to frontend
             if current_status in ('Success', 'Failed'):
                 if current_status == 'Success':
                     self.get_logger().info(
@@ -1708,6 +1712,16 @@ class PhysicalAIServer(Node):
                     self.get_logger().error(
                         f'MP4 conversion failed: {status.get("message", "")}'
                     )
+                # Publish READY status so frontend can detect conversion end
+                if self.communicator is not None:
+                    if self.data_manager is not None:
+                        final_status = self.data_manager.get_current_record_status()
+                    else:
+                        final_status = TaskStatus()
+                        if hasattr(self, 'robot_type'):
+                            final_status.robot_type = self.robot_type
+                    final_status.phase = TaskStatus.READY
+                    self.communicator.publish_status(status=final_status)
 
             # Idle status count and automatic shutdown
             if current_status == 'Idle':

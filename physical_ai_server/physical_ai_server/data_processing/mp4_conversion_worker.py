@@ -17,21 +17,27 @@
 # Author: Claude AI Assistant
 
 """
-MP4 Conversion Worker.
+Chained Dataset Conversion Worker.
 
-Background process that converts rosbag2 episodes to MP4 format.
+Background process that converts rosbag2 episodes through a 3-stage pipeline:
+  Stage 1: rosbag → rosbag + MP4 (ScaleAIConverter)
+  Stage 2: rosbag + MP4 → LeRobot v2.1 (RosbagToLerobotConverter)
+  Stage 3: LeRobot v2.1 → LeRobot v3.0 (RosbagToLerobotV30Converter)
+
 Follows the HfApiWorker pattern using multiprocessing.Process.
 
 Output structure:
     /workspace/rosbag2/{robot}_{task}/
     ├── 0/                    # Original episode
-    ├── 0_converted/          # Converted result
+    ├── 0_converted/          # Stage 1 output (MP4)
     │   ├── episode.mcap
     │   ├── cam_*.mp4
     │   ├── robot.urdf
     │   └── meshes/
     ├── 1/
     └── 1_converted/
+    /workspace/rosbag2/{robot}_{task}_lerobot_v21/   # Stage 2 output (v2.1)
+    /workspace/rosbag2/{robot}_{task}_lerobot_v30/  # Stage 3 output (v3.0)
 """
 
 import logging
@@ -41,6 +47,27 @@ from pathlib import Path
 import queue
 import time
 from typing import Dict, List, Optional
+
+
+def _convert_single_episode_worker(episode_dir, output_dir, fps, use_hw, enable_smoothing):
+    """Top-level function for ProcessPoolExecutor (must be picklable).
+
+    Creates a fresh ScaleAIConverter instance in each worker process
+    and converts a single episode to MP4 format.
+    """
+    from physical_ai_server.data_processing.convert_rosbag2mp4 import ScaleAIConverter
+    converter = ScaleAIConverter(
+        fps=fps,
+        use_hardware_encoding=use_hw,
+        enable_timestamp_smoothing=enable_smoothing,
+    )
+    results = converter.convert_episode(str(episode_dir), str(output_dir))
+    # Check if any camera conversion succeeded
+    success = any(
+        result.success for result in results.values()
+        if hasattr(result, 'success')
+    )
+    return str(episode_dir), success, results
 
 
 class Mp4ConversionWorker:
@@ -310,22 +337,67 @@ class Mp4ConversionWorker:
 
                         dataset_path = data.get('dataset_path')
                         robot_type = data.get('robot_type', '')
+                        robot_config_path = data.get('robot_config_path', '')
+                        source_folders = data.get('source_folders', [])
 
-                        logger.info(f'Processing conversion for: {dataset_path}')
+                        logger.info(f'Processing chained conversion for: {dataset_path}')
 
-                        # Perform the conversion
+                        is_merge_mode = len(source_folders) > 0
+
+                        # Stage 0: Merge episodes (only in merge mode)
+                        if is_merge_mode:
+                            logger.info('=== Stage 0: Merging episodes ===')
+                            success, message = Mp4ConversionWorker._merge_episodes(
+                                source_folders, dataset_path,
+                                progress_queue, logger)
+                            if not success:
+                                output_queue.put(('error', f'[Merge] {message}'))
+                                continue
+                            logger.info(f'Merge completed: {message}')
+
+                        # Stage 1: MP4 conversion
+                        logger.info('=== Stage 1/3: Converting to MP4 ===')
                         success, message = Mp4ConversionWorker._convert_dataset(
                             dataset_path=dataset_path,
                             progress_queue=progress_queue,
-                            logger=logger
+                            logger=logger,
+                            is_merge_mode=is_merge_mode
                         )
+                        if not success:
+                            logger.error(f'Stage 1 failed: {message}')
+                            output_queue.put(('error', f'[Stage 1/3 MP4] {message}'))
+                            continue
 
-                        if success:
-                            logger.info(f'Conversion completed: {dataset_path}')
-                            output_queue.put(('success', message))
-                        else:
-                            logger.error(f'Conversion failed: {message}')
-                            output_queue.put(('error', message))
+                        # Stage 2: LeRobot v2.1 conversion
+                        logger.info('=== Stage 2/3: Converting to LeRobot v2.1 ===')
+                        success, message = Mp4ConversionWorker._convert_to_lerobot_v21(
+                            dataset_path=dataset_path,
+                            robot_config_path=robot_config_path,
+                            progress_queue=progress_queue,
+                            logger=logger,
+                            is_merge_mode=is_merge_mode
+                        )
+                        if not success:
+                            logger.error(f'Stage 2 failed: {message}')
+                            output_queue.put(('error', f'[Stage 2/3 LeRobot v2.1] {message}'))
+                            continue
+
+                        # Stage 3: LeRobot v3.0 conversion
+                        logger.info('=== Stage 3/3: Converting to LeRobot v3.0 ===')
+                        success, message = Mp4ConversionWorker._convert_to_lerobot_v30(
+                            dataset_path=dataset_path,
+                            robot_config_path=robot_config_path,
+                            progress_queue=progress_queue,
+                            logger=logger,
+                            is_merge_mode=is_merge_mode
+                        )
+                        if not success:
+                            logger.error(f'Stage 3 failed: {message}')
+                            output_queue.put(('error', f'[Stage 3/3 LeRobot v3.0] {message}'))
+                            continue
+
+                        logger.info(f'All stages completed for: {dataset_path}')
+                        output_queue.put(('success', 'All stages completed successfully'))
 
                     except queue.Empty:
                         continue
@@ -347,10 +419,75 @@ class Mp4ConversionWorker:
         logger.info('MP4 conversion worker process shutting down')
 
     @staticmethod
+    def _merge_episodes(
+        source_folders: List[str],
+        output_path: str,
+        progress_queue: multiprocessing.Queue,
+        logger: logging.Logger
+    ) -> tuple:
+        """
+        Merge episodes from multiple source folders using symlinks.
+
+        Creates symlinks in output_path with consecutive episode numbers
+        pointing to the original episode directories.
+
+        Args:
+            source_folders: List of source folder paths.
+            output_path: Path where merged symlinks will be created.
+            progress_queue: Queue for progress updates.
+            logger: Logger instance.
+
+        Returns:
+            Tuple of (success: bool, message: str).
+        """
+        try:
+            output_path = Path(output_path)
+            output_path.mkdir(parents=True, exist_ok=True)
+
+            episode_counter = 0
+            for src_folder in source_folders:
+                src_path = Path(src_folder)
+                if not src_path.exists():
+                    return False, f'Source folder not found: {src_path}'
+
+                episode_dirs = sorted(
+                    [d for d in src_path.iterdir()
+                     if d.is_dir() and d.name.isdigit()],
+                    key=lambda d: int(d.name)
+                )
+
+                for ep_dir in episode_dirs:
+                    link_path = output_path / str(episode_counter)
+                    link_path.symlink_to(ep_dir.resolve())
+                    logger.info(f'Symlink: {ep_dir} -> {link_path}')
+                    episode_counter += 1
+
+            # Report merge completion (0% ~ 5%)
+            progress_queue.put({
+                'current': episode_counter,
+                'total': episode_counter,
+                'percentage': 5.0,
+                'current_episode': '',
+                'dataset_path': str(output_path),
+                'stage': 'merge'
+            })
+
+            return True, (
+                f'Merged {episode_counter} episodes '
+                f'from {len(source_folders)} folders'
+            )
+
+        except Exception as e:
+            import traceback
+            logger.error(f'Merge error: {traceback.format_exc()}')
+            return False, f'Merge error: {str(e)}'
+
+    @staticmethod
     def _convert_dataset(
         dataset_path: str,
         progress_queue: multiprocessing.Queue,
-        logger: logging.Logger
+        logger: logging.Logger,
+        is_merge_mode: bool = False
     ) -> tuple:
         """
         Convert all episodes in a dataset to MP4 format.
@@ -363,13 +500,6 @@ class Mp4ConversionWorker:
         Returns:
             Tuple of (success: bool, message: str).
         """
-        try:
-            from physical_ai_server.data_processing.convert_rosbag2mp4 import (
-                ScaleAIConverter
-            )
-        except ImportError as e:
-            return False, f'Failed to import converter: {str(e)}'
-
         try:
             dataset_path = Path(dataset_path)
             if not dataset_path.exists():
@@ -387,62 +517,99 @@ class Mp4ConversionWorker:
             total_episodes = len(episode_dirs)
             logger.info(f'Found {total_episodes} episodes to convert')
 
-            # Initialize converter
-            converter = ScaleAIConverter(
-                fps=15,
-                use_hardware_encoding=True,
-                enable_timestamp_smoothing=True
-            )
-
             converted_count = 0
             failed_episodes = []
 
-            for idx, episode_dir in enumerate(episode_dirs):
+            # Progress range depends on mode:
+            #   merge mode: Stage 1 = 5% ~ 35%
+            #   single mode: Stage 1 = 0% ~ 33%
+            progress_start = 5.0 if is_merge_mode else 0.0
+            progress_end = 35.0 if is_merge_mode else 33.0
+
+            # Parallel episode conversion using ProcessPoolExecutor
+            # Each worker creates its own ScaleAIConverter (stateless, picklable args)
+            # max_workers=min(4, total_episodes): 2 episodes × 4 cameras = 8 NVENC sessions
+            from concurrent.futures import ProcessPoolExecutor, as_completed
+
+            max_workers = min(4, total_episodes)
+            logger.info(
+                f'Starting parallel MP4 conversion with {max_workers} workers'
+            )
+
+            # Report initial progress
+            progress_queue.put({
+                'current': 0,
+                'total': total_episodes,
+                'percentage': progress_start,
+                'current_episode': '',
+                'dataset_path': str(dataset_path),
+                'stage': 'mp4'
+            })
+
+            # Build episode task list
+            episode_tasks = []
+            for episode_dir in episode_dirs:
                 episode_id = episode_dir.name
                 output_dir = dataset_path / f'{episode_id}_converted'
+                episode_tasks.append((episode_dir, output_dir, episode_id))
 
-                # Update progress
-                progress_data = {
-                    'current': idx,
-                    'total': total_episodes,
-                    'percentage': (idx / total_episodes) * 100,
-                    'current_episode': episode_id,
-                    'dataset_path': str(dataset_path)
-                }
-                progress_queue.put(progress_data)
-
-                logger.info(f'Converting episode {episode_id} ({idx + 1}/{total_episodes})')
-
-                try:
-                    results = converter.convert_episode(
-                        str(episode_dir),
-                        str(output_dir)
+            completed_count = 0
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                futures = {}
+                for episode_dir, output_dir, episode_id in episode_tasks:
+                    future = executor.submit(
+                        _convert_single_episode_worker,
+                        episode_dir, output_dir,
+                        15, True, True  # fps, use_hw, enable_smoothing
                     )
+                    futures[future] = episode_id
 
-                    # Check if any camera conversion succeeded
-                    success = any(
-                        result.success for result in results.values()
-                        if hasattr(result, 'success')
+                for future in as_completed(futures):
+                    episode_id = futures[future]
+                    completed_count += 1
+
+                    # Update progress
+                    stage_progress = completed_count / total_episodes
+                    overall_progress = (
+                        progress_start
+                        + stage_progress * (progress_end - progress_start)
                     )
+                    progress_queue.put({
+                        'current': completed_count,
+                        'total': total_episodes,
+                        'percentage': overall_progress,
+                        'current_episode': episode_id,
+                        'dataset_path': str(dataset_path),
+                        'stage': 'mp4'
+                    })
 
-                    if success:
-                        converted_count += 1
-                        logger.info(f'Episode {episode_id} converted successfully')
-                    else:
+                    try:
+                        _, success, _ = future.result()
+                        if success:
+                            converted_count += 1
+                            logger.info(
+                                f'Episode {episode_id} converted successfully '
+                                f'({completed_count}/{total_episodes})'
+                            )
+                        else:
+                            failed_episodes.append(episode_id)
+                            logger.warning(
+                                f'Episode {episode_id} conversion had issues'
+                            )
+                    except Exception as e:
                         failed_episodes.append(episode_id)
-                        logger.warning(f'Episode {episode_id} conversion had issues')
+                        logger.error(
+                            f'Error converting episode {episode_id}: {str(e)}'
+                        )
 
-                except Exception as e:
-                    failed_episodes.append(episode_id)
-                    logger.error(f'Error converting episode {episode_id}: {str(e)}')
-
-            # Final progress update
+            # Final progress update for Stage 1
             progress_data = {
                 'current': total_episodes,
                 'total': total_episodes,
-                'percentage': 100.0,
+                'percentage': progress_end,
                 'current_episode': '',
-                'dataset_path': str(dataset_path)
+                'dataset_path': str(dataset_path),
+                'stage': 'mp4'
             }
             progress_queue.put(progress_data)
 
@@ -467,3 +634,225 @@ class Mp4ConversionWorker:
             import traceback
             logger.error(f'Conversion error: {traceback.format_exc()}')
             return False, f'Conversion error: {str(e)}'
+
+    @staticmethod
+    def _convert_to_lerobot_v21(
+        dataset_path: str,
+        robot_config_path: str,
+        progress_queue: multiprocessing.Queue,
+        logger: logging.Logger,
+        is_merge_mode: bool = False
+    ) -> tuple:
+        """
+        Stage 2: Convert _converted folders to LeRobot v2.1 format.
+
+        Args:
+            dataset_path: Path to the dataset directory.
+            robot_config_path: Path to robot config YAML file.
+            progress_queue: Queue for progress updates.
+            logger: Logger instance.
+            is_merge_mode: Whether running in merge mode (affects progress ranges).
+
+        Returns:
+            Tuple of (success: bool, message: str).
+        """
+        try:
+            from physical_ai_server.data_processing.rosbag_to_lerobot_converter import (
+                ConversionConfig,
+                RosbagToLerobotConverter
+            )
+        except ImportError as e:
+            return False, f'Failed to import LeRobot v2.1 converter: {str(e)}'
+
+        try:
+            dataset_path = Path(dataset_path)
+            output_dir = Path(str(dataset_path) + '_lerobot_v21')
+            repo_id = dataset_path.name
+
+            # Progress range: merge mode = 35%~68%, single mode = 33%~66%
+            progress_start = 35.0 if is_merge_mode else 33.0
+            progress_end = 68.0 if is_merge_mode else 66.0
+
+            # Collect _converted folders as bag_paths
+            bag_paths = sorted([
+                d for d in dataset_path.iterdir()
+                if d.is_dir() and d.name.endswith('_converted')
+            ])
+
+            if not bag_paths:
+                return False, f'No _converted folders found in {dataset_path}'
+
+            logger.info(
+                f'Found {len(bag_paths)} converted episodes for LeRobot v2.1'
+            )
+
+            # Report stage start
+            progress_queue.put({
+                'current': 0,
+                'total': len(bag_paths),
+                'percentage': progress_start,
+                'current_episode': '',
+                'dataset_path': str(dataset_path),
+                'stage': 'lerobot_v21'
+            })
+
+            config = ConversionConfig(
+                repo_id=repo_id,
+                output_dir=output_dir,
+                robot_config_path=robot_config_path if robot_config_path else None,
+            )
+
+            converter = RosbagToLerobotConverter(config, logger)
+            success = converter.convert_multiple_rosbags(bag_paths)
+
+            # Report stage completion
+            progress_queue.put({
+                'current': len(bag_paths),
+                'total': len(bag_paths),
+                'percentage': progress_end,
+                'current_episode': '',
+                'dataset_path': str(dataset_path),
+                'stage': 'lerobot_v21'
+            })
+
+            if success:
+                return True, f'LeRobot v2.1 conversion completed: {output_dir}'
+            else:
+                return False, f'LeRobot v2.1 conversion failed for {dataset_path}'
+
+        except Exception as e:
+            import traceback
+            logger.error(f'LeRobot v2.1 conversion error: {traceback.format_exc()}')
+            return False, f'LeRobot v2.1 conversion error: {str(e)}'
+
+    @staticmethod
+    def _convert_to_lerobot_v30(
+        dataset_path: str,
+        robot_config_path: str,
+        progress_queue: multiprocessing.Queue,
+        logger: logging.Logger,
+        is_merge_mode: bool = False
+    ) -> tuple:
+        """
+        Stage 3: Convert LeRobot v2.1 dataset to v3.0 using lerobot's built-in converter.
+
+        Runs the conversion via subprocess calling docker exec on the lerobot_server
+        container, which has lerobot installed with the convert_dataset_v21_to_v30 script.
+        Both containers share /workspace so the v2.1 output is directly accessible.
+
+        Args:
+            dataset_path: Path to the original dataset directory.
+            robot_config_path: Path to robot config YAML file (unused for v3.0).
+            progress_queue: Queue for progress updates.
+            logger: Logger instance.
+            is_merge_mode: Whether running in merge mode (affects progress ranges).
+
+        Returns:
+            Tuple of (success: bool, message: str).
+        """
+        import subprocess
+
+        try:
+            dataset_path = Path(dataset_path)
+            v21_dir = Path(str(dataset_path) + '_lerobot_v21')
+            repo_id = dataset_path.name
+
+            # Progress range: merge mode = 68%~100%, single mode = 66%~100%
+            progress_start = 68.0 if is_merge_mode else 66.0
+
+            if not v21_dir.exists():
+                return False, f'LeRobot v2.1 output not found: {v21_dir}'
+
+            logger.info(f'Converting LeRobot v2.1 -> v3.0 via lerobot container')
+
+            # Report stage start
+            progress_queue.put({
+                'current': 0,
+                'total': 1,
+                'percentage': progress_start,
+                'current_episode': '',
+                'dataset_path': str(dataset_path),
+                'stage': 'lerobot_v30'
+            })
+
+            # The v2.1 dataset is at /workspace/rosbag2/{name}_lerobot_v21/{repo_id}
+            # lerobot's convert_dataset expects --root to be the parent dir
+            # and --repo-id to be the folder name inside it.
+            # But our v2.1 output is directly at v21_dir (no repo_id subfolder).
+            # We need to create a wrapper dir structure:
+            #   {v21_dir_parent}/{repo_id}_lerobot_v21/{repo_id}/  <- actual data
+            # OR use the script's local path logic.
+            #
+            # The convert_dataset function does:
+            #   root = Path(root) / repo_id
+            # So we set --root to v21_dir's parent and --repo-id to v21_dir's name.
+
+            root_parent = str(v21_dir.parent)
+            folder_name = v21_dir.name  # e.g., ffw_sg2_rev1_task_2602101048_lerobot_v21
+
+            cmd = [
+                'docker', 'exec', 'lerobot_server',
+                '/lerobot/.venv/bin/python', '-m',
+                'lerobot.datasets.v30.convert_dataset_v21_to_v30',
+                f'--repo-id={folder_name}',
+                f'--root={root_parent}',
+                '--push-to-hub=false',
+                '--force-conversion',
+            ]
+
+            logger.info(f'Running: {" ".join(cmd)}')
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600
+            )
+
+            logger.info(f'v3.0 converter stdout:\n{result.stdout}')
+            if result.stderr:
+                logger.info(f'v3.0 converter stderr:\n{result.stderr}')
+
+            # Report stage completion
+            progress_queue.put({
+                'current': 1,
+                'total': 1,
+                'percentage': 100.0,
+                'current_episode': '',
+                'dataset_path': str(dataset_path),
+                'stage': 'lerobot_v30'
+            })
+
+            if result.returncode == 0:
+                # The converter renames in-place:
+                #   original -> {name}_old, {name}_v30 -> original
+                # So the v2.1 dir now contains v3.0 data.
+                # Rename to make it clear:
+                #   {name}_lerobot_v21 (now v3.0) -> {name}_lerobot_v30
+                #   {name}_lerobot_v21_old (original v2.1) -> {name}_lerobot_v21
+                v21_old = Path(str(v21_dir) + '_old')
+                v30_dir = Path(str(dataset_path) + '_lerobot_v30')
+
+                if v30_dir.exists():
+                    import shutil
+                    shutil.rmtree(str(v30_dir))
+
+                # v21_dir now has v3.0 data, rename it
+                v21_dir.rename(v30_dir)
+                # v21_old has original v2.1 data, restore it
+                if v21_old.exists():
+                    v21_old.rename(v21_dir)
+
+                return True, f'LeRobot v3.0 conversion completed: {v30_dir}'
+            else:
+                return False, (
+                    f'LeRobot v3.0 conversion failed (exit code {result.returncode}): '
+                    f'{result.stderr or result.stdout}'
+                )
+
+        except subprocess.TimeoutExpired:
+            return False, 'LeRobot v3.0 conversion timed out (600s)'
+        except Exception as e:
+            import traceback
+            logger.error(f'LeRobot v3.0 conversion error: {traceback.format_exc()}')
+            return False, f'LeRobot v3.0 conversion error: {str(e)}'

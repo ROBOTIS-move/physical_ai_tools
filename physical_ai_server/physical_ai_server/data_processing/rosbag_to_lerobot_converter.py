@@ -60,6 +60,18 @@ DEFAULT_CHUNK_SIZE = 1000
 DEFAULT_FPS = 30
 
 
+def _convert_rosbag_worker(bag_path_str, episode_index, config_dict):
+    """Top-level function for ProcessPoolExecutor (must be picklable).
+
+    Creates a fresh RosbagToLerobotConverter instance in each worker process
+    and converts a single rosbag episode.
+    """
+    config = ConversionConfig(**config_dict)
+    converter = RosbagToLerobotConverter(config, logger=None)
+    result = converter.convert_single_rosbag(Path(bag_path_str), episode_index)
+    return episode_index, result
+
+
 @dataclass
 class StalenessMetrics:
     """Metrics for tracking data staleness during causal sync resampling."""
@@ -1196,6 +1208,9 @@ class RosbagToLerobotConverter:
         """
         Convert multiple ROSbag recordings to a single LeRobot dataset.
 
+        Uses ProcessPoolExecutor for parallel episode parsing when multiple
+        bag_paths are provided. Each worker creates its own converter instance.
+
         Args:
             bag_paths: List of paths to ROSbag directories
 
@@ -1210,11 +1225,68 @@ class RosbagToLerobotConverter:
 
         episodes_data: List[EpisodeData] = []
 
-        # Convert each rosbag
-        for idx, bag_path in enumerate(bag_paths):
-            episode_data = self.convert_single_rosbag(Path(bag_path), idx)
-            if episode_data is not None:
-                episodes_data.append(episode_data)
+        # Build a picklable config dict for worker processes
+        config_dict = {
+            'repo_id': self.config.repo_id,
+            'output_dir': self.config.output_dir,
+            'fps': self.config.fps,
+            'robot_type': self.config.robot_type,
+            'use_videos': self.config.use_videos,
+            'chunks_size': self.config.chunks_size,
+            'robot_config_path': self.config.robot_config_path,
+            'state_topics': self.config.state_topics,
+            'action_topics': self.config.action_topics,
+            'apply_trim': self.config.apply_trim,
+            'apply_exclude_regions': self.config.apply_exclude_regions,
+            'quality_warning_multiplier': self.config.quality_warning_multiplier,
+            'quality_error_multiplier': self.config.quality_error_multiplier,
+        }
+
+        if len(bag_paths) <= 1:
+            # Single episode: no parallelization overhead
+            for idx, bag_path in enumerate(bag_paths):
+                episode_data = self.convert_single_rosbag(Path(bag_path), idx)
+                if episode_data is not None:
+                    episodes_data.append(episode_data)
+        else:
+            # Parallel episode parsing using ProcessPoolExecutor
+            import os
+            from concurrent.futures import ProcessPoolExecutor, as_completed
+
+            max_workers = min(os.cpu_count() or 4, len(bag_paths), 8)
+            self._log_info(
+                f"Starting parallel rosbag parsing with {max_workers} workers"
+            )
+
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                futures = {}
+                for idx, bag_path in enumerate(bag_paths):
+                    future = executor.submit(
+                        _convert_rosbag_worker,
+                        str(bag_path), idx, config_dict,
+                    )
+                    futures[future] = idx
+
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        episode_index, episode_data = future.result()
+                        if episode_data is not None:
+                            episodes_data.append(episode_data)
+                            self._log_info(
+                                f"Episode {episode_index} parsed successfully"
+                            )
+                        else:
+                            self._log_warning(
+                                f"Episode {idx} returned no data"
+                            )
+                    except Exception as e:
+                        self._log_error(
+                            f"Error parsing episode {idx}: {e}"
+                        )
+
+            # Sort by episode_index to maintain deterministic order
+            episodes_data.sort(key=lambda ep: ep.episode_index)
 
         if not episodes_data:
             self._log_error("No episodes were successfully converted")

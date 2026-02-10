@@ -44,8 +44,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --upgrade pip setuptools uv
 
 # Fix constraint file issues (from official GR00T Dockerfile)
+# Base image nvcr.io/nvidia/pytorch:25.04-py3 pins versions that conflict with GR00T requirements
 RUN sed -i s/dill==0.3.9/dill==0.3.8/g /etc/pip/constraint.txt 2>/dev/null || true \
-    && sed -i s/scipy==1.15.2/scipy==1.15.3/g /etc/pip/constraint.txt 2>/dev/null || true
+    && sed -i s/scipy==1.15.2/scipy==1.15.3/g /etc/pip/constraint.txt 2>/dev/null || true \
+    && sed -i s/dm-tree==0.1.9/dm-tree==0.1.8/g /etc/pip/constraint.txt 2>/dev/null || true \
+    && sed -i s/pyzmq==26.4.0/pyzmq==27.0.1/g /etc/pip/constraint.txt 2>/dev/null || true
 
 # Install GR00T dependencies (from pyproject.toml)
 # Core dependencies

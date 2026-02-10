@@ -85,6 +85,7 @@ class V30ConversionConfig(ConversionConfig):
 
     data_file_size_in_mb: int = DEFAULT_DATA_FILE_SIZE_IN_MB
     video_file_size_in_mb: int = DEFAULT_VIDEO_FILE_SIZE_IN_MB
+    enable_quality_report: bool = False
 
 
 @dataclass

@@ -832,14 +832,9 @@ class PhysicalAIServer(Node):
                 # Handle MP4 conversion command
                 task_info = request.task_info
                 task_name = f'{self.robot_type}_{task_info.task_name}'
+                source_folders = [s for s in task_info.task_instruction if s.strip()]
 
-                # Build dataset path (rosbag is saved to /workspace/rosbag2/)
-                dataset_path = Path('/workspace/rosbag2') / task_name
-
-                if not dataset_path.exists():
-                    response.success = False
-                    response.message = f'Dataset path does not exist: {dataset_path}'
-                    return response
+                base_path = Path('/workspace/rosbag2')
 
                 # Initialize MP4 conversion worker if needed
                 if self.mp4_conversion_worker is None or not self.mp4_conversion_worker.is_alive():
@@ -855,12 +850,56 @@ class PhysicalAIServer(Node):
                     response.message = 'MP4 conversion is already in progress'
                     return response
 
-                # Send conversion request
-                request_data = {
-                    'dataset_path': str(dataset_path),
-                    'robot_type': self.robot_type
-                }
+                if source_folders:
+                    # === Merge & Convert mode ===
+                    dataset_path = base_path / task_name
 
+                    # Validate source folders
+                    source_paths = []
+                    for folder_name in source_folders:
+                        src = Path(folder_name) if folder_name.startswith('/') \
+                            else base_path / folder_name
+                        if not src.exists():
+                            response.success = False
+                            response.message = f'Source folder not found: {src}'
+                            return response
+                        source_paths.append(str(src))
+
+                    if dataset_path.exists():
+                        response.success = False
+                        response.message = \
+                            f'Output folder already exists: {dataset_path}'
+                        return response
+
+                    request_data = {
+                        'dataset_path': str(dataset_path),
+                        'robot_type': self.robot_type,
+                        'robot_config_path': os.path.join(
+                            get_package_share_directory('physical_ai_server'),
+                            'config', f'{self.robot_type}_config.yaml'
+                        ),
+                        'source_folders': source_paths,
+                    }
+                else:
+                    # === Single Convert mode (existing behavior) ===
+                    dataset_path = base_path / task_name
+
+                    if not dataset_path.exists():
+                        response.success = False
+                        response.message = \
+                            f'Dataset path does not exist: {dataset_path}'
+                        return response
+
+                    request_data = {
+                        'dataset_path': str(dataset_path),
+                        'robot_type': self.robot_type,
+                        'robot_config_path': os.path.join(
+                            get_package_share_directory('physical_ai_server'),
+                            'config', f'{self.robot_type}_config.yaml'
+                        ),
+                    }
+
+                # Send conversion request
                 if self.mp4_conversion_worker.send_request(request_data):
                     self.get_logger().info(f'MP4 conversion started for: {dataset_path}')
                     response.success = True

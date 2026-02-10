@@ -40,6 +40,12 @@ const InfoPanel = () => {
   const [hasSeenConverting, setHasSeenConverting] = useState(false);
   const [showDatasetBrowserModal, setShowDatasetBrowserModal] = useState(false);
 
+  const [mergeMode, setMergeMode] = useState(false);
+  const [sourceFolders, setSourceFolders] = useState([]);
+  const [mergedName, setMergedName] = useState('');
+  const [showSourceBrowserModal, setShowSourceBrowserModal] = useState(false);
+  const [pendingMergeConvert, setPendingMergeConvert] = useState(false);
+
   const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
 
   const disabled = taskStatus.phase !== TaskPhase.IDLE || !isTaskStatusPaused;
@@ -113,6 +119,66 @@ const InfoPanel = () => {
       setIsConverting(false);
     }
   }, [info.taskName, sendRecordCommand]);
+
+  // Handler for Merge & Convert button
+  const handleMergeConvert = useCallback(() => {
+    if (!mergedName) {
+      setConvertError('Merged output name is required');
+      return;
+    }
+    if (sourceFolders.length < 2) {
+      setConvertError('At least 2 source folders are required');
+      return;
+    }
+
+    setConvertError('');
+    setIsConverting(true);
+
+    // Set taskInstruction to source folder names for the server to detect merge mode
+    // The actual sendRecordCommand is deferred to useEffect after Redux state propagates
+    dispatch(setTaskInfo({
+      ...info,
+      taskName: mergedName,
+      taskInstruction: sourceFolders,
+    }));
+    setPendingMergeConvert(true);
+  }, [mergedName, sourceFolders, info, dispatch]);
+
+  // Send merge convert command after Redux state has propagated
+  useEffect(() => {
+    if (!pendingMergeConvert) return;
+    if (info.taskName !== mergedName) return;
+
+    setPendingMergeConvert(false);
+
+    const doConvert = async () => {
+      try {
+        const result = await sendRecordCommand('convert_mp4');
+        if (!result.success) {
+          setConvertError(result.message || 'Merge & Convert failed');
+          setIsConverting(false);
+        }
+      } catch (error) {
+        setConvertError(error.message || 'Failed to start Merge & Convert');
+        setIsConverting(false);
+      }
+    };
+    doConvert();
+  }, [pendingMergeConvert, info.taskName, mergedName, sendRecordCommand]);
+
+  // Handler for source folder selection from FileBrowserModal (merge mode, multi-select)
+  const handleSourceFolderSelect = useCallback(
+    (selectedItems) => {
+      const items = Array.isArray(selectedItems) ? selectedItems : [selectedItems];
+      const newNames = items.map((item) => item.name);
+      setSourceFolders((prev) => {
+        const existing = new Set(prev);
+        newNames.forEach((name) => existing.add(name));
+        return Array.from(existing);
+      });
+    },
+    []
+  );
 
   // Handler for dataset folder selection from FileBrowserModal
   const handleDatasetFolderSelect = useCallback(
@@ -322,78 +388,211 @@ const InfoPanel = () => {
       {/* Convert MP4 Button */}
       <div className={clsx('flex', 'flex-col', 'items-start', 'mb-2.5', 'mt-4')}>
         <div className="flex items-center gap-2 w-full">
-          <button
-            type="button"
-            onClick={handleConvertMp4}
-            disabled={!canConvertMp4}
-            className={clsx(
-              'px-4',
-              'py-2',
-              'text-sm',
-              'font-medium',
-              'rounded-lg',
-              'transition-colors',
-              'flex',
-              'items-center',
-              'gap-2',
-              canConvertMp4
-                ? 'bg-green-500 text-white hover:bg-green-600'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            )}
-          >
-            {isConverting ? (
-              <>
-                <svg
-                  className="animate-spin h-4 w-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Converting...
-              </>
-            ) : (
-              'Convert MP4'
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowDatasetBrowserModal(true)}
-            className={clsx(
-              'px-3',
-              'py-2',
-              'text-sm',
-              'font-medium',
-              'rounded-lg',
-              'transition-colors',
-              'flex',
-              'items-center',
-              'gap-1',
-              'bg-blue-500 text-white hover:bg-blue-600'
-            )}
-          >
-            <MdFolderOpen size={16} />
-            Browse
-          </button>
+          {!mergeMode && (
+            <>
+              <button
+                type="button"
+                onClick={handleConvertMp4}
+                disabled={!canConvertMp4}
+                className={clsx(
+                  'px-4',
+                  'py-2',
+                  'text-sm',
+                  'font-medium',
+                  'rounded-lg',
+                  'transition-colors',
+                  'flex',
+                  'items-center',
+                  'gap-2',
+                  canConvertMp4
+                    ? 'bg-green-500 text-white hover:bg-green-600'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                )}
+              >
+                {isConverting && !mergeMode ? (
+                  <>
+                    <svg
+                      className="animate-spin h-4 w-4"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Converting...
+                  </>
+                ) : (
+                  'Convert Dataset'
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDatasetBrowserModal(true)}
+                className={clsx(
+                  'px-3',
+                  'py-2',
+                  'text-sm',
+                  'font-medium',
+                  'rounded-lg',
+                  'transition-colors',
+                  'flex',
+                  'items-center',
+                  'gap-1',
+                  'bg-blue-500 text-white hover:bg-blue-600'
+                )}
+              >
+                <MdFolderOpen size={16} />
+                Browse
+              </button>
+            </>
+          )}
         </div>
+
+        {/* Merge & Convert toggle */}
+        <label className="flex items-center gap-2 mt-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={mergeMode}
+            onChange={(e) => setMergeMode(e.target.checked)}
+            disabled={isConverting}
+            className="rounded"
+          />
+          <span className="text-sm text-gray-700 font-medium">Merge & Convert</span>
+        </label>
+
+        {/* Merge & Convert UI */}
+        {mergeMode && (
+          <div className="w-full mt-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+            {/* Source folder list */}
+            <div className="text-xs text-gray-600 font-medium mb-1">Source Folders:</div>
+            {sourceFolders.length === 0 ? (
+              <div className="text-xs text-gray-400 mb-2">No folders added yet</div>
+            ) : (
+              <div className="mb-2 space-y-1">
+                {sourceFolders.map((folder, idx) => (
+                  <div key={idx} className="flex items-center gap-1 text-xs bg-white rounded px-2 py-1 border border-gray-200">
+                    <span className="text-gray-500 font-mono w-4">{idx}.</span>
+                    <span className="flex-1 truncate text-gray-700" title={folder}>{folder}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSourceFolders((prev) => prev.filter((_, i) => i !== idx))}
+                      disabled={isConverting}
+                      className="text-red-400 hover:text-red-600 font-bold ml-1"
+                    >
+                      x
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowSourceBrowserModal(true)}
+              disabled={isConverting}
+              className={clsx(
+                'px-3', 'py-1', 'text-xs', 'font-medium', 'rounded-md',
+                'transition-colors', 'flex', 'items-center', 'gap-1',
+                isConverting
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              )}
+            >
+              <MdFolderOpen size={14} />
+              Add Folder
+            </button>
+
+            {/* Merged output name */}
+            <div className="mt-2">
+              <div className="text-xs text-gray-600 font-medium mb-1">Merged Output Name:</div>
+              <input
+                type="text"
+                value={mergedName}
+                onChange={(e) => setMergedName(e.target.value)}
+                disabled={isConverting}
+                placeholder="e.g. recycle_task"
+                className={clsx(
+                  'text-sm', 'w-full', 'p-1.5', 'border', 'border-gray-300', 'rounded-md',
+                  'focus:outline-none', 'focus:ring-2', 'focus:ring-blue-500',
+                  isConverting ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+                )}
+              />
+            </div>
+
+            {/* Merge & Convert button */}
+            <button
+              type="button"
+              onClick={handleMergeConvert}
+              disabled={isConverting || sourceFolders.length < 2 || !mergedName}
+              className={clsx(
+                'w-full', 'mt-2', 'px-4', 'py-2', 'text-sm', 'font-medium', 'rounded-lg',
+                'transition-colors', 'flex', 'items-center', 'justify-center', 'gap-2',
+                (isConverting || sourceFolders.length < 2 || !mergedName)
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-green-500 text-white hover:bg-green-600'
+              )}
+            >
+              {isConverting && mergeMode ? (
+                <>
+                  <svg
+                    className="animate-spin h-4 w-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Merging & Converting...
+                </>
+              ) : (
+                'Merge & Convert'
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Progress indicator during conversion */}
         {isConverting && taskStatus.phase === TaskPhase.CONVERTING && (
           <div className="w-full mt-2">
             <div className="flex justify-between text-xs text-gray-600 mb-1">
-              <span>Converting episodes...</span>
+              <span>
+                {mergeMode
+                  ? (taskStatus.encodingProgress || 0) < 5
+                    ? '[0/3] Merging episodes...'
+                    : (taskStatus.encodingProgress || 0) < 35
+                      ? '[1/3] Converting to MP4...'
+                      : (taskStatus.encodingProgress || 0) < 68
+                        ? '[2/3] Converting to LeRobot v2.1...'
+                        : '[3/3] Converting to LeRobot v3.0...'
+                  : (taskStatus.encodingProgress || 0) < 33
+                    ? '[1/3] Converting to MP4...'
+                    : (taskStatus.encodingProgress || 0) < 66
+                      ? '[2/3] Converting to LeRobot v2.1...'
+                      : '[3/3] Converting to LeRobot v3.0...'}
+              </span>
               <span>{Math.round(taskStatus.encodingProgress || 0)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -409,7 +608,7 @@ const InfoPanel = () => {
           <div className="text-xs text-red-500 mt-1">{convertError}</div>
         )}
         <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-          Convert recorded episodes to MP4 format
+          Convert to MP4, LeRobot v2.1, and v3.0 formats
         </div>
       </div>
 
@@ -433,6 +632,21 @@ const InfoPanel = () => {
         initialPath={DEFAULT_PATHS.ROSBAG2_PATH}
         defaultPath={DEFAULT_PATHS.ROSBAG2_PATH}
         homePath=""
+      />
+
+      {/* Source folder browser modal for merge mode */}
+      <FileBrowserModal
+        isOpen={showSourceBrowserModal}
+        onClose={() => setShowSourceBrowserModal(false)}
+        onFileSelect={handleSourceFolderSelect}
+        title="Select Source Folders"
+        selectButtonText="Select"
+        allowDirectorySelect={true}
+        allowFileSelect={false}
+        initialPath={DEFAULT_PATHS.ROSBAG2_PATH}
+        defaultPath={DEFAULT_PATHS.ROSBAG2_PATH}
+        homePath=""
+        multiSelect={true}
       />
     </div>
   );

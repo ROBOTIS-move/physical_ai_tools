@@ -49,6 +49,8 @@ services:
       - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
       - ../:/root/ros2_ws/src/physical_ai_tools/
       - ./huggingface:/root/.cache/huggingface
+      # Docker socket for cross-container exec (v2.1 -> v3.0 conversion)
+      - /var/run/docker.sock:/var/run/docker.sock
       # Shared Memory
       - /dev/shm:/dev/shm
       - /etc/timezone:/etc/timezone:ro
@@ -98,9 +100,9 @@ services:
       # Shared Memory device
       - /dev/shm:/dev/shm
 
-      # LeRobot workspace (datasets, models, outputs)
-      # Maps: host third_party/lerobot/workspace <-> container /workspace
-      - ../third_party/lerobot/workspace:/workspace
+      # LeRobot workspace (shared with physical_ai_server)
+      # Maps: host docker/workspace <-> container /workspace
+      - ./workspace:/workspace
 
       # HuggingFace cache (shared with physical_ai_server)
       - ./huggingface:/root/.cache/huggingface

@@ -34,28 +34,42 @@ export default function FileBrowserModal({
   targetFileLabel = null,
   homePath = null,
   defaultPath = null,
+  multiSelect = false,
 }) {
   const [selectedItem, setSelectedItem] = useState(null);
+  const [multiSelectedItems, setMultiSelectedItems] = useState([]);
   const [currentPath, setCurrentPath] = useState(initialPath);
 
   const handleFileSelect = useCallback((item) => {
-    setSelectedItem(item);
+    if (!multiSelect) {
+      setSelectedItem(item);
+    }
+  }, [multiSelect]);
+
+  const handleMultiSelectionChange = useCallback((items) => {
+    setMultiSelectedItems(items);
   }, []);
 
   const handlePathChange = useCallback((path) => {
     setCurrentPath(path);
     // Clear selection when path changes (navigation)
-    setSelectedItem(null);
-  }, []);
+    if (!multiSelect) {
+      setSelectedItem(null);
+    }
+  }, [multiSelect]);
 
   const handleConfirm = useCallback(() => {
-    if (selectedItem) {
+    if (multiSelect) {
+      if (multiSelectedItems.length > 0) {
+        onFileSelect(multiSelectedItems);
+        onClose();
+        setMultiSelectedItems([]);
+      }
+    } else if (selectedItem) {
       onFileSelect(selectedItem);
       onClose();
       setSelectedItem(null);
     } else if (allowDirectorySelect && currentPath && !targetFileName && !targetFolderName) {
-      // If directory selection is allowed and no file is selected, select current directory
-      // But only when targetFileName is not specified
       onFileSelect({
         name: currentPath.split('/').pop() || currentPath,
         full_path: currentPath,
@@ -66,6 +80,8 @@ export default function FileBrowserModal({
       onClose();
     }
   }, [
+    multiSelect,
+    multiSelectedItems,
     selectedItem,
     currentPath,
     allowDirectorySelect,
@@ -78,6 +94,7 @@ export default function FileBrowserModal({
   const handleCancel = useCallback(() => {
     onClose();
     setSelectedItem(null);
+    setMultiSelectedItems([]);
   }, [onClose]);
 
   if (!isOpen) return null;
@@ -201,12 +218,23 @@ export default function FileBrowserModal({
               defaultPath={defaultPath}
               allowDirectorySelect={allowDirectorySelect}
               allowFileSelect={allowFileSelect}
+              multiSelect={multiSelect}
+              onSelectionChange={handleMultiSelectionChange}
             />
           </div>
 
           <div className={classFooter}>
             <div className={classStatusContainer}>
-              {selectedItem ? (
+              {multiSelect ? (
+                <div className={classStatusRow}>
+                  <MdFolderOpen className={classIcon} />
+                  <span className={classLabel}>
+                    {multiSelectedItems.length > 0
+                      ? `${multiSelectedItems.length} folder(s) selected`
+                      : 'Click Select on folders to choose them'}
+                  </span>
+                </div>
+              ) : selectedItem ? (
                 <div className={classStatusRow}>
                   <MdFolderOpen className={classIcon} />
                   <span className={classLabel}>Selected:</span>
@@ -240,15 +268,19 @@ export default function FileBrowserModal({
               <button
                 onClick={handleConfirm}
                 disabled={
-                  targetFileName || targetFolderName
-                    ? !(selectedItem && selectedItem.is_directory)
-                    : (!selectedItem && !(allowDirectorySelect && currentPath)) ||
-                      (selectedItem && selectedItem.is_directory && !allowDirectorySelect) ||
-                      (selectedItem && !selectedItem.is_directory && !allowFileSelect)
+                  multiSelect
+                    ? multiSelectedItems.length === 0
+                    : targetFileName || targetFolderName
+                      ? !(selectedItem && selectedItem.is_directory)
+                      : (!selectedItem && !(allowDirectorySelect && currentPath)) ||
+                        (selectedItem && selectedItem.is_directory && !allowDirectorySelect) ||
+                        (selectedItem && !selectedItem.is_directory && !allowFileSelect)
                 }
                 className={classConfirmButton}
               >
-                {selectButtonText}
+                {multiSelect
+                  ? `${selectButtonText}${multiSelectedItems.length > 0 ? ` (${multiSelectedItems.length})` : ''}`
+                  : selectButtonText}
               </button>
             </div>
           </div>

@@ -37,6 +37,7 @@ Output structure:
 """
 
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 import json
 import os
@@ -282,30 +283,51 @@ class ScaleAIConverter:
                         result.matched_timestamps = {f.timestamp_ns for f in result.frames}
                         print(f'    {name}: trimmed {trimmed} frames from end')
 
-        # Step 2: Create MP4 videos
+        # Step 2: Create MP4 videos (parallel encoding across cameras)
         print('\n[Step 2] Creating MP4 videos...')
         video_results = {}
         total_dropped = 0
+
+        # Submit all camera encodings in parallel using ThreadPoolExecutor
+        cameras_to_encode = {}
         for camera_name, result in camera_results.items():
             if result.frames:
                 video_path = output_dir / f'{camera_name}.mp4'
-                success = self._create_video(result.frames, str(video_path))
-                video_results[camera_name] = ConversionResult(
-                    success=success,
-                    video_path=str(video_path) if success else None,
-                    frame_count=len(result.frames),
-                    dropped_image_only=result.dropped_image_only,
-                    dropped_info_only=result.dropped_info_only,
-                    dropped_frames_filled=result.dropped_frames_filled,
-                    timestamps_smoothed=result.timestamps_smoothed,
-                    message='Video created' if success else 'Failed to create video'
-                )
-                total_dropped += result.dropped_frames_filled
+                cameras_to_encode[camera_name] = (result, video_path)
             else:
                 video_results[camera_name] = ConversionResult(
                     success=False,
                     message=f'No matched frames for {camera_name}'
                 )
+
+        if cameras_to_encode:
+            max_workers = min(4, len(cameras_to_encode))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {}
+                for camera_name, (result, video_path) in cameras_to_encode.items():
+                    future = executor.submit(
+                        self._create_video, result.frames, str(video_path)
+                    )
+                    futures[future] = (camera_name, result, video_path)
+
+                for future in as_completed(futures):
+                    camera_name, result, video_path = futures[future]
+                    try:
+                        success = future.result()
+                    except Exception as e:
+                        print(f'  Error encoding {camera_name}: {e}')
+                        success = False
+                    video_results[camera_name] = ConversionResult(
+                        success=success,
+                        video_path=str(video_path) if success else None,
+                        frame_count=len(result.frames),
+                        dropped_image_only=result.dropped_image_only,
+                        dropped_info_only=result.dropped_info_only,
+                        dropped_frames_filled=result.dropped_frames_filled,
+                        timestamps_smoothed=result.timestamps_smoothed,
+                        message='Video created' if success else 'Failed to create video'
+                    )
+                    total_dropped += result.dropped_frames_filled
 
         # Step 3: Create modified MCAP (no images, synced camera_info only)
         print('\n[Step 3] Creating modified MCAP...')

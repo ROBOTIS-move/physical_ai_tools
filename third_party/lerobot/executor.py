@@ -60,11 +60,16 @@ from zenoh_ros2_sdk import (  # noqa: E402
 )
 
 logger = get_logger("lerobot_executor")
+logger.setLevel(logging.DEBUG)
+
+# Enable DEBUG for all zenoh_ros2_sdk loggers to see keyexpr and connection details
+logging.getLogger("zenoh_ros2_sdk").setLevel(logging.DEBUG)
 
 # Configure root logger
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    force=True,
 )
 
 

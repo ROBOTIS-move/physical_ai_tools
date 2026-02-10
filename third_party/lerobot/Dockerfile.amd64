@@ -26,10 +26,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     ninja-build \
     libglib2.0-0 \
-    libegl1-mesa \
+    libegl-mesa0 \
     libegl1-mesa-dev \
-    libgl1-mesa-glx \
-    libgles2-mesa \
+    libgl1-mesa-dri \
+    libgles2 \
     ffmpeg \
     libusb-1.0-0-dev \
     speech-dispatcher \

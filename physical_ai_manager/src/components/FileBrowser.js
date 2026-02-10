@@ -479,6 +479,8 @@ export default function FileBrowser({
   defaultPath = null,
   allowDirectorySelect = false,
   allowFileSelect = true,
+  multiSelect = false,
+  onSelectionChange = null,
 }) {
   const { browseFile } = useRosServiceCaller();
   const isInitializedRef = useRef(false);
@@ -487,6 +489,7 @@ export default function FileBrowser({
   const [parentPath, setParentPath] = useState('');
   const [items, setItems] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedItems, setSelectedItems] = useState(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [directoriesWithTarget, setDirectoriesWithTarget] = useState(new Set());
@@ -600,21 +603,36 @@ export default function FileBrowser({
 
   const handleItemSelect = useCallback(
     (item) => {
-      setSelectedItem(item);
-
-      if (item.is_directory) {
-        if (onDirectorySelect) {
-          onDirectorySelect(item);
-        } else if (onFileSelect) {
-          onFileSelect(item);
-        }
+      if (multiSelect) {
+        setSelectedItems((prev) => {
+          const next = new Map(prev);
+          if (next.has(item.full_path)) {
+            next.delete(item.full_path);
+          } else {
+            next.set(item.full_path, item);
+          }
+          if (onSelectionChange) {
+            onSelectionChange(Array.from(next.values()));
+          }
+          return next;
+        });
       } else {
-        if (onFileSelect) {
-          onFileSelect(item);
+        setSelectedItem(item);
+
+        if (item.is_directory) {
+          if (onDirectorySelect) {
+            onDirectorySelect(item);
+          } else if (onFileSelect) {
+            onFileSelect(item);
+          }
+        } else {
+          if (onFileSelect) {
+            onFileSelect(item);
+          }
         }
       }
     },
-    [onFileSelect, onDirectorySelect]
+    [multiSelect, onFileSelect, onDirectorySelect, onSelectionChange]
   );
 
   const filteredItems = filterItems(items, targetFileName, fileFilter);
@@ -724,7 +742,9 @@ export default function FileBrowser({
                   targetFolderName,
                   directoriesWithTarget
                 );
-                const isSelected = selectedItem?.full_path === item.full_path;
+                const isSelected = multiSelect
+                  ? selectedItems.has(item.full_path)
+                  : selectedItem?.full_path === item.full_path;
 
                 return (
                   <FileItem

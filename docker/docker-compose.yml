@@ -31,8 +31,8 @@ services:
       - ./huggingface:/root/.cache/huggingface
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+      - /var/run/robotis/agent_sockets/physical_ai_server:/var/run/agent
     privileged: true
-    command: bash
     runtime: nvidia
     deploy:
       resources:

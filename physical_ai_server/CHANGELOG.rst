@@ -2,6 +2,11 @@
 Changelog for package physical_ai_server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.8.1 (2026-02-06)
+------------------
+* Add s6-agent and s6-services for supporting talos system manager
+* Contributors: Hyungyu Kim
+
 0.8.0 (2026-01-19)
 ------------------
 * None

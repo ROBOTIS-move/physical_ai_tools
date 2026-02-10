@@ -3,8 +3,6 @@
 # This script runs when the service is stopped.
 # Usage: SERVICE_NAME=<name> /path/to/ros2_service_finish.sh [exit_code]
 
-set -e
-
 # Service name must be provided via environment variable
 SERVICE_NAME="${SERVICE_NAME}"
 if [ -z "${SERVICE_NAME}" ]; then

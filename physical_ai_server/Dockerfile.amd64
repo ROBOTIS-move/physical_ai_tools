@@ -11,25 +11,14 @@ RUN tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Update GPG keys and package lists
-# Some GPG errors may occur but we try to continue
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get update --allow-releaseinfo-change 2>&1 || \
-    (apt-get install -y --no-install-recommends ca-certificates gnupg && \
-     apt-get update --allow-releaseinfo-change) || \
-    apt-get update || true
-
 # Install realsense and physical_ai_tools dependencies
-RUN apt-get install -y \
+RUN apt-get update && apt-get install -y \
     xz-utils \
     ffmpeg \
     vim \
     nano \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
-
-ENV PYTHONPATH=$PYTHONPATH:/usr/local/lib
 
 ENV COLCON_WS=/root/ros2_ws
 WORKDIR ${COLCON_WS}
@@ -44,7 +33,6 @@ RUN cd ${COLCON_WS} && \
     rosdep install -i --from-path src --rosdistro $ROS_DISTRO -y && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir setuptools==68.1.2
 
 RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
     sed -i '/"torch[^\"]*",/d' pyproject.toml && \
@@ -54,6 +42,7 @@ RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
 RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
     pip install -e ".[smolvla]"
 
+RUN pip install --no-cache-dir setuptools==68.1.2
 RUN pip install --no-cache-dir 'numpy<2'
 
 RUN echo 'export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH' >> /root/.bashrc && \
@@ -77,12 +66,7 @@ RUN git clone -b main https://github.com/ROBOTIS-GIT/talos.git /opt/talos
 
 ENV PYTHONPATH=/opt/talos:${PYTHONPATH}
 
-RUN pip config set global.break-system-packages true
-
 RUN pip install --no-cache-dir -r /opt/talos/requirements.txt
-
-# New-style s6-rc services (recommended in s6-overlay v3 docs)
-# Define services under /etc/s6-overlay/s6-rc.d and add them to the user bundle.
 
 # s6-rc services: s6-agent, physical_ai_server (longrun + log pipeline)
 COPY docker/s6-agent /etc/s6-overlay/s6-rc.d/s6-agent
@@ -90,7 +74,6 @@ COPY docker/s6-services /etc/s6-overlay/s6-rc.d/
 RUN rm -rf /etc/s6-overlay/s6-rc.d/common
 RUN chmod +x /etc/s6-overlay/s6-rc.d/s6-agent/run /etc/s6-overlay/s6-rc.d/s6-agent/finish \
     /etc/s6-overlay/s6-rc.d/physical_ai_server/run /etc/s6-overlay/s6-rc.d/physical_ai_server/finish \
-    /etc/s6-overlay/s6-rc.d/physical_ai_server-log-prepare/up \
     /etc/s6-overlay/s6-rc.d/physical_ai_server-log/run
 
 # Copy reusable ROS2 service scripts to a location outside s6-rc.d

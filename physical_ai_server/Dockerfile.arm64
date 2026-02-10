@@ -41,8 +41,6 @@ RUN cd ${COLCON_WS} && \
 ENV PIP_INDEX_URL=https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
 ENV PIP_EXTRA_INDEX_URL=https://pypi.org/simple
 
-RUN pip install --no-cache-dir setuptools==68.1.2
-
 RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
     sed -i '/"torch[^\"]*",/d' pyproject.toml && \
     sed -i '/"torchvision[^\"]*",/d' pyproject.toml && \
@@ -51,6 +49,7 @@ RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
 RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
     pip install -e ".[smolvla]"
 
+RUN pip install --no-cache-dir setuptools==68.1.2
 RUN pip install --no-cache-dir 'numpy<2'
 
 RUN echo 'export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH' >> /root/.bashrc && \
@@ -67,7 +66,6 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc  && \
     echo "export ROS_DOMAIN_ID=30" >> ~/.bashrc
 
 # Create directory for agent Unix Domain Socket
-# The agent will create /var/run/agent/s6_agent.sock
 RUN mkdir -p /var/run/agent && \
     chmod 777 /var/run/agent
 

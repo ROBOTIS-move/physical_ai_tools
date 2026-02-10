@@ -2,6 +2,10 @@
 Changelog for package physical_ai_bt
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.8.1 (2026-02-06)
+------------------
+* None
+
 0.8.0 (2026-01-19)
 ------------------
 * Initial release of physical_ai_bt package

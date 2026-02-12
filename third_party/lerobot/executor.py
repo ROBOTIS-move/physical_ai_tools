@@ -626,6 +626,14 @@ class LeRobotExecutor:
         if not push_to_hub:
             args.append("--policy.push_to_hub=false")
 
+        # Relax video-timestamp tolerance for datasets with frame alignment issues
+        # Default 0.0001s is too strict; 0.04s allows up to ~1 frame drift at 30fps
+        tolerance_s = getattr(request, "tolerance_s", 0.0)
+        if tolerance_s > 0:
+            args.append(f"--tolerance_s={tolerance_s}")
+        else:
+            args.append("--tolerance_s=0.04")
+
         return args
 
     def _execute_training(self, args: list[str]) -> None:

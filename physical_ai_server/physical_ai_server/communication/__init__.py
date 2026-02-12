@@ -18,6 +18,7 @@
 
 # This file makes the directory a Python package
 
+from physical_ai_server.communication.zenoh_groot_client import ZenohGR00TClient
 from physical_ai_server.communication.zenoh_lerobot_client import (
     ZenohLeRobotClient,
     LeRobotResponse,

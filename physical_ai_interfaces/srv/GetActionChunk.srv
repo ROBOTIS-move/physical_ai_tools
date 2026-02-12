@@ -1,0 +1,9 @@
+# Request: task instruction (optional, for language-conditioned policies)
+string task_instruction
+---
+# Response
+bool success
+string message
+float64[] action_chunk    # flattened (T*D) action values
+int32 chunk_size          # T (number of timesteps)
+int32 action_dim          # D (action dimension per timestep)

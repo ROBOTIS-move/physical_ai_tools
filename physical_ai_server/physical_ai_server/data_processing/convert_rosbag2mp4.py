@@ -283,7 +283,7 @@ class ScaleAIConverter:
                         result.matched_timestamps = {f.timestamp_ns for f in result.frames}
                         print(f'    {name}: trimmed {trimmed} frames from end')
 
-        # Step 2: Create MP4 videos (parallel encoding across cameras)
+        # Step 2: Create MP4 videos (parallel encoding across cameras) (parallel encoding across cameras)
         print('\n[Step 2] Creating MP4 videos...')
         video_results = {}
         total_dropped = 0
@@ -328,6 +328,10 @@ class ScaleAIConverter:
                         message='Video created' if success else 'Failed to create video'
                     )
                     total_dropped += result.dropped_frames_filled
+
+        # Step 2.5: Compute and save video stats from in-memory frames
+        print('\n[Step 2.5] Computing video statistics...')
+        self._compute_and_save_video_stats(cameras_to_encode, output_dir)
 
         # Step 3: Create modified MCAP (no images, synced camera_info only)
         print('\n[Step 3] Creating modified MCAP...')
@@ -1244,6 +1248,71 @@ class ScaleAIConverter:
             json.dump(meta, f, indent=2, ensure_ascii=False)
 
         print(f'  Updated episode_info.json with dropped_frames info')
+
+    def _compute_and_save_video_stats(
+        self,
+        cameras_to_encode: Dict[str, Tuple],
+        output_dir: Path,
+        max_samples: int = 100
+    ):
+        """Compute video stats from in-memory frames and save as video_stats.json.
+
+        This pre-computes RGB statistics so Stage 2 (LeRobot v2.1 converter)
+        can skip decoding MP4 files just to compute the same stats.
+        """
+        all_video_stats = {}
+
+        for camera_name, (result, video_path) in cameras_to_encode.items():
+            frames = result.frames
+            if not frames:
+                continue
+
+            total_frames = len(frames)
+            sample_count = min(max_samples, total_frames)
+            indices = np.linspace(0, total_frames - 1, sample_count, dtype=int)
+
+            samples = []
+            for idx in indices:
+                img = frames[idx].image  # BGR numpy array
+                if img is not None:
+                    # Convert BGR to RGB, normalize to [0,1]
+                    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    samples.append(rgb)
+
+            if not samples:
+                continue
+
+            frames_array = np.array(samples, dtype=np.float32) / 255.0
+            r_channel = frames_array[:, :, :, 0]
+            g_channel = frames_array[:, :, :, 1]
+            b_channel = frames_array[:, :, :, 2]
+
+            def channel_stats(channel):
+                return {
+                    'mean': float(np.mean(channel)),
+                    'std': float(np.std(channel)),
+                    'min': float(np.min(channel)),
+                    'max': float(np.max(channel)),
+                }
+
+            r_stats = channel_stats(r_channel)
+            g_stats = channel_stats(g_channel)
+            b_stats = channel_stats(b_channel)
+
+            all_video_stats[camera_name] = {
+                'min': [[[r_stats['min']]], [[g_stats['min']]], [[b_stats['min']]]],
+                'max': [[[r_stats['max']]], [[g_stats['max']]], [[b_stats['max']]]],
+                'mean': [[[r_stats['mean']]], [[g_stats['mean']]], [[b_stats['mean']]]],
+                'std': [[[r_stats['std']]], [[g_stats['std']]], [[b_stats['std']]]],
+                'count': [sample_count],
+            }
+            print(f'  Computed stats for {camera_name} ({sample_count} samples)')
+
+        if all_video_stats:
+            stats_path = output_dir / 'video_stats.json'
+            with open(stats_path, 'w') as f:
+                json.dump(all_video_stats, f, indent=2)
+            print(f'  Saved video_stats.json ({len(all_video_stats)} cameras)')
 
     def _copy_urdf_with_meshes(
         self,

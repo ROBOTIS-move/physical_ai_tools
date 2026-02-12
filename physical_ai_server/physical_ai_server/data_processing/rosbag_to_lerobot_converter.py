@@ -1545,16 +1545,46 @@ class RosbagToLerobotConverter:
 
         for camera_name, video_path in episode.video_files.items():
             feature_key = f"observation.images.{camera_name}"
-            video_stats = self._compute_video_stats(video_path)
+            video_stats = self._compute_video_stats(video_path, camera_name)
             if video_stats:
                 stats[feature_key] = video_stats
 
         return stats
 
-    def _compute_video_stats(
-        self, video_path: Path, max_samples: int = 100
+    def _load_precomputed_video_stats(
+        self, video_path: Path, camera_name: str
     ) -> Optional[Dict]:
-        """Compute video statistics (per-channel RGB, normalized to [0,1])."""
+        """Try to load pre-computed video stats from video_stats.json (Stage 1)."""
+        stats_path = video_path.parent / "video_stats.json"
+        if not stats_path.exists():
+            return None
+        try:
+            with open(stats_path, "r") as f:
+                all_stats = json.load(f)
+            if camera_name in all_stats:
+                self._log_info(
+                    f"Using pre-computed video stats for {camera_name}"
+                )
+                return all_stats[camera_name]
+        except Exception as e:
+            self._log_warning(
+                f"Failed to load pre-computed stats from {stats_path}: {e}"
+            )
+        return None
+
+    def _compute_video_stats(
+        self, video_path: Path, camera_name: str = "", max_samples: int = 100
+    ) -> Optional[Dict]:
+        """Compute video statistics (per-channel RGB, normalized to [0,1]).
+
+        First checks for pre-computed stats from Stage 1 (video_stats.json).
+        Falls back to decoding MP4 if not available.
+        """
+        # Try pre-computed stats first
+        precomputed = self._load_precomputed_video_stats(video_path, camera_name)
+        if precomputed is not None:
+            return precomputed
+
         try:
             import cv2
 

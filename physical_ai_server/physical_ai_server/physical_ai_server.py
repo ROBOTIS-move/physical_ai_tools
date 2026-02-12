@@ -59,6 +59,7 @@ from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.data_processing.hf_api_worker import HfApiWorker
 from physical_ai_server.data_processing.mp4_conversion_worker import Mp4ConversionWorker
 from physical_ai_server.data_processing.replay_data_handler import ReplayDataHandler
+from physical_ai_server.inference.groot_inference_manager import GR00TInferenceManager
 from physical_ai_server.inference.zenoh_inference_manager import ZenohInferenceManager
 from physical_ai_server.timer.timer_manager import TimerManager
 from physical_ai_server.training.zenoh_training_manager import ZenohTrainingManager
@@ -126,6 +127,8 @@ class PhysicalAIServer(Node):
         # Zenoh managers for inference/training (Docker container communication)
         self.inference_manager: Optional[ZenohInferenceManager] = None
         self.training_manager: Optional[ZenohTrainingManager] = None
+        # GR00T inference manager (action chunk based)
+        self.groot_manager: Optional[GR00TInferenceManager] = None
 
         # Initialize HF API Worker
         self.hf_api_worker: Optional[HfApiWorker] = None
@@ -572,25 +575,23 @@ class PhysicalAIServer(Node):
 
     def _inference_timer_callback(self):
         """
-        Timer callback for inference mode.
+        Timer callback for inference mode (10Hz).
 
-        NOTE: Inference mode is currently disabled in rosbag2-only data acquisition mode.
-        Data subscribers were removed to simplify the architecture for rosbag2 recording.
-        To re-enable inference, data subscribers need to be added back to communicator.py.
+        Pops one action from the GR00T action buffer and publishes
+        joint commands via communicator. Buffer is refilled in
+        the background by GR00TInferenceManager.
         """
-        error_msg = 'Inference mode is not supported in rosbag2-only mode. ' \
-                    'Data subscribers are required for inference.'
-        self.get_logger().error(error_msg)
+        if not self.on_inference or self.groot_manager is None:
+            return
 
+        joint_msg_datas = self.groot_manager.pop_action()
+        if joint_msg_datas is not None:
+            self.communicator.publish_action(joint_msg_datas)
+
+        # Status publish
         current_status = TaskStatus()
-        current_status.phase = TaskStatus.READY
-        current_status.error = error_msg
-
-        self.on_inference = False
+        current_status.phase = TaskStatus.RUNNING
         self.communicator.publish_status(status=current_status)
-        if self.inference_manager:
-            self.inference_manager.clear_policy()
-        self.timer_manager.stop(timer_name=self.operation_mode)
 
     def user_training_interaction_callback(self, request, response):
         """
@@ -806,27 +807,50 @@ class PhysicalAIServer(Node):
                 response.message = 'Recording started'
 
             elif request.command == SendCommand.Request.START_INFERENCE:
-                self.joint_topic_types = self.communicator.get_publisher_msg_types()
                 self.operation_mode = 'inference'
                 task_info = request.task_info
-                self.task_instruction = task_info.task_instruction
 
-                valid_result, result_message = self.inference_manager.validate_policy(
-                    policy_path=task_info.policy_path)
+                self.init_robot_control_parameters_from_user_task(task_info)
+                self.joint_topic_types = self.communicator.get_publisher_msg_types()
 
-                if not valid_result:
+                # Build topic maps from robot config
+                camera_topic_map = self._get_camera_topic_map()
+                joint_topic_map = self._get_joint_topic_map()
+
+                # Create and start GR00T inference manager
+                self.groot_manager = GR00TInferenceManager(
+                    node=self,
+                    joint_topic_types=self.joint_topic_types,
+                    joint_order=self.joint_order,
+                )
+
+                task_instruction = (
+                    task_info.task_instruction[0]
+                    if task_info.task_instruction
+                    else ''
+                )
+
+                try:
+                    self.groot_manager.start(
+                        model_path=task_info.policy_path,
+                        embodiment_tag='new_embodiment',
+                        camera_topic_map=camera_topic_map,
+                        joint_topic_map=joint_topic_map,
+                        task_instruction=task_instruction,
+                    )
+                except RuntimeError as e:
+                    self.groot_manager = None
                     response.success = False
-                    response.message = result_message
+                    response.message = str(e)
                     self.get_logger().error(response.message)
                     return response
 
-                self.init_robot_control_parameters_from_user_task(task_info)
                 if task_info.record_inference_mode:
                     self.on_recording = True
                 self.on_inference = True
                 self.start_recording_time = time.perf_counter()
                 response.success = True
-                response.message = 'Inference started'
+                response.message = 'GR00T inference started'
 
             elif request.command == SendCommand.Request.CONVERT_MP4:
                 # Handle MP4 conversion command
@@ -951,6 +975,7 @@ class PhysicalAIServer(Node):
                         self.get_logger().info('Cancelling current recording')
                         self.cancel_current_recording()
                         self.communicator.publish_action_event('cancel')
+                        self._stop_groot_inference()
                         self.on_recording = False
                         self.on_inference = False
                         if self.timer_manager:
@@ -969,6 +994,7 @@ class PhysicalAIServer(Node):
                             self.stop_recording_and_save()
                         self.communicator.publish_action_event('finish')
                         self.communicator.finish_rosbag()
+                        self._stop_groot_inference()
                         self.on_recording = False
                         self.on_inference = False
                         if self.timer_manager:
@@ -985,6 +1011,7 @@ class PhysicalAIServer(Node):
                         self.get_logger().info('Skipping (cancelling) current recording')
                         self.cancel_current_recording()
                         self.communicator.publish_action_event('cancel')
+                        self._stop_groot_inference()
                         self.on_recording = False
                         self.on_inference = False
                         if self.timer_manager:
@@ -1001,6 +1028,7 @@ class PhysicalAIServer(Node):
                         self.get_logger().info('Cancelling current recording')
                         self.cancel_current_recording()
                         self.communicator.publish_action_event('cancel')
+                        self._stop_groot_inference()
                         self.on_recording = False
                         self.on_inference = False
                         if self.timer_manager:
@@ -1501,6 +1529,40 @@ class PhysicalAIServer(Node):
             response.selected_path = ''
             response.items = []
             return response
+
+    def _get_camera_topic_map(self) -> list:
+        """Get camera topic map from robot config for GR00T inference.
+
+        Returns list of "name:topic" strings from camera_topic_list.
+        Camera names (e.g. cam_left_head) match GR00T modality keys directly.
+        """
+        return list(self.params.get('camera_topic_list', []))
+
+    def _get_joint_topic_map(self) -> list:
+        """Get joint topic map from robot config for GR00T inference.
+
+        Returns list of "modality_key:topic" strings from follower entries
+        in joint_topic_list. Strips "follower_" prefix to get modality key.
+        e.g. "follower_arm_left:/topic" -> "arm_left:/topic"
+        """
+        joint_topic_map = []
+        for entry in self.params.get('joint_topic_list', []):
+            if ':' not in entry:
+                continue
+            name, topic = entry.split(':', 1)
+            if name.startswith('follower_'):
+                modality_key = name[len('follower_'):]
+                joint_topic_map.append(f'{modality_key}:{topic}')
+        return joint_topic_map
+
+    def _stop_groot_inference(self):
+        """Stop GR00T inference and cleanup."""
+        if self.groot_manager is not None:
+            try:
+                self.groot_manager.stop()
+            except Exception as e:
+                self.get_logger().error(f'Error stopping GR00T manager: {e}')
+            self.groot_manager = None
 
     def handle_joystick_trigger(self, joystick_mode: str):
         """

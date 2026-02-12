@@ -79,6 +79,8 @@ services:
       # Use ARCH env var to select Dockerfile (default: amd64)
       # For Jetson: ARCH=arm64 docker compose up --build
       dockerfile: Dockerfile.${ARCH:-amd64}
+      args:
+        GPU_ARCH: ${GPU_ARCH:-default}
 
     # Network: host mode for Zenoh communication
     network_mode: host
@@ -100,8 +102,7 @@ services:
       # Shared Memory device
       - /dev/shm:/dev/shm
 
-      # LeRobot workspace (shared with physical_ai_server)
-      # Maps: host docker/workspace <-> container /workspace
+      # Shared workspace with physical_ai_server (datasets, models, outputs)
       - ./workspace:/workspace
 
       # HuggingFace cache (shared with physical_ai_server)
@@ -119,16 +120,16 @@ services:
 
     # Environment variables
     environment:
-      # ROS Domain ID - MUST match physical_ai_server (default: 30)
-      - ROS_DOMAIN_ID=30
+      # ROS Domain ID - MUST match physical_ai_server
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
 
       # Zenoh configuration - peer-to-peer mode (no router needed)
       - ZENOH_ROUTER_IP=127.0.0.1
       - ZENOH_ROUTER_PORT=7447
       - ZENOH_SHM_ENABLED=true
       - ZENOH_SDK_PATH=/zenoh_sdk
-      # Override to enable peer-to-peer scouting instead of router connection
-      - ZENOH_CONFIG_OVERRIDE=mode="peer";connect/endpoints=[];scouting/multicast/enabled=true;scouting/gossip/enabled=true
+      # Override to enable peer-to-peer scouting (connects to rmw_zenoh router via default endpoint)
+      - ZENOH_CONFIG_OVERRIDE=mode="peer";scouting/multicast/enabled=true;scouting/gossip/enabled=true
 
       # GPU
       - NVIDIA_VISIBLE_DEVICES=all
@@ -164,6 +165,8 @@ services:
       # Use ARCH env var to select Dockerfile (default: amd64)
       # For Jetson: ARCH=arm64 docker compose up --build
       dockerfile: Dockerfile.${ARCH:-amd64}
+      args:
+        GPU_ARCH: ${GPU_ARCH:-default}
 
     # Network: host mode for Zenoh communication
     network_mode: host
@@ -195,6 +198,9 @@ services:
       # Zenoh SDK (shared across all opensource integrations)
       - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
 
+      # GR00T model checkpoints (host gr00t_ws → container /gr00t_ws)
+      - /home/hc/gr00t_ws:/gr00t_ws:ro
+
       # GR00T executor.py (for development - mount latest code)
       - ../third_party/groot/executor.py:/app/executor.py:ro
 
@@ -204,16 +210,16 @@ services:
 
     # Environment variables
     environment:
-      # ROS Domain ID - MUST match physical_ai_server (default: 30)
-      - ROS_DOMAIN_ID=30
+      # ROS Domain ID - MUST match physical_ai_server
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
 
       # Zenoh configuration - peer-to-peer mode (no router needed)
       - ZENOH_ROUTER_IP=127.0.0.1
       - ZENOH_ROUTER_PORT=7447
       - ZENOH_SHM_ENABLED=true
       - ZENOH_SDK_PATH=/zenoh_sdk
-      # Override to enable peer-to-peer scouting instead of router connection
-      - ZENOH_CONFIG_OVERRIDE=mode="peer";connect/endpoints=[];scouting/multicast/enabled=true;scouting/gossip/enabled=true
+      # Override to enable peer-to-peer scouting (connects to rmw_zenoh router via default endpoint)
+      - ZENOH_CONFIG_OVERRIDE=mode="peer";scouting/multicast/enabled=true;scouting/gossip/enabled=true
 
       # GPU
       - NVIDIA_VISIBLE_DEVICES=all

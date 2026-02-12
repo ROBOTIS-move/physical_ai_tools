@@ -112,9 +112,9 @@ class InferenceConfig:
 
     model_path: str = ""
     embodiment_tag: str = "new_embodiment"
-    inference_freq: float = 30.0  # Hz
-    camera_topics: list = field(default_factory=list)
-    joint_topic: str = ""
+    camera_topic_map: dict = field(default_factory=dict)  # {modality_key: topic_path}
+    joint_topic_map: dict = field(default_factory=dict)   # {modality_key: topic_path}
+    task_instruction: str = ""
 
 
 @dataclass
@@ -132,6 +132,7 @@ class ExecutorConfig:
     infer_service: str = "/groot/infer"
     stop_service: str = "/groot/stop"
     status_service: str = "/groot/status"
+    get_action_chunk_service: str = "/groot/get_action_chunk"
     embodiment_list_service: str = "/groot/embodiment_list"
     checkpoint_list_service: str = "/groot/checkpoint_list"
     progress_topic: str = "/groot/progress"
@@ -213,9 +214,13 @@ class Gr00tExecutor:
             "timestamp": None,
         }
 
+        # Action keys for inference (set during _handle_infer from modality config)
+        self._action_keys: list = []
+
         # Services and publishers (initialized in start())
         self._train_service: Optional[ROS2ServiceServer] = None
         self._infer_service: Optional[ROS2ServiceServer] = None
+        self._get_action_chunk_service: Optional[ROS2ServiceServer] = None
         self._stop_service: Optional[ROS2ServiceServer] = None
         self._status_service: Optional[ROS2ServiceServer] = None
         self._embodiment_list_service: Optional[ROS2ServiceServer] = None
@@ -262,6 +267,11 @@ class Gr00tExecutor:
         services = [
             ("train", self._train_service, self._handle_train),
             ("infer", self._infer_service, self._handle_infer),
+            (
+                "get_action_chunk",
+                self._get_action_chunk_service,
+                self._handle_get_action_chunk,
+            ),
             ("stop", self._stop_service, self._handle_stop),
             ("status", self._status_service, self._handle_status),
             (
@@ -315,6 +325,17 @@ class Gr00tExecutor:
             **common_kwargs,
         )
         logger.info(f"Infer service ready: {self.config.infer_service}")
+
+        # Get action chunk service
+        self._get_action_chunk_service = ROS2ServiceServer(
+            service_name=self.config.get_action_chunk_service,
+            srv_type="physical_ai_interfaces/srv/GetActionChunk",
+            mode="queue",
+            **common_kwargs,
+        )
+        logger.info(
+            f"Get action chunk service ready: {self.config.get_action_chunk_service}"
+        )
 
         # Stop service
         self._stop_service = ROS2ServiceServer(
@@ -419,6 +440,10 @@ class Gr00tExecutor:
             "policies_json": "[]",
             "checkpoints_json": "[]",
             "models_json": "[]",
+            "action_chunk": np.array([], dtype=np.float64),
+            "chunk_size": 0,
+            "action_dim": 0,
+            "action_keys": [],
         }
         init_kwargs = {}
         for field_name in fields:
@@ -744,8 +769,23 @@ class Gr00tExecutor:
     # Inference Handlers
     # ========================================================================
 
+    @staticmethod
+    def _parse_topic_map(topic_map_list: list) -> dict:
+        """Parse 'name:topic' string list into {name: topic} dict."""
+        result = {}
+        for entry in topic_map_list:
+            if ":" in entry:
+                name, topic = entry.split(":", 1)
+                result[name.strip()] = topic.strip()
+        return result
+
     def _handle_infer(self, request: Any) -> Any:
-        """Handle inference start request."""
+        """Handle inference start request.
+
+        Loads the model, reads modality config, filters topic_map by
+        modality_keys, and subscribes only to needed topics.
+        No continuous inference loop — uses on-demand get_action_chunk.
+        """
         logger.info(f"Received infer request: model_path={request.model_path}")
 
         if self.state in (ExecutorState.TRAINING, ExecutorState.INFERENCE):
@@ -764,13 +804,12 @@ class Gr00tExecutor:
             )
 
         try:
-            logger.info(f"Loading GR00T policy from: {model_path}")
-
-            # Get embodiment tag
+            # 1. Load model
             embodiment_tag = getattr(request, "embodiment_tag", "new_embodiment")
             if not embodiment_tag:
                 embodiment_tag = "new_embodiment"
 
+            logger.info(f"Loading GR00T policy from: {model_path}")
             self._loaded_policy = self._load_policy(model_path, embodiment_tag)
 
             if self._loaded_policy is None:
@@ -780,44 +819,76 @@ class Gr00tExecutor:
                     message="Failed to load GR00T policy",
                 )
 
-            inference_freq = getattr(request, "inference_freq", 30.0)
-            camera_topics = getattr(request, "camera_topics", None)
-            if not camera_topics:
-                camera_topics = getattr(request, "image_topics", [])
-            joint_topic = getattr(request, "joint_topic", None)
-            if not joint_topic:
-                joint_topic = getattr(request, "joint_state_topic", "")
+            # 2. Read modality config from loaded model
+            modality_config = self._get_modality_config(embodiment_tag)
+            video_keys = (
+                modality_config["video"].modality_keys
+                if "video" in modality_config
+                else []
+            )
+            state_keys = (
+                modality_config["state"].modality_keys
+                if "state" in modality_config
+                else []
+            )
+            action_keys = (
+                modality_config["action"].modality_keys
+                if "action" in modality_config
+                else []
+            )
 
+            logger.info(f"Modality config - video: {video_keys}, state: {state_keys}, action: {action_keys}")
+
+            # 3. Parse topic maps from request and filter by modality keys
+            camera_topic_map = self._parse_topic_map(
+                getattr(request, "camera_topic_map", [])
+            )
+            joint_topic_map = self._parse_topic_map(
+                getattr(request, "joint_topic_map", [])
+            )
+
+            active_cameras = {
+                k: v for k, v in camera_topic_map.items() if k in video_keys
+            }
+            active_joints = {
+                k: v for k, v in joint_topic_map.items() if k in state_keys
+            }
+
+            logger.info(f"Active cameras: {list(active_cameras.keys())}")
+            logger.info(f"Active joints: {list(active_joints.keys())}")
+
+            # 4. Store config
+            task_instruction = getattr(request, "task_instruction", "")
             self._inference_config = InferenceConfig(
                 model_path=model_path,
                 embodiment_tag=embodiment_tag,
-                inference_freq=inference_freq,
-                camera_topics=camera_topics,
-                joint_topic=joint_topic,
+                camera_topic_map=active_cameras,
+                joint_topic_map=active_joints,
+                task_instruction=task_instruction,
             )
 
+            # 5. Initialize observation dict with modality keys
             self._latest_observations = {
-                "video": {},
-                "state": {},
-                "language": {"task": [["Pick up the object"]]},  # Default task
+                "video": {key: None for key in active_cameras},
+                "state": {key: None for key in active_joints},
+                "language": {},
                 "timestamp": None,
             }
 
-            if camera_topics or joint_topic:
-                self._setup_ros2_subscribers(camera_topics, joint_topic)
+            # 6. Subscribe to active topics only
+            if active_cameras or active_joints:
+                self._setup_ros2_subscribers(active_cameras, active_joints)
 
+            # 7. Store action keys and transition state
+            self._action_keys = action_keys
             self._inference_running = True
             self.state = ExecutorState.INFERENCE
 
-            self._inference_thread = threading.Thread(
-                target=self._inference_loop,
-                args=(inference_freq,),
-                daemon=True,
-            )
-            self._inference_thread.start()
-
             return self._create_response(
-                self._infer_service, success=True, message="GR00T inference started"
+                self._infer_service,
+                success=True,
+                message="GR00T inference started",
+                action_keys=list(self._action_keys),
             )
 
         except Exception as e:
@@ -834,7 +905,6 @@ class Gr00tExecutor:
             from gr00t.data.embodiment_tags import EmbodimentTag
             from gr00t.policy.gr00t_policy import Gr00tPolicy
 
-            # Get embodiment tag enum
             try:
                 emb_tag = EmbodimentTag(embodiment_tag)
             except ValueError:
@@ -861,59 +931,108 @@ class Gr00tExecutor:
             logger.error(f"Failed to load GR00T policy: {e}", exc_info=True)
             return None
 
-    def _setup_ros2_subscribers(
-        self, camera_topics: list, joint_topic: str
-    ) -> None:
-        """Setup ROS2 topic subscribers for sensor data."""
+    def _get_modality_config(self, embodiment_tag: str) -> dict:
+        """Get modality config for the loaded embodiment.
+
+        Reads from the loaded policy's processor (which has the actual config
+        from the model checkpoint), falling back to registered configs.
+        Returns dict with keys like 'video', 'state', 'action', 'language'.
+        """
         try:
-            # Subscribe to camera topics
-            for cam_config in camera_topics:
-                topic = (
-                    cam_config.get("topic")
-                    if isinstance(cam_config, dict)
-                    else cam_config
-                )
-                name = (
-                    cam_config.get("name", topic.split("/")[-2])
-                    if isinstance(cam_config, dict)
-                    else topic.split("/")[-2]
-                )
+            from gr00t.data.embodiment_tags import EmbodimentTag
 
-                if not topic:
-                    continue
+            try:
+                emb_tag = EmbodimentTag(embodiment_tag)
+            except ValueError:
+                emb_tag = EmbodimentTag.NEW_EMBODIMENT
 
-                logger.info(f"Subscribing to camera topic: {topic} (name: {name})")
+            # Try reading from loaded policy's processor first
+            if self._loaded_policy is not None:
+                try:
+                    all_configs = self._loaded_policy.processor.get_modality_configs()
+                    if emb_tag.value in all_configs:
+                        config = all_configs[emb_tag.value]
+                        logger.info(f"Retrieved modality config from loaded policy for {emb_tag.value}")
+                        return config
+                except Exception as e:
+                    logger.debug(f"Could not read from policy processor: {e}")
 
-                def make_image_callback(cam_name):
+            # Fallback to registered configs
+            try:
+                from gr00t.configs.data.embodiment_configs import MODALITY_CONFIGS
+                if emb_tag.value in MODALITY_CONFIGS:
+                    config = MODALITY_CONFIGS[emb_tag.value]
+                    logger.info(f"Retrieved modality config from registry for {emb_tag.value}")
+                    return config
+            except Exception as e:
+                logger.debug(f"Could not read from registry: {e}")
+
+            logger.warning(f"No modality config found for {emb_tag.value}. Using empty config.")
+            return {}
+
+        except Exception as e:
+            logger.warning(f"Failed to get modality config: {e}. Using empty config.")
+            return {}
+
+    def _setup_ros2_subscribers(
+        self, active_cameras: dict, active_joints: dict
+    ) -> None:
+        """Setup ROS2 subscribers based on modality key -> topic mapping.
+
+        Args:
+            active_cameras: {modality_key: topic_path}
+            active_joints: {modality_key: topic_path}
+        """
+        try:
+            common_kwargs = {
+                "node_name": self.config.node_name,
+                "namespace": self.config.namespace,
+                "domain_id": self.config.domain_id,
+                "router_ip": self.config.router_ip,
+                "router_port": self.config.router_port,
+            }
+
+            # Camera subscribers
+            for modality_key, topic_path in active_cameras.items():
+
+                def make_image_callback(key):
                     def callback(msg):
-                        self._on_image_received(cam_name, msg)
-
+                        self._on_image_received(key, msg)
                     return callback
 
                 sub = ROS2Subscriber(
-                    topic=topic,
+                    topic=topic_path,
                     msg_type="sensor_msgs/msg/CompressedImage",
-                    callback=make_image_callback(name),
+                    callback=make_image_callback(modality_key),
+                    **common_kwargs,
                 )
                 self._ros2_subscribers.append(sub)
+                logger.info(f"Camera subscribed: {modality_key} -> {topic_path}")
 
-            # Subscribe to joint state topic
-            if joint_topic:
-                logger.info(f"Subscribing to joint state topic: {joint_topic}")
+            # Joint state subscribers
+            for modality_key, topic_path in active_joints.items():
+
+                def make_joint_callback(key):
+                    def callback(msg):
+                        self._on_joint_state_received(key, msg)
+                    return callback
+
                 sub = ROS2Subscriber(
-                    topic=joint_topic,
+                    topic=topic_path,
                     msg_type="sensor_msgs/msg/JointState",
-                    callback=self._on_joint_state_received,
+                    callback=make_joint_callback(modality_key),
+                    **common_kwargs,
                 )
                 self._ros2_subscribers.append(sub)
+                logger.info(f"Joint subscribed: {modality_key} -> {topic_path}")
 
             logger.info(f"Setup {len(self._ros2_subscribers)} ROS2 subscribers")
 
         except Exception as e:
             logger.error(f"Failed to setup ROS2 subscribers: {e}", exc_info=True)
 
-    def _on_image_received(self, camera_name: str, msg: Any) -> None:
-        """Callback for camera image received."""
+    def _on_image_received(self, modality_key: str, msg: Any) -> None:
+        """Store camera image by modality key. Resize to uniform size for model input."""
         try:
             import cv2
 
@@ -921,138 +1040,116 @@ class Gr00tExecutor:
             image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
 
             if image is not None:
-                # GR00T expects (B, T, H, W, C) format with uint8
-                # Convert to (1, 1, H, W, C) for single frame
-                image = image[np.newaxis, np.newaxis, ...]
-                self._latest_observations["video"][camera_name] = image
+                # Resize to model's expected input size (224x224)
+                target_size = (224, 224)
+                if image.shape[:2] != target_size:
+                    image = cv2.resize(image, (target_size[1], target_size[0]))
+                image = image[np.newaxis, np.newaxis, ...]  # (1,1,H,W,C)
+                self._latest_observations["video"][modality_key] = image
                 self._latest_observations["timestamp"] = time.time()
         except Exception as e:
-            logger.debug(f"Error decoding image: {e}")
+            logger.debug(f"Error decoding image for {modality_key}: {e}")
 
-    def _on_joint_state_received(self, msg: Any) -> None:
-        """Callback for joint state received."""
+    def _on_joint_state_received(self, modality_key: str, msg: Any) -> None:
+        """Store joint state by modality key as (1,1,D) array."""
         try:
-            # GR00T expects (B, T, D) format with float32
             positions = np.array(msg.position, dtype=np.float32)
-            # Reshape to (1, 1, D)
-            positions = positions[np.newaxis, np.newaxis, :]
-            self._latest_observations["state"]["joint_positions"] = positions
+            self._latest_observations["state"][modality_key] = (
+                positions[np.newaxis, np.newaxis, :]
+            )
             self._latest_observations["timestamp"] = time.time()
         except Exception as e:
-            logger.debug(f"Error processing joint state: {e}")
+            logger.debug(f"Error processing joint state for {modality_key}: {e}")
 
-    def _inference_loop(self, freq_hz: float) -> None:
-        """Real-time inference loop."""
-        logger.info(f"Starting GR00T inference loop at {freq_hz} Hz")
+    def _handle_get_action_chunk(self, request: Any) -> Any:
+        """Handle get_action_chunk service — runs inference and returns full chunk."""
+        if self.state != ExecutorState.INFERENCE or self._loaded_policy is None:
+            return self._create_response(
+                self._get_action_chunk_service,
+                success=False,
+                message="Not in inference mode",
+            )
 
-        interval = 1.0 / freq_hz
-        action_count = 0
-        use_real_observations = len(self._ros2_subscribers) > 0
-
-        logger.info(
-            f"Using {'real ROS2 observations' if use_real_observations else 'dummy observations'}"
-        )
-
-        while self._inference_running:
-            loop_start = time.time()
-
-            try:
-                if self._loaded_policy is not None:
-                    if use_real_observations:
-                        action = self._predict_from_observations()
-                    else:
-                        action = self._predict_dummy_action()
-
-                    if action is not None:
-                        action_count += 1
-                        self._publish_action(action, action_count)
-
-            except Exception as e:
-                logger.error(f"Inference loop error: {e}")
-
-            elapsed = time.time() - loop_start
-            sleep_time = max(0, interval - elapsed)
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-
-        self._cleanup_ros2_subscribers()
-        logger.info(f"Inference loop stopped. Total actions published: {action_count}")
-        self.state = ExecutorState.IDLE
-
-    def _predict_from_observations(self) -> Optional[dict[str, Any]]:
-        """Predict action from real observation data."""
         try:
             obs = self._latest_observations
 
-            if obs["timestamp"] is None:
-                return None
+            # Check observation freshness
+            if obs["timestamp"] is None or time.time() - obs["timestamp"] > 2.0:
+                return self._create_response(
+                    self._get_action_chunk_service,
+                    success=False,
+                    message="No recent observations",
+                )
 
-            if time.time() - obs["timestamp"] > 1.0:
-                logger.debug("Observations too old, skipping inference")
-                return None
+            # Check all required observations are available
+            for key in obs["video"]:
+                if obs["video"][key] is None:
+                    return self._create_response(
+                        self._get_action_chunk_service,
+                        success=False,
+                        message=f"Missing video observation: {key}",
+                    )
+            for key in obs["state"]:
+                if obs["state"][key] is None:
+                    return self._create_response(
+                        self._get_action_chunk_service,
+                        success=False,
+                        message=f"Missing state observation: {key}",
+                    )
 
-            # Build observation dict for GR00T policy
+            # Set task instruction
+            task = getattr(request, "task_instruction", "") or (
+                self._inference_config.task_instruction
+                if self._inference_config
+                else ""
+            )
+            if task:
+                obs["language"]["annotation.human.task_description"] = [[task]]
+
+            # Build observation and run inference
             observation = {
                 "video": obs["video"],
                 "state": obs["state"],
                 "language": obs["language"],
             }
 
-            # Get action from policy
+            logger.debug("Running inference...")
             action, info = self._loaded_policy.get_action(observation)
 
-            # Convert action dict to standard format
-            result = {
-                "joint_positions": [],
-                "gripper": 0.0,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
+            # Concat action chunks by action_keys order: (T, D_total)
+            chunks = []
+            for key in self._action_keys:
+                if key in action and isinstance(action[key], np.ndarray):
+                    chunks.append(action[key][0])  # Remove batch dim: (T, D_per_key)
 
-            # Extract action values (format depends on modality config)
-            for key, value in action.items():
-                if isinstance(value, np.ndarray):
-                    # Action shape is (B, T, D) - take first batch, first timestep
-                    action_values = value[0, 0].tolist()
-                    result["joint_positions"] = action_values[:-1]
-                    result["gripper"] = float(action_values[-1])
-                    break
+            if chunks:
+                chunk = np.concatenate(chunks, axis=1)  # (T, D_total)
+                t_size, d_size = chunk.shape
+                logger.info(
+                    f"Action chunk generated: T={t_size}, D={d_size}"
+                )
+                return self._create_response(
+                    self._get_action_chunk_service,
+                    success=True,
+                    message="",
+                    action_chunk=np.asarray(chunk.flatten(), dtype=np.float64),
+                    chunk_size=t_size,
+                    action_dim=d_size,
+                )
 
-            return result
-
-        except Exception as e:
-            logger.debug(f"Error in real inference: {e}")
-            return None
-
-    def _predict_dummy_action(self) -> Optional[dict[str, Any]]:
-        """Generate dummy action for testing."""
-        try:
-            action = {
-                "joint_positions": np.random.randn(6).tolist(),
-                "gripper": float(np.random.rand()),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            return action
-        except Exception as e:
-            logger.error(f"Error generating action: {e}")
-            return None
-
-    def _publish_action(self, action: dict[str, Any], seq: int) -> None:
-        """Publish predicted action."""
-        if self._action_publisher is None:
-            return
-
-        try:
-            joint_positions = action.get("joint_positions", [])
-            if isinstance(joint_positions, list):
-                joint_positions = np.array(joint_positions, dtype=np.float64)
-
-            self._action_publisher.publish(
-                joint_positions=joint_positions,
-                gripper=float(action.get("gripper", 0.0)),
-                timestamp=float(time.time()),
+            return self._create_response(
+                self._get_action_chunk_service,
+                success=False,
+                message="No action output from policy",
             )
+
         except Exception as e:
-            logger.error(f"Failed to publish action: {e}")
+            logger.error(f"Inference failed: {e}", exc_info=True)
+            return self._create_response(
+                self._get_action_chunk_service,
+                success=False,
+                message=f"Inference failed: {e}",
+            )
 
     def _cleanup_ros2_subscribers(self) -> None:
         """Cleanup ROS2 subscribers."""
@@ -1082,14 +1179,15 @@ class Gr00tExecutor:
         # Stop inference
         if self._inference_running:
             self._inference_running = False
-            if self._inference_thread and self._inference_thread.is_alive():
-                self._inference_thread.join(timeout=5.0)
+            self._cleanup_ros2_subscribers()
 
             if self._loaded_policy is not None:
                 del self._loaded_policy
                 self._loaded_policy = None
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+
+            self._action_keys = []
 
         if self._training_thread and self._training_thread.is_alive():
             self._training_thread.join(timeout=10.0)
@@ -1269,15 +1367,13 @@ class Gr00tExecutor:
         if self._training_thread and self._training_thread.is_alive():
             self._training_thread.join(timeout=5.0)
 
-        if self._inference_thread and self._inference_thread.is_alive():
-            self._inference_thread.join(timeout=5.0)
-
         self._cleanup_ros2_subscribers()
 
         # Close services
         for service in [
             self._train_service,
             self._infer_service,
+            self._get_action_chunk_service,
             self._stop_service,
             self._status_service,
             self._embodiment_list_service,

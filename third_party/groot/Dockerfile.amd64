@@ -10,6 +10,9 @@
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:25.04-py3
 FROM ${BASE_IMAGE}
 
+# GPU architecture build arg (default=use base image PyTorch, blackwell=install nightly cu128)
+ARG GPU_ARCH=default
+
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 ENV NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute
@@ -107,6 +110,16 @@ RUN sed -i 's/requires-python = "==3.10.\*"/requires-python = ">=3.10"/' pyproje
 # Install GR00T package (use pip directly, not uv with --system)
 RUN pip install -e . --no-deps && \
     pip install flash-attn --no-build-isolation
+
+# Blackwell (sm_120) support: override PyTorch with nightly cu128 build
+RUN if [ "$GPU_ARCH" = "blackwell" ]; then \
+      echo "=== Installing PyTorch nightly (cu128) for Blackwell ===" && \
+      pip install --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/nightly/cu128 \
+        torch torchvision torchcodec && \
+      pip install --no-cache-dir flash-attn --no-build-isolation --force-reinstall && \
+      python -c "import torch; print(f'PyTorch: {torch.__version__}, Arch: {torch.cuda.get_arch_list()}')"; \
+    fi
 
 # Zenoh dependencies (zenoh_ros2_sdk mounted as volume at /zenoh_sdk)
 # json5 required for zenoh_ros2_sdk

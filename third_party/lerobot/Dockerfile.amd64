@@ -10,6 +10,9 @@
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:24.12-py3
 FROM ${BASE_IMAGE}
 
+# GPU architecture build arg (default=use base image PyTorch, blackwell=install nightly cu128)
+ARG GPU_ARCH=default
+
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -61,6 +64,15 @@ COPY lerobot/src/ ./src/
 # Removed: dev, test, video_benchmark (development)
 # Removed: aloha, pusht, phone, libero, metaworld, sarm (simulation)
 RUN uv pip install --no-cache ".[smolvla,xvla,hilserl,async,peft]"
+
+# Blackwell (sm_120) support: override PyTorch with nightly cu128 build
+RUN if [ "$GPU_ARCH" = "blackwell" ]; then \
+      echo "=== Installing PyTorch nightly (cu128) for Blackwell ===" && \
+      uv pip install --no-cache \
+        --index-url https://download.pytorch.org/whl/nightly/cu128 \
+        torch torchvision torchcodec && \
+      python -c "import torch; print(f'PyTorch: {torch.__version__}, Arch: {torch.cuda.get_arch_list()}')"; \
+    fi
 
 # Copy the rest of LeRobot (configs, tests, etc.)
 COPY lerobot/ ./

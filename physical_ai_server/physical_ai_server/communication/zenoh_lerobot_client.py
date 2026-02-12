@@ -96,6 +96,14 @@ class LeRobotResponse:
             data['checkpoints'] = list(response.checkpoints)
         if hasattr(response, 'models'):
             data['models'] = list(response.models)
+        if hasattr(response, 'action_chunk'):
+            data['action_chunk'] = list(response.action_chunk)
+        if hasattr(response, 'chunk_size'):
+            data['chunk_size'] = response.chunk_size
+        if hasattr(response, 'action_dim'):
+            data['action_dim'] = response.action_dim
+        if hasattr(response, 'action_keys'):
+            data['action_keys'] = list(response.action_keys)
         return data
 
 

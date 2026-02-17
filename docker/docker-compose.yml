@@ -37,6 +37,8 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      # ROS2 Domain ID - MUST match all containers
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
       # ROS2 RMW configuration - use Zenoh instead of DDS
       - RMW_IMPLEMENTATION=rmw_zenoh_cpp
       # Zenoh configuration
@@ -51,8 +53,10 @@ services:
       - ./huggingface:/root/.cache/huggingface
       # Docker socket for cross-container exec (v2.1 -> v3.0 conversion)
       - /var/run/docker.sock:/var/run/docker.sock
-      # Shared Memory
+      # Shared Memory (Zenoh SHM zero-copy transport)
       - /dev/shm:/dev/shm
+      # Zenoh SHM negotiation requires shared /tmp between containers
+      - /tmp:/tmp
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     privileged: true
@@ -102,6 +106,9 @@ services:
       # Shared Memory device
       - /dev/shm:/dev/shm
 
+      # Zenoh SHM negotiation requires shared /tmp between containers
+      - /tmp:/tmp
+
       # Shared workspace with physical_ai_server (datasets, models, outputs)
       - ./workspace:/workspace
 
@@ -111,8 +118,13 @@ services:
       # Zenoh SDK (shared across all opensource integrations)
       - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
 
-      # LeRobot executor.py (for development - mount latest code)
+      # Robot Client (shared high-level API)
+      - ../third_party/robot_client/robot_client:/robot_client:ro
+
+      # LeRobot executor modules (for development - mount latest code)
       - ../third_party/lerobot/executor.py:/app/executor.py:ro
+      - ../third_party/lerobot/training.py:/app/training.py:ro
+      - ../third_party/lerobot/inference.py:/app/inference.py:ro
 
       # Timezone
       - /etc/timezone:/etc/timezone:ro
@@ -121,7 +133,7 @@ services:
     # Environment variables
     environment:
       # ROS Domain ID - MUST match physical_ai_server
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
 
       # Zenoh configuration - peer-to-peer mode (no router needed)
       - ZENOH_ROUTER_IP=127.0.0.1
@@ -137,6 +149,9 @@ services:
 
       # Python
       - PYTHONUNBUFFERED=1
+
+      # Robot Client path
+      - ROBOT_CLIENT_PATH=/robot_client
 
       # Workspace path
       - LEROBOT_WORKSPACE=/workspace
@@ -188,6 +203,9 @@ services:
       # Shared Memory device
       - /dev/shm:/dev/shm
 
+      # Zenoh SHM negotiation requires shared /tmp between containers
+      - /tmp:/tmp
+
       # GR00T workspace (datasets, checkpoints, outputs)
       # Maps: host third_party/groot/workspace <-> container /workspace
       - ../third_party/groot/workspace:/workspace
@@ -198,11 +216,16 @@ services:
       # Zenoh SDK (shared across all opensource integrations)
       - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
 
+      # Robot Client (shared high-level API)
+      - ../third_party/robot_client/robot_client:/robot_client:ro
+
       # GR00T model checkpoints (host gr00t_ws → container /gr00t_ws)
       - /home/hc/gr00t_ws:/gr00t_ws:ro
 
-      # GR00T executor.py (for development - mount latest code)
+      # GR00T executor modules (for development - mount latest code)
       - ../third_party/groot/executor.py:/app/executor.py:ro
+      - ../third_party/groot/training.py:/app/training.py:ro
+      - ../third_party/groot/inference.py:/app/inference.py:ro
 
       # Timezone
       - /etc/timezone:/etc/timezone:ro
@@ -211,7 +234,7 @@ services:
     # Environment variables
     environment:
       # ROS Domain ID - MUST match physical_ai_server
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
 
       # Zenoh configuration - peer-to-peer mode (no router needed)
       - ZENOH_ROUTER_IP=127.0.0.1
@@ -227,6 +250,9 @@ services:
 
       # Python
       - PYTHONUNBUFFERED=1
+
+      # Robot Client path
+      - ROBOT_CLIENT_PATH=/robot_client
 
       # Workspace path
       - GROOT_WORKSPACE=/workspace

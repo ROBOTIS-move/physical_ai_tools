@@ -4,7 +4,7 @@ services:
   # ============================================
   physical_ai_manager:
     container_name: physical_ai_manager
-    image: robotis/physical-ai-manager:latest
+    image: robotis/physical-ai-manager:${VERSION:-1.0.0}-${ARCH:-arm64}
     build:
       context: ../physical_ai_manager
       dockerfile: Dockerfile
@@ -16,13 +16,10 @@ services:
   # ============================================
   physical_ai_server:
     container_name: physical_ai_server
-    image: robotis/physical-ai-server:${ARCH:-amd64}
+    image: robotis/physical-ai-server:${VERSION:-1.0.0}-${ARCH:-arm64}
     build:
-      # Build context is project root for COPY to work
       context: ..
-      # Use ARCH env var to select Dockerfile (default: amd64)
-      # For Jetson: ARCH=arm64 docker compose up --build
-      dockerfile: physical_ai_server/Dockerfile.${ARCH:-amd64}
+      dockerfile: physical_ai_server/Dockerfile.${ARCH:-arm64}
     tty: true
     restart: always
     cap_add:
@@ -76,13 +73,10 @@ services:
   # ============================================
   lerobot:
     container_name: lerobot_server
-    image: robotis/lerobot-zenoh:${ARCH:-amd64}
+    image: robotis/lerobot-zenoh:${VERSION:-1.0.0}-${ARCH:-arm64}
     build:
-      # Build context is third_party/lerobot/ (new structure)
       context: ../third_party/lerobot
-      # Use ARCH env var to select Dockerfile (default: amd64)
-      # For Jetson: ARCH=arm64 docker compose up --build
-      dockerfile: Dockerfile.${ARCH:-amd64}
+      dockerfile: Dockerfile.${ARCH:-arm64}
       args:
         GPU_ARCH: ${GPU_ARCH:-default}
 
@@ -173,13 +167,10 @@ services:
   # ============================================
   groot:
     container_name: groot_server
-    image: robotis/groot-zenoh:${ARCH:-amd64}
+    image: robotis/groot-zenoh:${VERSION:-1.0.0}-${ARCH:-arm64}
     build:
-      # Build context is third_party/groot/ (GR00T integration)
       context: ../third_party/groot
-      # Use ARCH env var to select Dockerfile (default: amd64)
-      # For Jetson: ARCH=arm64 docker compose up --build
-      dockerfile: Dockerfile.${ARCH:-amd64}
+      dockerfile: Dockerfile.${ARCH:-arm64}
       args:
         GPU_ARCH: ${GPU_ARCH:-default}
 

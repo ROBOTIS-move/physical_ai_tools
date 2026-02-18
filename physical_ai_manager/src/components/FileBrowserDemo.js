@@ -294,7 +294,7 @@ export default function FileBrowserDemo() {
               <p className="text-sm text-gray-600 mb-3">Using emojis for visual distinction</p>
               <FileBrowser
                 targetFileName="package.json"
-                targetFileLabel="📦 Node.js 프로젝트"
+                targetFileLabel="📦 Node.js Project"
                 className="h-64"
                 title="Node.js Projects"
               />
@@ -353,7 +353,7 @@ export default function FileBrowserDemo() {
         onClose={() => setShowModal(false)}
         onFileSelect={handleModalFileSelect}
         targetFileName="package.xml"
-        targetFileLabel="📦 ROS 패키지"
+        targetFileLabel="📦 ROS Package"
         title="Select ROS Package Directory"
         selectButtonText="Select Package"
         allowDirectorySelect={true}
@@ -364,7 +364,7 @@ export default function FileBrowserDemo() {
         onClose={() => setShowModal(false)}
         onFileSelect={handleModalFileSelect}
         targetFileName="CMakeLists.txt"
-        targetFileLabel="🔨 빌드 프로젝트"
+        targetFileLabel="🔨 Build Project"
         title="Select CMake Project Directory"
         selectButtonText="Select Project"
         allowDirectorySelect={true}

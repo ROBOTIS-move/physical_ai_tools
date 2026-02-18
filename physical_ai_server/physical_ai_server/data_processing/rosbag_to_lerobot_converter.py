@@ -1124,7 +1124,7 @@ class RosbagToLerobotConverter:
     def _find_video_files(self, bag_path: Path) -> Dict[str, Path]:
         """Find MP4 video files in the rosbag directory.
 
-        Supports ScaleAI converter output (cam_*.mp4 in root dir)
+        Supports MP4 converter output (cam_*.mp4 in root dir)
         and legacy format (videos/ subdirectory).
         """
         video_files = {}
@@ -1148,12 +1148,12 @@ class RosbagToLerobotConverter:
     def _get_camera_name_for_video(self, filename: str) -> str:
         """Get camera name from video filename.
 
-        ScaleAI converter outputs files like 'cam_left_head.mp4',
+        MP4 converter outputs files like 'cam_left_head.mp4',
         so the stem is already the camera name.
         """
         name = filename.replace("_compressed", "")
 
-        # Direct match: ScaleAI converter uses cam_name as filename
+        # Direct match: MP4 converter uses cam_name as filename
         if self._camera_mapping:
             # Check if filename matches any known camera name
             for topic, camera_name in self._camera_mapping.items():

@@ -336,11 +336,11 @@ export function useRosTopicSubscription() {
     try {
       const VOICE_DELAY = 100;
       const ACTION_VOICE_MAP = {
-        start: '취득 시작',
-        finish: '취득 종료',
-        cancel: '취소',
-        review_on: '이전 데이터 검토 필요',
-        review_off: '이전 데이터 검토 해제',
+        start: 'Recording started',
+        finish: 'Recording finished',
+        cancel: 'Cancelled',
+        review_on: 'Previous data needs review',
+        review_off: 'Previous data review cleared',
       };
 
       const ros = await rosConnectionManager.getConnection(rosbridgeUrl);

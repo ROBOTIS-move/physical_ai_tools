@@ -16,218 +16,315 @@
 #
 # Author: Dongyun Kim
 
-import os
+"""
+InferenceManager - Action chunk based async inference manager.
 
-from lerobot.policies.pretrained import PreTrainedPolicy
+Generic manager that works with any inference container (GR00T, LeRobot, etc.)
+by parameterizing the service prefix.
+
+Manages action buffer, background chunk requests via ZenohInferenceClient,
+L2-based chunk alignment, and action-to-JointTrajectory conversion.
+
+Architecture:
+    10Hz timer (physical_ai_server)
+        -> pop_action() from buffer
+        -> convert to JointTrajectory messages
+        -> communicator.publish_action()
+
+    Background thread:
+        -> /{prefix}/get_action_chunk service call
+        -> align & enqueue into buffer
+"""
+
+import collections
+import logging
+import threading
+from typing import Optional
+
 import numpy as np
-from physical_ai_server.utils.file_utils import read_json_file
-import torch
+from rclpy.node import Node
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+
+from physical_ai_server.communication.zenoh_inference_client import ZenohInferenceClient
+
+logger = logging.getLogger(__name__)
 
 
 class InferenceManager:
+    """Action chunk based async inference manager.
+
+    Works with any inference container (GR00T, LeRobot, etc.)
+    via the service_prefix parameter.
+    """
+
+    BUFFER_REFILL_THRESHOLD = 6  # Request new chunk when buffer < this
+    ACTION_FREQ_HZ = 10.0       # Joint command publish frequency
 
     def __init__(
-            self,
-            device: str = 'cuda'):
+        self,
+        node: Node,
+        joint_topic_types: dict,
+        joint_order: dict,
+        service_prefix: str = "/groot",
+    ):
+        """
+        Args:
+            node: ROS2 node for creating service clients.
+            joint_topic_types: {group_name: msg_type} from communicator.
+            joint_order: {group_name: [joint_names]} from robot config.
+                Keys are like "joint_order.leader_arm_left".
+            service_prefix: Service prefix for the inference container
+                (e.g., "/groot", "/lerobot").
+        """
+        self._node = node
+        self._joint_topic_types = joint_topic_types
+        self._joint_order = joint_order
+        self._service_prefix = service_prefix
+        self._action_joint_map: dict = {}
 
-        self.device = device
-        self.policy_type = None
-        self.policy_path = None
-        self.policy = None
+        # Action buffer (deque of 1D np arrays, each length = total action DOF)
+        self._action_buffer: collections.deque = collections.deque()
+        self._buffer_lock = threading.Lock()
 
-    def validate_policy(self, policy_path: str) -> bool:
-        result_message = ''
-        if not os.path.exists(policy_path) or not os.path.isdir(policy_path):
-            result_message = f'Policy path {policy_path} does not exist or is not a directory.'
-            return False, result_message
+        # Zenoh service client for inference container
+        self._client: Optional[ZenohInferenceClient] = None
 
-        config_path = os.path.join(policy_path, 'config.json')
-        if not os.path.exists(config_path):
-            result_message = f'config.json file does not exist in {policy_path}.'
-            return False, result_message
+        # Background inference thread
+        self._inference_thread: Optional[threading.Thread] = None
+        self._running = False
+        self._requesting = False  # Prevent duplicate requests
 
-        config = read_json_file(config_path)
-        if (config is None or
-                ('type' not in config and 'model_type' not in config)):
-            result_message = f'config.json malformed or missing fields in {policy_path}.'
-            return False, result_message
+        # Chunk alignment
+        self._last_action: Optional[np.ndarray] = None
 
-        available_policies = self.__class__.get_available_policies()
-        policy_type = config.get('type') or config.get('model_type')
-        if policy_type not in available_policies:
-            result_message = f'Policy type {policy_type} is not supported.'
-            return False, result_message
+        # Task instruction for language-conditioned policies
+        self._task_instruction: str = ""
 
-        self.policy_path = policy_path
-        self.policy_type = policy_type
-        return True, f'Policy {policy_type} is valid.'
+    def start(
+        self,
+        model_path: str,
+        embodiment_tag: str,
+        camera_topic_map: list,
+        joint_topic_map: list,
+        task_instruction: str,
+    ):
+        """Setup inference: call /{prefix}/infer + start buffer management.
 
-    def load_policy(self):
+        Args:
+            model_path: Path to the model checkpoint.
+            embodiment_tag: Embodiment tag for the model.
+            camera_topic_map: ["name:topic", ...] pairs.
+            joint_topic_map: ["modality_key:topic", ...] pairs.
+            task_instruction: Language instruction for the policy.
+        """
+        self._task_instruction = task_instruction
+
+        self._client = ZenohInferenceClient(
+            node=self._node,
+            service_prefix=self._service_prefix,
+        )
+        self._client.connect()
+
+        # Call /{prefix}/infer service (setup only — model load + subscriber start)
+        response = self._client.start_inference(
+            model_path=model_path,
+            embodiment_tag=embodiment_tag,
+            camera_topic_map=camera_topic_map,
+            joint_topic_map=joint_topic_map,
+            task_instruction=task_instruction,
+        )
+        if not response.success:
+            raise RuntimeError(
+                f"Inference setup failed ({self._service_prefix}): "
+                f"{response.message}"
+            )
+
+        # Build action_joint_map from action_keys returned by the executor
+        action_keys = response.data.get("action_keys", [])
+        self._build_action_joint_map(action_keys)
+
+        self._running = True
+        logger.info(
+            f"InferenceManager started ({self._service_prefix}), "
+            f"action_keys={action_keys}, requesting first chunk..."
+        )
+
+        # Request first chunk immediately
+        self._request_chunk_async()
+
+    def pop_action(self) -> Optional[dict]:
+        """Pop one action from buffer and convert to joint messages.
+
+        Called by 10Hz timer in physical_ai_server.
+        Returns dict of {group_name: JointTrajectory msg} or None if buffer empty.
+        """
+        with self._buffer_lock:
+            if not self._action_buffer:
+                # Buffer empty — request new chunk if not already requesting
+                if not self._requesting:
+                    self._request_chunk_async()
+                return None
+            action = self._action_buffer.popleft()
+            remaining = len(self._action_buffer)
+
+        # Request new chunk if buffer running low
+        if remaining < self.BUFFER_REFILL_THRESHOLD and not self._requesting:
+            self._request_chunk_async()
+
+        return self._action_to_joint_msgs(action)
+
+    def _request_chunk_async(self):
+        """Start background thread to fetch next action chunk."""
+        if not self._running:
+            return
+        self._requesting = True
+        self._inference_thread = threading.Thread(
+            target=self._fetch_chunk, daemon=True
+        )
+        self._inference_thread.start()
+
+    def _fetch_chunk(self):
+        """Blocking service call to get action chunk, then enqueue.
+
+        Retries up to MAX_RETRIES times with a delay if observations
+        are not yet available (e.g., during startup).
+        """
+        import time
+        MAX_RETRIES = 10
+        RETRY_DELAY = 1.0  # seconds
+
         try:
-            policy_cls = self._get_policy_class(self.policy_type)
-            self.policy = policy_cls.from_pretrained(self.policy_path)
-            return True
+            if self._client is None:
+                return
+
+            for attempt in range(MAX_RETRIES):
+                if not self._running:
+                    return
+
+                response = self._client.get_action_chunk(
+                    task_instruction=self._task_instruction
+                )
+                if response.success:
+                    chunk_data = response.data.get("action_chunk", [])
+                    chunk_size = response.data.get("chunk_size", 0)
+                    action_dim = response.data.get("action_dim", 0)
+
+                    if chunk_size > 0 and action_dim > 0 and len(chunk_data) > 0:
+                        chunk = np.array(chunk_data).reshape(chunk_size, action_dim)
+                        self._align_and_enqueue(chunk)
+                        logger.info(
+                            f"Chunk received: T={chunk_size}, D={action_dim}, "
+                            f"buffer={len(self._action_buffer)}"
+                        )
+                        return  # Success
+                    else:
+                        logger.warning(f"Empty chunk response: {response.message}")
+                        return
+                else:
+                    # Retry on transient failures (missing observations, etc.)
+                    if attempt < MAX_RETRIES - 1:
+                        logger.debug(
+                            f"Chunk request failed (attempt {attempt + 1}): "
+                            f"{response.message}, retrying in {RETRY_DELAY}s..."
+                        )
+                        time.sleep(RETRY_DELAY)
+                    else:
+                        logger.warning(
+                            f"Chunk request failed after {MAX_RETRIES} attempts: "
+                            f"{response.message}"
+                        )
         except Exception as e:
-            print(f'Failed to load policy from {self.policy_path}: {e}')
-            return False
+            logger.error(f"Error fetching action chunk: {e}")
+        finally:
+            self._requesting = False
 
-    def clear_policy(self):
-        if hasattr(self, 'policy'):
-            del self.policy
-            self.policy = None
-        else:
-            print('No policy to clear.')
+    def _align_and_enqueue(self, chunk: np.ndarray):
+        """L2 distance based chunk alignment, then add to buffer.
 
-    def get_policy_config(self):
-        return self.policy.config
+        When transitioning between chunks, finds the closest timestep
+        in the new chunk to the last executed action, and starts from
+        the next timestep to avoid discontinuities.
+        """
+        with self._buffer_lock:
+            if self._last_action is not None and len(chunk) > 1:
+                distances = np.linalg.norm(chunk - self._last_action, axis=1)
+                start_idx = int(np.argmin(distances)) + 1
+                if start_idx < len(chunk):
+                    chunk = chunk[start_idx:]
 
-    def predict(
-            self,
-            images: dict[str, np.ndarray],
-            state: list[float],
-            task_instruction: str = None) -> list:
+            for action in chunk:
+                self._action_buffer.append(action)
 
-        observation = self._preprocess(images, state, task_instruction)
-        with torch.inference_mode():
-            action = self.policy.select_action(observation)
-            action = action.squeeze(0).to('cpu').numpy()
+            if len(chunk) > 0:
+                self._last_action = chunk[-1].copy()
 
-        return action
+    def _build_action_joint_map(self, action_keys: list):
+        """Build action_joint_map from model's action_keys and joint_order.
 
-    def _preprocess(
-            self,
-            images: dict[str, np.ndarray],
-            state: list,
-            task_instruction: str = None) -> dict:
+        Maps modality keys (e.g. "arm_left") to leader group keys in
+        joint_order (e.g. "joint_order.leader_arm_left").
+        """
+        self._action_joint_map = {}
+        for key in action_keys:
+            leader_key = f"joint_order.leader_{key}"
+            if leader_key in self._joint_order:
+                self._action_joint_map[key] = leader_key
+            else:
+                logger.warning(
+                    f"No leader group found for action key '{key}' "
+                    f"(tried '{leader_key}')"
+                )
+        logger.info(f"Action joint map: {self._action_joint_map}")
 
-        observation = self._convert_images2tensors(images)
-        observation['observation.state'] = self._convert_np2tensors(state)
-        for key in observation.keys():
-            observation[key] = observation[key].to(self.device)
+    def _action_to_joint_msgs(self, action: np.ndarray) -> dict:
+        """Convert flat action array to per-group JointTrajectory messages.
 
-        if task_instruction is not None:
-            observation['task'] = [task_instruction]
+        Action is ordered by action_joint_map keys (same order as model output).
+        e.g. [arm_l_j1..j7, grip_l, arm_r_j1..j7, grip_r] (16 dims)
+        """
+        joint_msg_datas = {}
+        offset = 0
 
-        return observation
+        for modality_key, leader_group in self._action_joint_map.items():
+            joint_names = self._joint_order.get(leader_group, [])
+            n_joints = len(joint_names)
 
-    def _convert_images2tensors(
-            self,
-            images: dict[str, np.ndarray]) -> dict[str, torch.Tensor]:
+            if n_joints == 0:
+                continue
 
-        processed_images = {}
-        for key, value in images.items():
-            image = torch.from_numpy(value)
-            image = image.to(torch.float32) / 255
-            image = image.permute(2, 0, 1)
-            image = image.to(self.device, non_blocking=True)
-            image = image.unsqueeze(0)
-            processed_images['observation.images.' + key] = image
+            values = action[offset:offset + n_joints]
+            offset += n_joints
 
-        return processed_images
+            msg = JointTrajectory()
+            msg.joint_names = list(joint_names)
+            point = JointTrajectoryPoint()
+            point.positions = [float(v) for v in values]
+            msg.points = [point]
+            # Strip "joint_order." prefix to match communicator publisher keys
+            publisher_key = leader_group.removeprefix("joint_order.")
+            joint_msg_datas[publisher_key] = msg
 
-    def _convert_np2tensors(
-            self,
-            data):
-        if isinstance(data, list):
-            data = np.array(data)
-        tensor_data = torch.from_numpy(data)
-        tensor_data = tensor_data.to(torch.float32)
-        tensor_data = tensor_data.to(self.device, non_blocking=True)
-        tensor_data = tensor_data.unsqueeze(0)
+        return joint_msg_datas
 
-        return tensor_data
+    def stop(self):
+        """Stop inference and cleanup."""
+        self._running = False
 
-    def _get_policy_class(self, name: str) -> PreTrainedPolicy:
-        if name == 'tdmpc':
-            from lerobot.policies.tdmpc.modeling_tdmpc import TDMPCPolicy
+        if self._client:
+            try:
+                self._client.stop_inference()
+            except Exception as e:
+                logger.error(f"Error stopping inference: {e}")
+            try:
+                self._client.disconnect()
+            except Exception as e:
+                logger.debug(f"Error disconnecting client: {e}")
+            self._client = None
 
-            return TDMPCPolicy
-        elif name == 'diffusion':
-            from lerobot.policies.diffusion.modeling_diffusion import DiffusionPolicy
+        with self._buffer_lock:
+            self._action_buffer.clear()
 
-            return DiffusionPolicy
-        elif name == 'act':
-            from lerobot.policies.act.modeling_act import ACTPolicy
+        self._last_action = None
+        self._action_joint_map = {}
+        logger.info(f"InferenceManager stopped ({self._service_prefix})")
 
-            return ACTPolicy
-        elif name == 'vqbet':
-            from lerobot.policies.vqbet.modeling_vqbet import VQBeTPolicy
-
-            return VQBeTPolicy
-        elif name == 'pi0':
-            from lerobot.policies.pi0.modeling_pi0 import PI0Policy
-
-            return PI0Policy
-        elif name == 'pi0fast':
-            from lerobot.policies.pi0fast.modeling_pi0fast import PI0FASTPolicy
-            return PI0FASTPolicy
-        elif name == 'smolvla':
-            from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
-            return SmolVLAPolicy
-        # TODO: Uncomment when GrootN1Policy is implemented
-        # elif name == 'groot-n1':
-        #     from Isaac.groot_n1.policies.groot_n1 import GrootN1Policy
-        #     return GrootN1Policy
-        else:
-            raise NotImplementedError(
-                f'Policy with name {name} is not implemented.')
-
-    @staticmethod
-    def get_available_policies() -> list[str]:
-        return [
-            'tdmpc',
-            'diffusion',
-            'act',
-            'vqbet',
-            'pi0',
-            'pi0fast',
-            'smolvla',
-        ]
-
-    @staticmethod
-    def get_saved_policies():
-        import os
-        import json
-
-        home_dir = os.path.expanduser('~')
-        hub_dir = os.path.join(home_dir, '.cache/huggingface/hub')
-        models_folder_list = [d for d in os.listdir(hub_dir) if d.startswith('models--')]
-
-        saved_policy_path = []
-        saved_policy_type = []
-
-        for model_folder in models_folder_list:
-            model_path = os.path.join(hub_dir, model_folder)
-            snapshots_path = os.path.join(model_path, 'snapshots')
-
-            # Check if snapshots directory exists
-            if os.path.exists(snapshots_path) and os.path.isdir(snapshots_path):
-                # Get list of folders inside snapshots directory
-                snapshot_folders = [
-                    d for d in os.listdir(snapshots_path)
-                    if os.path.isdir(os.path.join(snapshots_path, d))
-                ]
-
-            # Check if pretrained_model folder exists in each snapshot folder
-            for snapshot_folder in snapshot_folders:
-                snapshot_path = os.path.join(snapshots_path, snapshot_folder)
-                pretrained_model_path = os.path.join(snapshot_path, 'pretrained_model')
-
-                # If pretrained_model folder exists, add to saved_policies
-                if os.path.exists(pretrained_model_path) and os.path.isdir(pretrained_model_path):
-                    config_path = os.path.join(pretrained_model_path, 'config.json')
-                    if os.path.exists(config_path):
-                        try:
-                            with open(config_path, 'r') as f:
-                                config = json.load(f)
-                                if 'type' in config:
-                                    saved_policy_path.append(pretrained_model_path)
-                                    saved_policy_type.append(config['type'])
-                                elif 'model_type' in config:
-                                    saved_policy_path.append(pretrained_model_path)
-                                    saved_policy_type.append(config['model_type'])
-                        except (json.JSONDecodeError, IOError):
-                            # If config.json cannot be read, store path only
-                            print('File IO Errors : ', IOError)
-
-        return saved_policy_path, saved_policy_type

@@ -1,418 +1,294 @@
-"""
-LeRobot Inference Handler - Inference logic for LeRobot.
+#!/usr/bin/env python3
+#
+# Copyright 2025 ROBOTIS CO., LTD.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Author: Dongyun Kim
 
-Separated from executor.py for clean code organization.
-Inference-specific methods: handle_infer, load_policy, setup_ros2_subscribers,
-inference_loop, predict_from_observations, publish_action.
+"""
+LeRobot Inference - Inference logic for LeRobot.
+
+Module-level functions with two inference modes:
+  1. Service response: get_action_chunk() returns dict -> physical_ai_server dispatches
+  2. Direct publish: execute_action_directly() -> RobotClient publishes to robot
+
+Both modes share the same load_policy() / cleanup_inference() lifecycle.
 """
 from __future__ import annotations
 
 import json
-import threading
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 import numpy as np
 import torch
 
-from zenoh_ros2_sdk import (
-    ROS2Subscriber,
-    get_logger,
-)
+from zenoh_ros2_sdk import ROS2Subscriber
 
-if TYPE_CHECKING:
-    from executor import LeRobotExecutor
+import logging
+logger = logging.getLogger("lerobot_inference")
 
-logger = get_logger("lerobot_inference")
+# Module-level inference state
+_loaded_model: Optional[Any] = None
+_inference_config: Optional[dict] = None
+_ros2_subscribers: list = []
+_latest_observations: dict = {
+    "images": {},
+    "joint_state": None,
+    "timestamp": None,
+}
 
 
-class InferenceHandler:
-    """Handles LeRobot inference requests.
+def load_policy(server, request) -> dict:
+    """Load LeRobot policy and setup subscribers. Returns dict for service response."""
+    global _loaded_model, _inference_config, _latest_observations
 
-    Takes a reference to the parent executor to access shared state
-    (state machine, config, services).
-    """
+    model_path = getattr(request, "model_path", "")
+    if not model_path:
+        return {"success": False, "message": "Missing required parameter: model_path"}
 
-    def __init__(self, executor: LeRobotExecutor):
-        self._executor = executor
+    try:
+        logger.info(f"Loading model from: {model_path}")
+        _loaded_model = _load_lerobot_policy(model_path)
 
-        # Inference-specific state
-        self._loaded_model: Optional[Any] = None
-        self._inference_running = False
-        self._inference_config = None
-        self._inference_thread: Optional[threading.Thread] = None
-        self._ros2_subscribers: list = []
-        self._latest_observations: dict = {
+        if _loaded_model is None:
+            return {"success": False, "message": "Failed to load model"}
+
+        # Parse request parameters
+        camera_topics = getattr(request, "camera_topics", None)
+        if not camera_topics:
+            camera_topics = getattr(request, "image_topics", [])
+        joint_topic = getattr(request, "joint_topic", None)
+        if not joint_topic:
+            joint_topic = getattr(request, "joint_state_topic", "")
+
+        _inference_config = {
+            "model_path": model_path,
+            "camera_topics": camera_topics,
+            "joint_topic": joint_topic,
+        }
+
+        _latest_observations = {
             "images": {},
             "joint_state": None,
             "timestamp": None,
         }
 
-    def handle_infer(self, request: Any) -> Any:
-        """Handle inference start request."""
-        from executor import ExecutorState, InferenceConfig
+        if camera_topics or joint_topic:
+            _setup_ros2_subscribers(server, camera_topics, joint_topic)
 
-        executor = self._executor
-        logger.info(f"Received infer request: model_path={request.model_path}")
+        return {"success": True, "message": "LeRobot inference started", "action_keys": []}
 
-        if executor.state in (ExecutorState.TRAINING, ExecutorState.INFERENCE):
-            return executor._create_response(
-                executor._infer_service,
-                success=False,
-                message=f"Already {executor.state.value}. Stop current task first.",
-            )
+    except Exception as e:
+        logger.error(f"Failed to start inference: {e}", exc_info=True)
+        return {"success": False, "message": f"Failed to start inference: {e}"}
 
-        model_path = getattr(request, "model_path", "")
-        if not model_path:
-            return executor._create_response(
-                executor._infer_service,
-                success=False,
-                message="Missing required parameter: model_path",
-            )
 
-        try:
-            logger.info(f"Loading model from: {model_path}")
-            self._loaded_model = self._load_policy(model_path)
+def get_action_chunk(server, request) -> dict:
+    """Run inference and return action chunk as dict (service response mode)."""
+    if _loaded_model is None:
+        return {"success": False, "message": "Not in inference mode"}
 
-            if self._loaded_model is None:
-                return executor._create_response(
-                    executor._infer_service,
-                    success=False,
-                    message="Failed to load model",
-                )
+    try:
+        obs = _latest_observations
 
-            inference_freq = getattr(request, "inference_freq", 30.0)
-            # Support both field naming conventions
-            camera_topics = getattr(request, "camera_topics", None)
-            if not camera_topics:
-                camera_topics = getattr(request, "image_topics", [])
-            joint_topic = getattr(request, "joint_topic", None)
-            if not joint_topic:
-                joint_topic = getattr(request, "joint_state_topic", "")
+        if obs["timestamp"] is None or time.time() - obs["timestamp"] > 2.0:
+            return {"success": False, "message": "No recent observations"}
 
-            self._inference_config = InferenceConfig(
-                model_path=model_path,
-                inference_freq=inference_freq,
-                camera_topics=camera_topics,
-                joint_topic=joint_topic,
-            )
+        # Build observation tensor
+        observation = {}
 
-            self._latest_observations = {
-                "images": {},
-                "joint_state": None,
-                "timestamp": None,
-            }
+        for cam_name, image in obs["images"].items():
+            image_tensor = _preprocess_image(image)
+            observation[f"observation.images.{cam_name}"] = image_tensor
 
-            if camera_topics or joint_topic:
-                self._setup_ros2_subscribers(camera_topics, joint_topic)
+        if obs["joint_state"] is not None:
+            joint_state = obs["joint_state"]
+            observation["observation.state"] = torch.tensor(
+                joint_state["positions"], dtype=torch.float32
+            ).unsqueeze(0)
 
-            self._inference_running = True
-            executor.state = ExecutorState.INFERENCE
+        with torch.no_grad():
+            batch = {}
+            for key, value in observation.items():
+                if isinstance(value, torch.Tensor):
+                    batch[key] = value.to(_loaded_model.device)
 
-            self._inference_thread = threading.Thread(
-                target=self._inference_loop,
-                args=(inference_freq,),
-                daemon=True,
-            )
-            self._inference_thread.start()
+            action_tensor = _loaded_model.select_action(batch)
 
-            return executor._create_response(
-                executor._infer_service,
-                success=True,
-                message="Inference started",
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to start inference: {e}", exc_info=True)
-            return executor._create_response(
-                executor._infer_service,
-                success=False,
-                message=f"Failed to start inference: {e}",
-            )
-
-    def _load_policy(self, model_path: str) -> Optional[Any]:
-        """Load a LeRobot policy from checkpoint."""
-        try:
-            from lerobot.policies.factory import get_policy_class
-
-            config_path = Path(model_path) / "config.json"
-            if config_path.exists():
-                with open(config_path) as f:
-                    config = json.load(f)
-                policy_type = config.get("type", "act")
+            if isinstance(action_tensor, torch.Tensor):
+                action_array = action_tensor.cpu().numpy()
             else:
-                policy_type = "act"
+                action_array = np.array(action_tensor)
 
-            logger.info(f"Loading {policy_type} policy from {model_path}")
+        # action_array shape: (T, D) or (D,)
+        if len(action_array.shape) == 1:
+            action_array = action_array[np.newaxis, :]  # (1, D)
 
-            PolicyClass = get_policy_class(policy_type)
-            policy = PolicyClass.from_pretrained(model_path)
+        T, D = action_array.shape
+        logger.info(f"Action chunk generated: T={T}, D={D}")
 
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            policy = policy.to(device)
-            policy.eval()
+        return {
+            "success": True,
+            "action_chunk": action_array.flatten().astype(np.float64).tolist(),
+            "chunk_size": T,
+            "action_dim": D,
+        }
 
-            logger.info(f"Model loaded successfully on {device}")
-            return policy
+    except Exception as e:
+        logger.error(f"Inference failed: {e}", exc_info=True)
+        return {"success": False, "message": f"Inference failed: {e}"}
 
-        except Exception as e:
-            logger.error(f"Failed to load policy: {e}", exc_info=True)
-            return None
 
-    def _setup_ros2_subscribers(
-        self, camera_topics: list, joint_topic: str
-    ) -> None:
-        """Setup ROS2 topic subscribers for sensor data."""
+def cleanup_inference() -> None:
+    """Cleanup inference resources."""
+    global _loaded_model, _inference_config
+
+    for sub in _ros2_subscribers:
         try:
-            config = self._executor.config
-            common_kwargs = {
-                "node_name": config.node_name,
-                "namespace": config.namespace,
-                "domain_id": config.domain_id,
-                "router_ip": config.router_ip,
-                "router_port": config.router_port,
-            }
+            sub.close()
+        except Exception:
+            pass
+    _ros2_subscribers.clear()
 
-            # Subscribe to camera topics
-            for cam_config in camera_topics:
-                topic = (
-                    cam_config.get("topic")
-                    if isinstance(cam_config, dict)
-                    else cam_config
-                )
-                name = (
-                    cam_config.get("name", topic.split("/")[-2])
-                    if isinstance(cam_config, dict)
-                    else topic.split("/")[-2]
-                )
+    if _loaded_model is not None:
+        del _loaded_model
+        _loaded_model = None
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
-                if not topic:
-                    continue
+    _inference_config = None
 
-                logger.info(f"Subscribing to camera topic: {topic} (name: {name})")
 
-                def make_image_callback(cam_name):
-                    def callback(msg):
-                        self._on_image_received(cam_name, msg)
+# ------------------------------------------------------------------ #
+# Internal helpers
+# ------------------------------------------------------------------ #
 
-                    return callback
+def _load_lerobot_policy(model_path: str):
+    """Load a LeRobot policy from checkpoint."""
+    try:
+        from lerobot.policies.factory import get_policy_class
 
-                sub = ROS2Subscriber(
-                    topic=topic,
-                    msg_type="sensor_msgs/msg/CompressedImage",
-                    callback=make_image_callback(name),
-                    **common_kwargs,
-                )
-                self._ros2_subscribers.append(sub)
+        config_path = Path(model_path) / "config.json"
+        if config_path.exists():
+            with open(config_path) as f:
+                config = json.load(f)
+            policy_type = config.get("type", "act")
+        else:
+            policy_type = "act"
 
-            # Subscribe to joint state topic
-            if joint_topic:
-                logger.info(f"Subscribing to joint state topic: {joint_topic}")
-                sub = ROS2Subscriber(
-                    topic=joint_topic,
-                    msg_type="sensor_msgs/msg/JointState",
-                    callback=self._on_joint_state_received,
-                    **common_kwargs,
-                )
-                self._ros2_subscribers.append(sub)
+        logger.info(f"Loading {policy_type} policy from {model_path}")
 
-            logger.info(f"Setup {len(self._ros2_subscribers)} ROS2 subscribers")
+        PolicyClass = get_policy_class(policy_type)
+        policy = PolicyClass.from_pretrained(model_path)
 
-        except Exception as e:
-            logger.error(f"Failed to setup ROS2 subscribers: {e}", exc_info=True)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        policy = policy.to(device)
+        policy.eval()
 
-    def _on_image_received(self, camera_name: str, msg: Any) -> None:
-        """Callback for camera image received."""
-        try:
-            import cv2
+        logger.info(f"Model loaded successfully on {device}")
+        return policy
 
-            image_data = np.frombuffer(bytes(msg.data), dtype=np.uint8)
-            image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+    except Exception as e:
+        logger.error(f"Failed to load policy: {e}", exc_info=True)
+        return None
 
-            if image is not None:
-                self._latest_observations["images"][camera_name] = image
-                self._latest_observations["timestamp"] = time.time()
-        except Exception as e:
-            logger.debug(f"Error decoding image: {e}")
 
-    def _on_joint_state_received(self, msg: Any) -> None:
-        """Callback for joint state received."""
-        try:
-            joint_data = {
-                "names": list(msg.name),
-                "positions": list(msg.position),
-                "velocities": list(msg.velocity) if msg.velocity else [],
-                "efforts": list(msg.effort) if msg.effort else [],
-            }
-            self._latest_observations["joint_state"] = joint_data
-            self._latest_observations["timestamp"] = time.time()
-        except Exception as e:
-            logger.debug(f"Error processing joint state: {e}")
+def _setup_ros2_subscribers(server, camera_topics: list, joint_topic: str) -> None:
+    """Setup ROS2 topic subscribers for sensor data."""
+    global _ros2_subscribers
 
-    def _inference_loop(self, freq_hz: float) -> None:
-        """Real-time inference loop."""
-        from executor import ExecutorState
+    common_kwargs = {
+        "router_ip": server._router_ip,
+        "router_port": server._router_port,
+    }
+    if server._domain_id is not None:
+        common_kwargs["domain_id"] = server._domain_id
+    common_kwargs["node_name"] = server._node_name
+    common_kwargs["namespace"] = server._namespace
 
-        logger.info(f"Starting inference loop at {freq_hz} Hz")
+    for cam_config in camera_topics:
+        topic = cam_config.get("topic") if isinstance(cam_config, dict) else cam_config
+        name = cam_config.get("name", topic.split("/")[-2]) if isinstance(cam_config, dict) else topic.split("/")[-2]
 
-        interval = 1.0 / freq_hz
-        action_count = 0
-        use_real_observations = len(self._ros2_subscribers) > 0
+        if not topic:
+            continue
 
-        logger.info(
-            f"Using {'real ROS2 observations' if use_real_observations else 'dummy observations'}"
+        def make_image_callback(cam_name):
+            def callback(msg):
+                _on_image_received(cam_name, msg)
+            return callback
+
+        sub = ROS2Subscriber(
+            topic=topic,
+            msg_type="sensor_msgs/msg/CompressedImage",
+            callback=make_image_callback(name),
+            **common_kwargs,
         )
+        _ros2_subscribers.append(sub)
+        logger.info(f"Camera subscribed: {name} -> {topic}")
 
-        while self._inference_running:
-            loop_start = time.time()
-
-            try:
-                if self._loaded_model is not None:
-                    if use_real_observations:
-                        action = self._predict_from_observations()
-                    else:
-                        action = self._predict_dummy_action()
-
-                    if action is not None:
-                        action_count += 1
-                        self._publish_action(action, action_count)
-
-            except Exception as e:
-                logger.error(f"Inference loop error: {e}")
-
-            elapsed = time.time() - loop_start
-            sleep_time = max(0, interval - elapsed)
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-
-        self._cleanup_ros2_subscribers()
-        logger.info(
-            f"Inference loop stopped. Total actions published: {action_count}"
+    if joint_topic:
+        sub = ROS2Subscriber(
+            topic=joint_topic,
+            msg_type="sensor_msgs/msg/JointState",
+            callback=_on_joint_state_received,
+            **common_kwargs,
         )
-        self._executor.state = ExecutorState.IDLE
+        _ros2_subscribers.append(sub)
+        logger.info(f"Joint subscribed: {joint_topic}")
 
-    def _predict_from_observations(self) -> Optional[dict[str, Any]]:
-        """Predict action from real observation data."""
-        try:
-            obs = self._latest_observations
+    logger.info(f"Setup {len(_ros2_subscribers)} ROS2 subscribers")
 
-            if obs["timestamp"] is None:
-                return None
 
-            if time.time() - obs["timestamp"] > 1.0:
-                logger.debug("Observations too old, skipping inference")
-                return None
-
-            observation = {}
-
-            for cam_name, image in obs["images"].items():
-                image_tensor = self._preprocess_image(image)
-                observation[f"observation.images.{cam_name}"] = image_tensor
-
-            if obs["joint_state"] is not None:
-                joint_state = obs["joint_state"]
-                observation["observation.state"] = torch.tensor(
-                    joint_state["positions"], dtype=torch.float32
-                ).unsqueeze(0)
-
-            with torch.no_grad():
-                batch = {}
-                for key, value in observation.items():
-                    if isinstance(value, torch.Tensor):
-                        batch[key] = value.to(self._loaded_model.device)
-
-                action_tensor = self._loaded_model.select_action(batch)
-
-                if isinstance(action_tensor, torch.Tensor):
-                    action_values = action_tensor.cpu().numpy().flatten().tolist()
-                else:
-                    action_values = list(action_tensor)
-
-            action = {
-                "joint_positions": (
-                    action_values[:-1]
-                    if len(action_values) > 1
-                    else action_values
-                ),
-                "gripper": (
-                    action_values[-1] if len(action_values) > 1 else 0.0
-                ),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-
-            return action
-
-        except Exception as e:
-            logger.debug(f"Error in real inference: {e}")
-            return None
-
-    @staticmethod
-    def _preprocess_image(image: np.ndarray) -> torch.Tensor:
-        """Preprocess image for model input."""
+def _on_image_received(camera_name: str, msg) -> None:
+    """Callback for camera image received."""
+    try:
         import cv2
+        image_data = np.frombuffer(bytes(msg.data), dtype=np.uint8)
+        image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
 
-        target_size = (224, 224)
-        image = cv2.resize(image, target_size)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = image.astype(np.float32) / 255.0
-        image = np.transpose(image, (2, 0, 1))
-        tensor = torch.from_numpy(image).unsqueeze(0)
-        return tensor
+        if image is not None:
+            _latest_observations["images"][camera_name] = image
+            _latest_observations["timestamp"] = time.time()
+    except Exception as e:
+        logger.debug(f"Error decoding image: {e}")
 
-    def _predict_dummy_action(self) -> Optional[dict[str, Any]]:
-        """Generate dummy action for testing."""
-        try:
-            action = {
-                "joint_positions": np.random.randn(6).tolist(),
-                "gripper": float(np.random.rand()),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            return action
-        except Exception as e:
-            logger.error(f"Error generating action: {e}")
-            return None
 
-    def _publish_action(self, action: dict[str, Any], seq: int) -> None:
-        """Publish predicted action."""
-        executor = self._executor
-        if executor._action_publisher is None:
-            return
+def _on_joint_state_received(msg) -> None:
+    """Callback for joint state received."""
+    try:
+        joint_data = {
+            "names": list(msg.name),
+            "positions": list(msg.position),
+            "velocities": list(msg.velocity) if msg.velocity else [],
+            "efforts": list(msg.effort) if msg.effort else [],
+        }
+        _latest_observations["joint_state"] = joint_data
+        _latest_observations["timestamp"] = time.time()
+    except Exception as e:
+        logger.debug(f"Error processing joint state: {e}")
 
-        try:
-            joint_positions = action.get("joint_positions", [])
-            if isinstance(joint_positions, list):
-                joint_positions = np.array(joint_positions, dtype=np.float64)
 
-            executor._action_publisher.publish(
-                joint_positions=joint_positions,
-                gripper=float(action.get("gripper", 0.0)),
-                timestamp=float(time.time()),
-            )
-        except Exception as e:
-            logger.error(f"Failed to publish action: {e}")
-
-    def _cleanup_ros2_subscribers(self) -> None:
-        """Cleanup ROS2 subscribers."""
-        for sub in self._ros2_subscribers:
-            try:
-                sub.close()
-            except Exception:
-                pass
-        self._ros2_subscribers = []
-
-    def cleanup(self) -> None:
-        """Cleanup inference resources."""
-        self._inference_running = False
-
-        if self._inference_thread and self._inference_thread.is_alive():
-            self._inference_thread.join(timeout=5.0)
-
-        self._cleanup_ros2_subscribers()
-
-        if self._loaded_model is not None:
-            del self._loaded_model
-            self._loaded_model = None
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+def _preprocess_image(image: np.ndarray) -> torch.Tensor:
+    """Preprocess image for model input."""
+    import cv2
+    target_size = (224, 224)
+    image = cv2.resize(image, target_size)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = image.astype(np.float32) / 255.0
+    image = np.transpose(image, (2, 0, 1))
+    tensor = torch.from_numpy(image).unsqueeze(0)
+    return tensor

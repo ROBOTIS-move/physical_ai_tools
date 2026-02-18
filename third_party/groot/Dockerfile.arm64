@@ -86,7 +86,7 @@ RUN uv pip install --no-cache \
     imageio \
     h5py \
     boto3 \
-    "transformers[torch]" \
+    "transformers[torch]==4.51.3" \
     timm \
     peft \
     diffusers \
@@ -109,7 +109,8 @@ RUN uv pip install --no-cache \
     msgpack \
     msgpack-numpy \
     pandas \
-    termcolor
+    termcolor \
+    av
 
 # Build decord from source for ARM64 (no pre-built wheel available)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -122,10 +123,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && cd ../python && pip install . \
     && rm -rf /tmp/decord
 
-# Note: flash-attn requires CUDA compilation on ARM64
-# This may take a long time or fail on Jetson due to memory constraints
-# Uncomment if needed and sufficient memory is available:
-# RUN uv pip install flash-attn --no-build-isolation
+# Build flash-attn from source (required by Eagle backbone for inference/training)
+# Pre-built wheels from Jetson AI Lab have ABI mismatch with PyTorch 2.9+.
+# Default setup.py targets SM 80/90 but Orin is SM 8.7 → "no kernel image" at runtime.
+# We download source, patch setup.py to add SM 8.7, and build with only SM 8.7 target.
+# MAX_JOBS=4 to avoid OOM on Jetson (build takes ~100 min on Orin)
+RUN uv pip download flash-attn --no-binary :all: --no-deps -d /tmp/flash-attn-src \
+    && mkdir -p /tmp/flash-attn-build \
+    && tar xzf /tmp/flash-attn-src/flash_attn-*.tar.gz -C /tmp/flash-attn-build --strip-components=1 \
+    && cd /tmp/flash-attn-build \
+    && sed -i 's/return os.getenv("FLASH_ATTN_CUDA_ARCHS", "80;90;100;120")/return os.getenv("FLASH_ATTN_CUDA_ARCHS", "87")/' setup.py \
+    && sed -i 's/if "80" in cuda_archs():/if set(cuda_archs()) \& {"80", "87"}:/' setup.py \
+    && sed -i '/arch=compute_80,code=sm_80/a\\        cc_flag.append("-gencode")\n        cc_flag.append("arch=compute_87,code=sm_87")' setup.py \
+    && MAX_JOBS=4 uv pip install . --no-build-isolation \
+    && rm -rf /tmp/flash-attn-src /tmp/flash-attn-build
+
+# Install triton (required by flash_attn rotary ops)
+RUN uv pip install triton --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
 
 # Note: deepspeed has limited ARM64 support
 # Training may need to use alternative optimizers

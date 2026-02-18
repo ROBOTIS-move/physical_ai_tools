@@ -20,7 +20,7 @@
 Chained Dataset Conversion Worker.
 
 Background process that converts rosbag2 episodes through a 3-stage pipeline:
-  Stage 1: rosbag → rosbag + MP4 (ScaleAIConverter)
+  Stage 1: rosbag → rosbag + MP4 (RosbagToMp4Converter)
   Stage 2: rosbag + MP4 → LeRobot v2.1 (RosbagToLerobotConverter)
   Stage 3: LeRobot v2.1 → LeRobot v3.0 (RosbagToLerobotV30Converter)
 
@@ -52,11 +52,11 @@ from typing import Dict, List, Optional
 def _convert_single_episode_worker(episode_dir, output_dir, fps, use_hw, enable_smoothing):
     """Top-level function for ProcessPoolExecutor (must be picklable).
 
-    Creates a fresh ScaleAIConverter instance in each worker process
+    Creates a fresh RosbagToMp4Converter instance in each worker process
     and converts a single episode to MP4 format.
     """
-    from physical_ai_server.data_processing.convert_rosbag2mp4 import ScaleAIConverter
-    converter = ScaleAIConverter(
+    from physical_ai_server.data_processing.convert_rosbag2mp4 import RosbagToMp4Converter
+    converter = RosbagToMp4Converter(
         fps=fps,
         use_hardware_encoding=use_hw,
         enable_timestamp_smoothing=enable_smoothing,
@@ -527,7 +527,7 @@ class Mp4ConversionWorker:
             progress_end = 35.0 if is_merge_mode else 33.0
 
             # Parallel episode conversion using ProcessPoolExecutor
-            # Each worker creates its own ScaleAIConverter (stateless, picklable args)
+            # Each worker creates its own RosbagToMp4Converter (stateless, picklable args)
             # max_workers=min(4, total_episodes): 2 episodes × 4 cameras = 8 NVENC sessions
             from concurrent.futures import ProcessPoolExecutor, as_completed
 

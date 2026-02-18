@@ -606,7 +606,7 @@ class RosbagVisualizer:
         expected_joint_hz: float = 100.0
     ) -> Dict:
         """
-        Generate a validation report for Scale AI / ROBOTIS format.
+        Generate a validation report for ROBOTIS format.
 
         Args:
             expected_camera_hz: Expected camera frame rate.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Physical AI Tools는 4개의 Docker 컨테이너로 구성됩니다:
+Physical AI Tools consists of 4 Docker containers:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -29,43 +29,44 @@ Physical AI Tools는 4개의 Docker 컨테이너로 구성됩니다:
 │  │  Zenoh SDK      │                                                       │
 │  └─────────────────┘                                                       │
 │                                                                             │
-│  ※ lerobot과 groot는 서로 직접 통신하지 않음 (physical_ai_server 경유)      │
+│  ※ lerobot and groot do not communicate directly (routed via physical_ai_server) │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 통신 구조 설명
-- **physical_ai_manager ↔ physical_ai_server**: rosbridge를 통한 WebSocket/HTTP 통신
+### Communication Architecture Description
+- **physical_ai_manager ↔ physical_ai_server**: WebSocket/HTTP communication via rosbridge
 - **physical_ai_server ↔ lerobot**: Zenoh P2P + zenoh_ros2_sdk
 - **physical_ai_server ↔ groot**: Zenoh P2P + zenoh_ros2_sdk
-- **lerobot ↔ groot**: 직접 통신 없음 (필요 시 physical_ai_server 경유)
+- **lerobot ↔ groot**: No direct communication (routed via physical_ai_server if needed)
 
 ---
 
-## Zenoh 통신 모드 설명
+## Zenoh Communication Mode Description
 
-### Peer Mode (현재 사용)
-- 모든 노드가 직접 P2P 통신
-- Multicast scouting (224.0.0.224:7446)으로 자동 발견
-- **장점**: 라우터 없이 직접 통신, 낮은 지연시간 (Client 대비 70% 낮음)
-- **단점**: 각 노드가 여러 세션 유지 필요
+### Peer Mode (Currently Used)
+- All nodes communicate directly via P2P
+- Automatic discovery via multicast scouting (224.0.0.224:7446)
+- **Pros**: Direct communication without a router, low latency (70% lower compared to Client mode)
+- **Cons**: Each node must maintain multiple sessions
 
 ### Client Mode
-- 단일 라우터에 연결하여 통신
-- 리소스 제약 디바이스에 적합
-- **장점**: 단순한 구조, 적은 메모리 사용
-- **단점**: 라우터 의존성, 상대적으로 높은 지연시간
+- Communicates by connecting to a single router
+- Suitable for resource-constrained devices
+- **Pros**: Simple structure, low memory usage
+- **Cons**: Router dependency, relatively higher latency
 
 ### Router Mode
-- 클라이언트들 간 데이터 라우팅
-- 서로 다른 네트워크 연결 시 사용
+- Routes data between clients
+- Used when connecting different networks
 
-**현재 설정**: Client Mode (외부 Router 연결)
+**Current Configuration**: Client Mode (connected to an external Router)
 
 ```
 ┌─────────────────┐
-│  외부 관리      │
+│  Externally      │
+│  Managed         │
 │  Zenoh Router   │◄──── ros2 run rmw_zenoh_cpp rmw_zenohd
-│  (rmw_zenohd)   │      (다른 Docker 컨테이너에서 실행)
+│  (rmw_zenohd)   │      (runs in a different Docker container)
 └────────┬────────┘
          │
     ┌────┴────┬─────────────┐
@@ -77,9 +78,9 @@ Physical AI Tools는 4개의 Docker 컨테이너로 구성됩니다:
 └───────┘ └───────┘ └───────────┘
 ```
 
-- Zenoh Router는 **외부에서 관리** (우리 컨테이너에서 실행 안 함)
-- 모든 컨테이너는 Client로 Router에 연결
-- Shared Memory 활성화: `transport/shared_memory/enabled=true`
+- Zenoh Router is **managed externally** (not run in our containers)
+- All containers connect to the Router as Clients
+- Shared Memory enabled: `transport/shared_memory/enabled=true`
 
 Sources:
 - [Zenoh Deployment Guide](https://zenoh.io/docs/getting-started/deployment/)
@@ -89,33 +90,33 @@ Sources:
 
 ## 1. physical_ai_manager (React UI)
 
-### 역할
-- 웹 기반 사용자 인터페이스
-- 데이터 수집, 학습, 추론 명령 전송
-- rosbridge를 통해 physical_ai_server와 통신
+### Role
+- Web-based user interface
+- Sends data collection, training, and inference commands
+- Communicates with physical_ai_server via rosbridge
 
 ### Base Image
 | Architecture | Base Image |
 |--------------|------------|
 | All | `node:22` (build) → `nginx:1.27.5-alpine` (runtime) |
 
-### 특징
-- Multi-stage build로 경량화
-- **포트: 80** (표준 HTTP 포트)
-- 아키텍처 독립적
+### Features
+- Lightweight via multi-stage build
+- **Port: 80** (standard HTTP port)
+- Architecture-independent
 
 ### TODO
-- [ ] 포트를 8080에서 80으로 변경
+- [ ] Change port from 8080 to 80
 
 ---
 
 ## 2. physical_ai_server (ROS2 + Zenoh)
 
-### 역할
-- ROS2 기반 로봇 제어
-- Zenoh (rmw_zenoh_cpp)를 통한 lerobot/groot과 통신
-- 데이터 수집 (rosbag 녹화)
-- 하드웨어 인터페이스
+### Role
+- ROS2-based robot control
+- Communication with lerobot/groot via Zenoh (rmw_zenoh_cpp)
+- Data collection (rosbag recording)
+- Hardware interface
 
 ### Base Image
 | Architecture | Base Image |
@@ -123,210 +124,210 @@ Sources:
 | AMD64 | `robotis/ros:jazzy-ros-base-torch2.7.0-cuda12.8.0` |
 | ARM64 (Jetson) | `robotis/ros:jazzy-ros-base-torch2.7.0-cuda12.8.0` |
 
-### 현재 빌드 방식의 문제점
+### Issues with the Current Build Approach
 
-현재 Dockerfile은 GitHub에서 clone하는 방식:
+The current Dockerfile clones from GitHub:
 ```dockerfile
 RUN git clone -b feature-1.0.0 https://github.com/ROBOTIS-GIT/physical_ai_tools.git --recursive
 ```
 
-**문제점**:
-1. 로컬 변경사항이 반영 안 됨
-2. 매번 전체 clone 필요
-3. 네트워크 의존성
+**Issues**:
+1. Local changes are not reflected
+2. Full clone required every time
+3. Network dependency
 
-### 개선 방안: Volume Mount 방식
+### Improvement: Volume Mount Approach
 
-docker-compose.yml에서 이미 볼륨 마운트가 되어 있음:
+Volume mounts are already configured in docker-compose.yml:
 ```yaml
 volumes:
   - ../:/root/ros2_ws/src/physical_ai_tools/
 ```
 
-**제안**: Dockerfile에서 clone 제거하고 볼륨 마운트된 코드 사용
-- 개발 중에는 볼륨 마운트로 실시간 반영
-- 배포 시에는 COPY 또는 이미지 빌드
+**Proposal**: Remove clone from Dockerfile and use volume-mounted code
+- During development, use volume mounts for real-time reflection of changes
+- For deployment, use COPY or image builds
 
-### LeRobot 제거
+### LeRobot Removal
 
-현재 physical_ai_server에 LeRobot이 설치되어 있지만, 별도 lerobot 컨테이너가 있으므로 제거 필요:
+LeRobot is currently installed in physical_ai_server, but since a separate lerobot container exists, it should be removed:
 ```dockerfile
-# 제거 대상
+# To be removed
 RUN cd ${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot && pip install -e .
 RUN pip install -e ".[smolvla]"
 ```
 
-### 주요 구성요소 (정리 후)
-- **ROS2 Jazzy**: 로봇 미들웨어
-- **rmw_zenoh_cpp**: Zenoh 기반 ROS2 통신
-- **PyTorch + CUDA**: GPU 가속 (필요 시)
+### Key Components (After Cleanup)
+- **ROS2 Jazzy**: Robot middleware
+- **rmw_zenoh_cpp**: Zenoh-based ROS2 communication
+- **PyTorch + CUDA**: GPU acceleration (if needed)
 
 ---
 
 ## 3. lerobot (LeRobot Server)
 
-### 역할
-- HuggingFace LeRobot 프레임워크 실행
-- 학습 (ACT, Diffusion Policy, SmolVLA 등)
-- 추론 (정책 실행)
-- Zenoh SDK를 통해 physical_ai_server와 통신
+### Role
+- Runs the HuggingFace LeRobot framework
+- Training (ACT, Diffusion Policy, SmolVLA, etc.)
+- Inference (policy execution)
+- Communicates with physical_ai_server via Zenoh SDK
 
 ### Base Image
 
-| Architecture | Base Image | 검증 상태 |
-|--------------|------------|-----------|
-| AMD64 | `nvcr.io/nvidia/pytorch:24.12-py3` | ✅ 사용 가능 |
-| ARM64 (Jetson) | `nvcr.io/nvidia/l4t-jetpack:r36.4.0` | ✅ 사용 가능 (JetPack 6.x) |
+| Architecture | Base Image | Verification Status |
+|--------------|------------|---------------------|
+| AMD64 | `nvcr.io/nvidia/pytorch:24.12-py3` | ✅ Available |
+| ARM64 (Jetson) | `nvcr.io/nvidia/l4t-jetpack:r36.4.0` | ✅ Available (JetPack 6.x) |
 
-### Jetson PyTorch 설치
+### Jetson PyTorch Installation
 ```dockerfile
-# Jetson AI Lab에서 제공하는 CUDA 지원 PyTorch
+# CUDA-enabled PyTorch provided by Jetson AI Lab
 RUN uv pip install torch torchvision \
     --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
 ```
-- JetPack 6.x + CUDA 12.6 호환
-- Jetson Orin 시리즈 지원
+- Compatible with JetPack 6.x + CUDA 12.6
+- Supports Jetson Orin series
 
-### LeRobot Optional Dependencies 분석
+### LeRobot Optional Dependencies Analysis
 
-현재 설치되는 것들:
+Currently installed:
 ```
-.[dynamixel,gamepad,hopejr,lekiwi,reachy2,kinematics]  # 로봇/하드웨어
-.[smolvla,xvla,hilserl,async,dev,test]                  # 정책/개발
-.[video_benchmark,aloha,pusht,phone,libero,metaworld,sarm,peft]  # 시뮬/기타
+.[dynamixel,gamepad,hopejr,lekiwi,reachy2,kinematics]  # Robot/Hardware
+.[smolvla,xvla,hilserl,async,dev,test]                  # Policy/Development
+.[video_benchmark,aloha,pusht,phone,libero,metaworld,sarm,peft]  # Simulation/Other
 ```
 
-| Extra | 용도 | 학습/추론에 필요? |
-|-------|------|------------------|
-| `dynamixel` | Dynamixel 모터 제어 | ❌ (서버에서 제어) |
-| `gamepad` | 게임패드 입력 | ❌ |
-| `hopejr` | HopeJr 로봇 | ❌ |
-| `lekiwi` | LeKiwi 로봇 | ❌ |
-| `reachy2` | Reachy2 로봇 | ❌ |
-| `kinematics` | 역기구학 | ❌ |
-| `smolvla` | SmolVLA 정책 | ✅ |
-| `xvla` | X-VLA 정책 | ✅ |
-| `hilserl` | HIL-SERL 정책 | ✅ |
-| `async` | 비동기 추론 | ✅ |
-| `dev` | 개발 도구 | ❌ |
-| `test` | 테스트 | ❌ |
-| `aloha` | ALOHA 시뮬 | ❌ |
-| `pusht` | PushT 시뮬 | ❌ |
-| `libero` | Libero 시뮬 | ❌ |
-| `metaworld` | MetaWorld 시뮬 | ❌ |
+| Extra | Purpose | Required for Training/Inference? |
+|-------|---------|----------------------------------|
+| `dynamixel` | Dynamixel motor control | ❌ (Controlled by server) |
+| `gamepad` | Gamepad input | ❌ |
+| `hopejr` | HopeJr robot | ❌ |
+| `lekiwi` | LeKiwi robot | ❌ |
+| `reachy2` | Reachy2 robot | ❌ |
+| `kinematics` | Inverse kinematics | ❌ |
+| `smolvla` | SmolVLA policy | ✅ |
+| `xvla` | X-VLA policy | ✅ |
+| `hilserl` | HIL-SERL policy | ✅ |
+| `async` | Asynchronous inference | ✅ |
+| `dev` | Development tools | ❌ |
+| `test` | Testing | ❌ |
+| `aloha` | ALOHA simulation | ❌ |
+| `pusht` | PushT simulation | ❌ |
+| `libero` | Libero simulation | ❌ |
+| `metaworld` | MetaWorld simulation | ❌ |
 | `peft` | Parameter-efficient fine-tuning | ✅ |
 
-**추천 설치**:
+**Recommended Installation**:
 ```dockerfile
-# 학습/추론에 필요한 것만
+# Only what is needed for training/inference
 RUN uv pip install ".[smolvla,xvla,hilserl,async,peft]"
 ```
 
-### entrypoint.sh 기능
+### entrypoint.sh Functionality
 
 ```bash
 case "${1:-server}" in
-    server)     # Zenoh 서버 모드 (기본) - executor.py 실행
-    train)      # 학습 모드 - python -m lerobot.scripts.train (직접 실행용)
-    infer)      # 추론 모드 - python -m lerobot.scripts.eval (직접 실행용)
-    shell)      # 대화형 쉘
+    server)     # Zenoh server mode (default) - runs executor.py
+    train)      # Training mode - python -m lerobot.scripts.train (for direct execution)
+    infer)      # Inference mode - python -m lerobot.scripts.eval (for direct execution)
+    shell)      # Interactive shell
 esac
 ```
 
-- **server** (기본): `executor.py` 실행
-  - Zenoh를 통해 ROS2 서비스 요청 수신
-  - LeRobot 코드를 **직접 import**하여 실행 (subprocess 아님)
+- **server** (default): Runs `executor.py`
+  - Receives ROS2 service requests via Zenoh
+  - **Directly imports** LeRobot code to execute (not subprocess)
   ```python
-  # executor.py 내부
+  # Inside executor.py
   from lerobot.scripts.lerobot_train import train as lerobot_train
-  lerobot_train(cfg)  # 직접 함수 호출
+  lerobot_train(cfg)  # Direct function call
   ```
-- **train/infer**: Docker 외부에서 직접 테스트용 (executor.py 우회)
+- **train/infer**: For direct testing outside Docker (bypasses executor.py)
 
 ---
 
 ## 4. groot (GR00T N1.6 Server)
 
-### 역할
-- NVIDIA Isaac GR00T 모델 실행
-- VLA (Vision-Language-Action) 추론
+### Role
+- Runs NVIDIA Isaac GR00T models
+- VLA (Vision-Language-Action) inference
 - Fine-tuning
-- Zenoh SDK를 통해 physical_ai_server와 통신
+- Communicates with physical_ai_server via Zenoh SDK
 
 ### Base Image
 
-| Architecture | Base Image | 검증 상태 |
-|--------------|------------|-----------|
-| AMD64 | `nvcr.io/nvidia/pytorch:25.04-py3` | ✅ (공식 Dockerfile과 동일) |
+| Architecture | Base Image | Verification Status |
+|--------------|------------|---------------------|
+| AMD64 | `nvcr.io/nvidia/pytorch:25.04-py3` | ✅ (Same as official Dockerfile) |
 | ARM64 (Jetson) | `nvcr.io/nvidia/l4t-jetpack:r36.4.0` | ✅ (JetPack 6.x) |
 
-### Jetson Orin 지원 (Isaac-GR00T 공식 문서 기반)
+### Jetson Orin Support (Based on Isaac-GR00T Official Documentation)
 
-**성능 벤치마크 (Orin, CUDA 12.6, PyTorch 2.8)**:
-| 모드 | E2E 시간 | 주파수 |
-|------|----------|--------|
+**Performance Benchmarks (Orin, CUDA 12.6, PyTorch 2.8)**:
+| Mode | E2E Time | Frequency |
+|------|----------|-----------|
 | PyTorch Eager | 300 ms | 3.3 Hz |
 | torch.compile | 199 ms | 5.0 Hz |
 | TensorRT | 173 ms | 5.8 Hz |
 
-**Jetson용 PyTorch 설치**:
+**Jetson PyTorch Installation**:
 ```dockerfile
-# Orin용
+# For Orin
 ENV PIP_INDEX_URL=https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
 
-# Thor용 (향후)
+# For Thor (future)
 # ENV PIP_INDEX_URL=https://pypi.jetson-ai-lab.io/sbsa/cu130
 ```
 
-### 공식 Dockerfile과의 차이점
+### Differences from the Official Dockerfile
 
-공식 (`Isaac-GR00T/docker/Dockerfile`):
+Official (`Isaac-GR00T/docker/Dockerfile`):
 ```dockerfile
 FROM nvcr.io/nvidia/pytorch:25.04-py3
 RUN pip install imageio h5py boto3 transformers[torch] deepspeed timm peft diffusers ...
-RUN cd /opt && git clone pytorch3d && pip install .  # 20+ 분 소요
+RUN cd /opt && git clone pytorch3d && pip install .  # Takes 20+ minutes
 ```
 
-**pytorch3d 분석 결과**:
+**pytorch3d Analysis Results**:
 ```
-gr00t/ (핵심 코드)     → import 없음 ❌
-scripts/               → import 없음 ❌
-pyproject.toml         → 종속성 아님 ❌
-external_dependencies/ → URL 참조만 (import 없음)
+gr00t/ (core code)     → No imports ❌
+scripts/               → No imports ❌
+pyproject.toml         → Not a dependency ❌
+external_dependencies/ → URL references only (no imports)
 ```
-**결론: pytorch3d는 AMD64/ARM64 모두 제거 가능** (빌드 시간 20분+ 절약)
+**Conclusion: pytorch3d can be removed for both AMD64/ARM64** (saves 20+ minutes of build time)
 
-**개선 제안**:
-- pytorch3d 제거 (실제로 사용되지 않음)
-- ARM64에서는 flash-attn, deepspeed 설치 제한 (추론 전용)
+**Improvement Suggestions**:
+- Remove pytorch3d (not actually used)
+- On ARM64, limit flash-attn and deepspeed installation (inference only)
 
-### ARM64 제한사항
-| 패키지 | 상태 | 대안 |
-|--------|------|------|
-| `flash-attn` | CUDA 컴파일 필요 (메모리 제약) | 기본 attention 사용 |
-| `deepspeed` | ARM64 지원 제한적 | 단일 GPU 학습 |
-| `torchcodec` | ARM64 미지원 | decord 또는 av 사용 |
+### ARM64 Limitations
+| Package | Status | Alternative |
+|---------|--------|-------------|
+| `flash-attn` | Requires CUDA compilation (memory constraints) | Use default attention |
+| `deepspeed` | Limited ARM64 support | Single GPU training |
+| `torchcodec` | Not supported on ARM64 | Use decord or av |
 
 ---
 
-## Docker Compose 구조
+## Docker Compose Structure
 
-### 아키텍처 자동 감지
+### Automatic Architecture Detection
 
-`container.sh`에서 자동 감지:
+Auto-detected in `container.sh`:
 ```bash
 MACHINE_ARCH=$(uname -m)
 if [ "$MACHINE_ARCH" = "aarch64" ] || [ "$MACHINE_ARCH" = "arm64" ]; then
     export ARCH="arm64"
 else
-    export ARCH="amd64"  # 기본값
+    export ARCH="amd64"  # Default
 fi
 ```
-→ ✅ 자동 감지 동작함 (Jetson에서는 `aarch64`로 감지)
+→ ✅ Auto-detection works (detected as `aarch64` on Jetson)
 
-### 서비스 의존성
+### Service Dependencies
 
-docker-compose.yml의 `depends_on`:
+`depends_on` in docker-compose.yml:
 ```yaml
 lerobot:
   depends_on:
@@ -337,73 +338,73 @@ groot:
     - physical_ai_server
 ```
 
-이는 **시작 순서**를 정의한 것 (Zenoh 연결 보장 목적)
-- physical_ai_manager는 독립적으로 시작 가능 (rosbridge는 나중에 연결)
+This defines the **startup order** (to ensure Zenoh connectivity)
+- physical_ai_manager can start independently (rosbridge connects later)
 
-### 볼륨 마운트 구조
+### Volume Mount Structure
 
-| 컨테이너 | 호스트 경로 | 컨테이너 경로 | 공유 여부 |
-|----------|-------------|---------------|-----------|
+| Container | Host Path | Container Path | Shared |
+|-----------|-----------|----------------|--------|
 | physical_ai_server | `./docker/workspace` | `/workspace` | - |
-| physical_ai_server | `./docker/huggingface` | `/root/.cache/huggingface` | ✅ 공유 |
-| lerobot | `./third_party/lerobot/workspace` | `/workspace` | 별도 |
-| lerobot | `./docker/huggingface` | `/root/.cache/huggingface` | ✅ 공유 |
-| groot | `./third_party/groot/workspace` | `/workspace` | 별도 |
-| groot | `./docker/huggingface` | `/root/.cache/huggingface` | ✅ 공유 |
+| physical_ai_server | `./docker/huggingface` | `/root/.cache/huggingface` | ✅ Shared |
+| lerobot | `./third_party/lerobot/workspace` | `/workspace` | Separate |
+| lerobot | `./docker/huggingface` | `/root/.cache/huggingface` | ✅ Shared |
+| groot | `./third_party/groot/workspace` | `/workspace` | Separate |
+| groot | `./docker/huggingface` | `/root/.cache/huggingface` | ✅ Shared |
 
-**참고**: 각 컨테이너의 `/workspace`는 **별도** 디렉토리
-- HuggingFace 캐시만 공유됨 (모델 다운로드 중복 방지)
+**Note**: Each container's `/workspace` is a **separate** directory
+- Only the HuggingFace cache is shared (to prevent duplicate model downloads)
 
 ---
 
-## 현재 문제점 및 해결 방안
+## Current Issues and Solutions
 
-### 문제 1: physical_ai_server의 Git Clone 방식
-**현재**: GitHub에서 clone
-**해결**: 볼륨 마운트 활용 (이미 설정되어 있음)
+### Issue 1: Git Clone Approach in physical_ai_server
+**Current**: Clones from GitHub
+**Solution**: Use volume mounts (already configured)
 
-Dockerfile 수정:
+Dockerfile modification:
 ```dockerfile
-# 제거
+# Remove
 RUN git clone -b feature-1.0.0 https://github.com/ROBOTIS-GIT/physical_ai_tools.git --recursive
 
-# 볼륨 마운트된 경로 사용
-# docker-compose.yml에서: ../:/root/ros2_ws/src/physical_ai_tools/
+# Use volume-mounted path
+# In docker-compose.yml: ../:/root/ros2_ws/src/physical_ai_tools/
 ```
 
-### 문제 2: rosdep OpenCV 키 오류
-**증상**: `Cannot locate rosdep definition for [OpenCV]`
-**원인**: Jetson/Ubuntu에서 `OpenCV`는 유효한 rosdep 키가 아님
-**해결**: `rosbag_recorder/package.xml` 수정
+### Issue 2: rosdep OpenCV Key Error
+**Symptom**: `Cannot locate rosdep definition for [OpenCV]`
+**Cause**: `OpenCV` is not a valid rosdep key on Jetson/Ubuntu
+**Solution**: Modify `rosbag_recorder/package.xml`
 ```xml
-<!-- 변경 전 -->
+<!-- Before -->
 <depend>OpenCV</depend>
-<!-- 변경 후 -->
+<!-- After -->
 <depend>libopencv-dev</depend>
 ```
 
-### 문제 3: LeRobot 중복 설치
-**현재**: physical_ai_server에 LeRobot 설치됨
-**해결**: physical_ai_server Dockerfile에서 LeRobot 관련 제거
+### Issue 3: Duplicate LeRobot Installation
+**Current**: LeRobot is installed in physical_ai_server
+**Solution**: Remove LeRobot-related entries from the physical_ai_server Dockerfile
 
 ---
 
-## TODO 정리
+## TODO Summary
 
 ### physical_ai_manager
-- [ ] 포트 8080 → 80 변경
+- [ ] Change port from 8080 to 80
 
 ### physical_ai_server
-- [ ] Git clone 제거, 볼륨 마운트 방식으로 변경
-- [ ] LeRobot 설치 부분 제거
-- [ ] `rosbag_recorder/package.xml`의 `OpenCV` → `libopencv-dev` 수정
-- [ ] docker-compose.yml에서 `zenohd` 실행 제거 (외부 Router 사용)
+- [ ] Remove Git clone, switch to volume mount approach
+- [ ] Remove LeRobot installation section
+- [ ] Fix `rosbag_recorder/package.xml`: change `OpenCV` to `libopencv-dev`
+- [ ] Remove `zenohd` execution from docker-compose.yml (use external Router)
 
 ### lerobot
-- [ ] Optional dependencies 정리 (학습/추론에 필요한 것만)
-  - 유지: `smolvla`, `xvla`, `hilserl`, `async`, `peft`
-  - 제거: `dynamixel`, `gamepad`, `hopejr`, `lekiwi`, `reachy2`, `kinematics`, `dev`, `test`, 시뮬레이션 관련
+- [ ] Clean up optional dependencies (keep only what is needed for training/inference)
+  - Keep: `smolvla`, `xvla`, `hilserl`, `async`, `peft`
+  - Remove: `dynamixel`, `gamepad`, `hopejr`, `lekiwi`, `reachy2`, `kinematics`, `dev`, `test`, simulation-related
 
 ### groot
-- [ ] pytorch3d 설치 제거 (AMD64/ARM64 모두 - 실제 사용되지 않음, 20분+ 절약)
-- [ ] ARM64: flash-attn, deepspeed 제거 (추론 전용이므로 불필요)
+- [ ] Remove pytorch3d installation (both AMD64/ARM64 - not actually used, saves 20+ minutes)
+- [ ] ARM64: Remove flash-attn, deepspeed (unnecessary for inference-only use)

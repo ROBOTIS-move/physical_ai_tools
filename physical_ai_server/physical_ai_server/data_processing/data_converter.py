@@ -172,7 +172,7 @@ class DataConverter:
             start_idx += count
             if key.startswith('joint_order.'):
                 key = key.replace('joint_order.', '')
-            # Scale AI requirement: Use JointState instead of JointTrajectory
+            # Data format requirement: Use JointState instead of JointTrajectory
             if leader_topic_types[key] == JointState:
                 joint_state_msg = JointState()
                 joint_state_msg.name = value

@@ -57,7 +57,7 @@ class BagReader:
 
         # If bag_path is a directory, find the MCAP file
         if self.bag_path.is_dir():
-            # Prefer episode.mcap (ScaleAI converter output)
+            # Prefer episode.mcap (MP4 converter output)
             episode_mcap = self.bag_path / 'episode.mcap'
             if episode_mcap.exists():
                 return str(episode_mcap)

@@ -59,7 +59,7 @@ from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.data_processing.hf_api_worker import HfApiWorker
 from physical_ai_server.data_processing.mp4_conversion_worker import Mp4ConversionWorker
 from physical_ai_server.data_processing.replay_data_handler import ReplayDataHandler
-from physical_ai_server.inference.groot_inference_manager import GR00TInferenceManager
+from physical_ai_server.inference.inference_manager import InferenceManager
 from physical_ai_server.inference.zenoh_inference_manager import ZenohInferenceManager
 from physical_ai_server.timer.timer_manager import TimerManager
 from physical_ai_server.training.zenoh_training_manager import ZenohTrainingManager
@@ -127,8 +127,8 @@ class PhysicalAIServer(Node):
         # Zenoh managers for inference/training (Docker container communication)
         self.inference_manager: Optional[ZenohInferenceManager] = None
         self.training_manager: Optional[ZenohTrainingManager] = None
-        # GR00T inference manager (action chunk based)
-        self.groot_manager: Optional[GR00TInferenceManager] = None
+        # Action chunk inference manager (GR00T, LeRobot, etc.)
+        self.inference_action_manager: Optional[InferenceManager] = None
 
         # Initialize HF API Worker
         self.hf_api_worker: Optional[HfApiWorker] = None
@@ -226,6 +226,7 @@ class PhysicalAIServer(Node):
         list_param_names = [
             'camera_topic_list',
             'joint_topic_list',
+            'command_topic_list',
             'observation_list',
             'joint_list',
             'rosbag_extra_topic_list',
@@ -577,20 +578,20 @@ class PhysicalAIServer(Node):
         """
         Timer callback for inference mode (10Hz).
 
-        Pops one action from the GR00T action buffer and publishes
+        Pops one action from the action buffer and publishes
         joint commands via communicator. Buffer is refilled in
-        the background by GR00TInferenceManager.
+        the background by InferenceManager.
         """
-        if not self.on_inference or self.groot_manager is None:
+        if not self.on_inference or self.inference_action_manager is None:
             return
 
-        joint_msg_datas = self.groot_manager.pop_action()
+        joint_msg_datas = self.inference_action_manager.pop_action()
         if joint_msg_datas is not None:
             self.communicator.publish_action(joint_msg_datas)
 
         # Status publish
         current_status = TaskStatus()
-        current_status.phase = TaskStatus.RUNNING
+        current_status.phase = TaskStatus.INFERENCING
         self.communicator.publish_status(status=current_status)
 
     def user_training_interaction_callback(self, request, response):
@@ -817,11 +818,16 @@ class PhysicalAIServer(Node):
                 camera_topic_map = self._get_camera_topic_map()
                 joint_topic_map = self._get_joint_topic_map()
 
-                # Create and start GR00T inference manager
-                self.groot_manager = GR00TInferenceManager(
+                # Determine service prefix from policy type
+                # TODO: get policy_type from task_info when UI supports it
+                service_prefix = "/groot"
+
+                # Create and start inference manager
+                self.inference_action_manager = InferenceManager(
                     node=self,
                     joint_topic_types=self.joint_topic_types,
                     joint_order=self.joint_order,
+                    service_prefix=service_prefix,
                 )
 
                 task_instruction = (
@@ -831,7 +837,7 @@ class PhysicalAIServer(Node):
                 )
 
                 try:
-                    self.groot_manager.start(
+                    self.inference_action_manager.start(
                         model_path=task_info.policy_path,
                         embodiment_tag='new_embodiment',
                         camera_topic_map=camera_topic_map,
@@ -839,7 +845,7 @@ class PhysicalAIServer(Node):
                         task_instruction=task_instruction,
                     )
                 except RuntimeError as e:
-                    self.groot_manager = None
+                    self.inference_action_manager = None
                     response.success = False
                     response.message = str(e)
                     self.get_logger().error(response.message)
@@ -1557,12 +1563,12 @@ class PhysicalAIServer(Node):
 
     def _stop_groot_inference(self):
         """Stop GR00T inference and cleanup."""
-        if self.groot_manager is not None:
+        if self.inference_action_manager is not None:
             try:
-                self.groot_manager.stop()
+                self.inference_action_manager.stop()
             except Exception as e:
                 self.get_logger().error(f'Error stopping GR00T manager: {e}')
-            self.groot_manager = None
+            self.inference_action_manager = None
 
     def handle_joystick_trigger(self, joystick_mode: str):
         """

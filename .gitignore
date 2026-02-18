@@ -705,7 +705,6 @@ yarn-error.log*
 ## Colcon/Catkin ignore files
 CATKIN_IGNORE
 AMENT_IGNORE
-COLCON_IGNORE
 
 
 ##############################

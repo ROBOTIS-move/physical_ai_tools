@@ -48,6 +48,7 @@ from rclpy.qos import (
 from rosbag_recorder.srv import SendCommand
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Empty, String
+from trajectory_msgs.msg import JointTrajectory
 
 
 class Communicator:
@@ -87,6 +88,11 @@ class Communicator:
         self.joint_topics = parse_topic_list_with_names(self.params['joint_topic_list'])
         self.rosbag_extra_topics = parse_topic_list(
             self.params['rosbag_extra_topic_list']
+        )
+
+        # Parse command topics for inference action publishing
+        self.command_topics = parse_topic_list_with_names(
+            self.params.get('command_topic_list', [])
         )
 
         # Initialize DataEditor for dataset editing
@@ -149,21 +155,20 @@ class Communicator:
         """Initialize publishers."""
         self.node.get_logger().info('Initializing publishers...')
 
-        # Joint publishers for inference mode
-        for name, topic_name in self.joint_topics.items():
-            if 'leader' in name.lower():
-                if 'mobile' in name.lower():
-                    self.joint_publishers[name] = self.node.create_publisher(
-                        Twist,
-                        topic_name,
-                        self.PUB_QOS_SIZE
-                    )
-                else:
-                    self.joint_publishers[name] = self.node.create_publisher(
-                        JointState,
-                        topic_name,
-                        self.PUB_QOS_SIZE
-                    )
+        # Command publishers for inference mode (from command_topic_list)
+        for name, topic_name in self.command_topics.items():
+            if 'mobile' in name.lower():
+                self.joint_publishers[name] = self.node.create_publisher(
+                    Twist,
+                    topic_name,
+                    self.PUB_QOS_SIZE
+                )
+            else:
+                self.joint_publishers[name] = self.node.create_publisher(
+                    JointTrajectory,
+                    topic_name,
+                    self.PUB_QOS_SIZE
+                )
 
         # Status publisher
         self.status_publisher = self.node.create_publisher(

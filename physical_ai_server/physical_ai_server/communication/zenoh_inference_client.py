@@ -14,18 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author: Physical AI Team
+# Author: Dongyun Kim
 
 """
-ZenohGR00TClient - ROS2 Service Client for GR00T Docker communication.
+ZenohInferenceClient - ROS2 Service Client for inference container communication.
+
+Generic client that works with any inference container (GR00T, LeRobot, etc.)
+by parameterizing the service prefix (e.g., "/groot", "/lerobot").
 
 Uses ROS2 standard Service Client with rmw_zenoh middleware.
 rmw_zenoh automatically handles Zenoh protocol conversion, enabling
-communication with GR00T Docker container's zenoh_ros2_sdk server.
+communication with Docker container's zenoh_ros2_sdk server.
 
 Architecture:
 - physical_ai_server uses ROS2 + rmw_zenoh (standard ROS2 API)
-- groot container uses zenoh_ros2_sdk (no ROS2 installed)
+- inference container uses zenoh_ros2_sdk (no ROS2 installed)
 - rmw_zenoh converts ROS2 messages to Zenoh protocol = COMPATIBLE
 """
 
@@ -45,15 +48,23 @@ from physical_ai_server.communication.zenoh_lerobot_client import LeRobotRespons
 logger = logging.getLogger(__name__)
 
 
-class ZenohGR00TClient:
-    """Client for communicating with GR00T Docker container via ROS2 + rmw_zenoh."""
+class ZenohInferenceClient:
+    """Generic client for inference containers via ROS2 + rmw_zenoh.
 
-    SERVICE_INFER = "/groot/infer"
-    SERVICE_STOP = "/groot/stop"
-    SERVICE_GET_ACTION_CHUNK = "/groot/get_action_chunk"
+    Works with any container that implements:
+      - /{prefix}/infer (StartInference)
+      - /{prefix}/get_action_chunk (GetActionChunk)
+      - /{prefix}/stop (StopTraining)
+    """
 
-    def __init__(self, node: Node, timeout_sec: float = 30.0):
+    def __init__(
+        self,
+        node: Node,
+        service_prefix: str = "/groot",
+        timeout_sec: float = 30.0,
+    ):
         self._node = node
+        self._service_prefix = service_prefix
         self.timeout_sec = timeout_sec
         self._connected = False
         self._callback_group: Optional[MutuallyExclusiveCallbackGroup] = None
@@ -62,8 +73,20 @@ class ZenohGR00TClient:
         self._stop_client = None
         self._action_chunk_client = None
 
+    @property
+    def service_infer(self) -> str:
+        return f"{self._service_prefix}/infer"
+
+    @property
+    def service_stop(self) -> str:
+        return f"{self._service_prefix}/stop"
+
+    @property
+    def service_get_action_chunk(self) -> str:
+        return f"{self._service_prefix}/get_action_chunk"
+
     def connect(self) -> bool:
-        """Create ROS2 service clients for GR00T container."""
+        """Create ROS2 service clients for inference container."""
         if self._connected:
             return True
 
@@ -76,25 +99,28 @@ class ZenohGR00TClient:
 
             self._infer_client = self._node.create_client(
                 StartInference,
-                self.SERVICE_INFER,
+                self.service_infer,
                 callback_group=self._callback_group,
             )
             self._stop_client = self._node.create_client(
                 StopTraining,
-                self.SERVICE_STOP,
+                self.service_stop,
                 callback_group=self._callback_group,
             )
             self._action_chunk_client = self._node.create_client(
                 GetActionChunk,
-                self.SERVICE_GET_ACTION_CHUNK,
+                self.service_get_action_chunk,
                 callback_group=self._callback_group,
             )
 
             self._connected = True
-            logger.info("Connected to GR00T services via ROS2 rmw_zenoh")
+            logger.info(
+                f"Connected to inference services via ROS2 rmw_zenoh "
+                f"(prefix={self._service_prefix})"
+            )
             return True
         except Exception as e:
-            logger.error(f"GR00T connection failed: {e}")
+            logger.error(f"Inference client connection failed: {e}")
             return False
 
     def disconnect(self):
@@ -123,7 +149,7 @@ class ZenohGR00TClient:
         if not self._connected:
             return LeRobotResponse(
                 success=False,
-                message="Not connected to GR00T services",
+                message="Not connected to inference services",
                 data={},
                 request_id="",
             )
@@ -147,7 +173,7 @@ class ZenohGR00TClient:
                     request_id="",
                 )
 
-            logger.debug(f"Calling GR00T service {service_name}")
+            logger.debug(f"Calling inference service {service_name}")
             future = client.call_async(request)
 
             import rclpy
@@ -190,7 +216,7 @@ class ZenohGR00TClient:
         joint_topic_map: list,
         task_instruction: str = "",
     ) -> LeRobotResponse:
-        """Call /groot/infer to setup model + subscribers."""
+        """Call /{prefix}/infer to setup model + subscribers."""
         request = StartInference.Request()
         request.model_path = model_path
         request.embodiment_tag = embodiment_tag
@@ -199,24 +225,24 @@ class ZenohGR00TClient:
         request.task_instruction = task_instruction
 
         return self._call_service(
-            self._infer_client, request, self.SERVICE_INFER
+            self._infer_client, request, self.service_infer
         )
 
     def get_action_chunk(self, task_instruction: str = "") -> LeRobotResponse:
-        """Call /groot/get_action_chunk for on-demand inference."""
+        """Call /{prefix}/get_action_chunk for on-demand inference."""
         request = GetActionChunk.Request()
         request.task_instruction = task_instruction
 
         return self._call_service(
             self._action_chunk_client,
             request,
-            self.SERVICE_GET_ACTION_CHUNK,
-            timeout_sec=5.0,  # Inference is 100-500ms, 5s is generous
+            self.service_get_action_chunk,
+            timeout_sec=5.0,
         )
 
     def stop_inference(self) -> LeRobotResponse:
-        """Call /groot/stop to stop inference."""
+        """Call /{prefix}/stop to stop inference."""
         request = StopTraining.Request()
         return self._call_service(
-            self._stop_client, request, self.SERVICE_STOP
+            self._stop_client, request, self.service_stop
         )

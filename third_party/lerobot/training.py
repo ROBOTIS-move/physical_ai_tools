@@ -1,279 +1,217 @@
-"""
-LeRobot Training Handler - Training logic for LeRobot.
+#!/usr/bin/env python3
+#
+# Copyright 2025 ROBOTIS CO., LTD.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Author: Dongyun Kim
 
-Separated from executor.py for clean code organization.
-Training-specific methods: handle_train, run_training, build_training_args,
-execute_training, logging interceptor.
+"""
+LeRobot Training - Training logic for LeRobot.
+
+Module-level functions that use RobotServiceServer public API only:
+  - server.report_progress()
+  - server.stop_requested.is_set()
+  - server.progress
 """
 from __future__ import annotations
 
 import logging
 import os
 import re
-import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import Any, Callable, Optional
 
-from zenoh_ros2_sdk import get_logger
+logger = logging.getLogger("lerobot_training")
 
-if TYPE_CHECKING:
-    from executor import LeRobotExecutor
-
-logger = get_logger("lerobot_training")
+# Module-level state for logging interceptor
+_original_log_info: Optional[Callable] = None
 
 
-class TrainingHandler:
-    """Handles LeRobot training requests.
+def run_training(server, request: Any) -> None:
+    """Run LeRobot training. Called by RobotServiceServer in background thread."""
+    start_time = time.time()
+    max_steps = getattr(request, "steps", 100000) or 100000
+    server.report_progress(total_steps=max_steps, step=0, state="training")
 
-    Takes a reference to the parent executor to access shared state
-    (state machine, progress, services).
-    """
+    logger.info("Starting LeRobot training...")
 
-    def __init__(self, executor: LeRobotExecutor):
-        self._executor = executor
-        self._original_log_info: Optional[Callable] = None
+    args = _build_training_args(server, request)
+    logger.info(f"Training args: {args}")
 
-    def handle_train(self, request: Any) -> Any:
-        """Handle train request."""
-        from executor import ExecutorState
+    try:
+        _execute_training(server, args, start_time)
+    finally:
+        _restore_logging()
 
-        executor = self._executor
-        logger.info(
-            f"Received train request: policy={request.policy_type}, "
-            f"dataset={request.dataset_path}"
-        )
+    if server.stop_requested.is_set():
+        logger.info("Training stopped by user")
+    else:
+        logger.info("Training completed successfully")
 
-        if executor.state in (ExecutorState.TRAINING, ExecutorState.INFERENCE):
-            return executor._create_response(
-                executor._train_service,
-                success=False,
-                message=f"Already {executor.state.value}. Stop current task first.",
-                job_id="",
-            )
 
-        job_id = f"train_{int(time.time())}"
-        executor._current_job_id = job_id
+def _build_training_args(server, request: Any) -> list[str]:
+    """Build training arguments from request."""
+    args = []
 
-        executor._stop_requested.clear()
-        executor._training_thread = threading.Thread(
-            target=self._run_training,
-            args=(request,),
-            daemon=True,
-        )
-        executor._training_thread.start()
+    policy_type = getattr(request, "policy_type", "act")
+    args.append(f"--policy.type={policy_type}")
 
-        return executor._create_response(
-            executor._train_service,
-            success=True,
-            message="Training started",
-            job_id=job_id,
-        )
+    dataset_path = getattr(request, "dataset_path", "")
+    if dataset_path:
+        args.append(f"--dataset.repo_id={dataset_path}")
 
-    def _run_training(self, request: Any) -> None:
-        """Run training in background thread."""
-        from executor import ExecutorState, TrainingProgress
+    args.append("--policy.device=cuda")
 
-        executor = self._executor
-        try:
-            executor.state = ExecutorState.TRAINING
-            executor._start_time = time.time()
-            executor._progress = TrainingProgress(
-                total_steps=request.steps or 100000
-            )
+    workspace_dir = os.environ.get("LEROBOT_WORKSPACE", "/workspace")
+    checkpoints_dir = f"{workspace_dir}/checkpoints"
 
-            logger.info("Starting LeRobot training...")
+    if hasattr(request, "output_dir") and request.output_dir:
+        output_dir = request.output_dir
+        if not output_dir.startswith("/"):
+            output_dir = f"{checkpoints_dir}/{output_dir}"
+        args.append(f"--output_dir={output_dir}")
+    else:
+        args.append(f"--output_dir={checkpoints_dir}")
 
-            args = self._build_training_args(request)
-            logger.info(f"Training args: {args}")
+    steps = getattr(request, "steps", 0)
+    if steps and int(steps) > 0:
+        args.append(f"--steps={steps}")
+        server.report_progress(total_steps=int(steps))
 
-            self._execute_training(args)
+    batch_size = getattr(request, "batch_size", 0)
+    if batch_size and int(batch_size) > 0:
+        args.append(f"--batch_size={batch_size}")
 
-            if executor._stop_requested.is_set():
-                logger.info("Training stopped by user")
-            else:
-                logger.info("Training completed successfully")
+    learning_rate = getattr(request, "learning_rate", 0)
+    if learning_rate and float(learning_rate) > 0:
+        args.append(f"--optimizer.lr={learning_rate}")
 
-            # Change state to IDLE first, then publish so the IDLE state is sent
-            executor.state = ExecutorState.IDLE
+    eval_freq = getattr(request, "eval_freq", 0)
+    if eval_freq and int(eval_freq) > 0:
+        args.append(f"--eval_freq={eval_freq}")
 
-            # Publish final progress with IDLE state
-            if executor._progress_publisher:
-                executor._publish_progress()
-                logger.info(
-                    f"Final progress published: step={executor._progress.step}, state=idle"
-                )
+    log_freq = getattr(request, "log_freq", 0)
+    if log_freq and int(log_freq) > 0:
+        args.append(f"--log_freq={log_freq}")
 
-        except Exception as e:
-            logger.error(f"Training failed: {e}", exc_info=True)
-            executor.state = ExecutorState.ERROR
+    save_freq = getattr(request, "save_freq", 0)
+    if save_freq and int(save_freq) > 0:
+        args.append(f"--save_freq={save_freq}")
+    else:
+        args.append("--save_freq=500")
 
-            # Publish error state
-            if executor._progress_publisher:
-                executor._publish_progress()
-                logger.info(
-                    f"Error state published: step={executor._progress.step}, state=error"
-                )
+    wandb_project = getattr(request, "wandb_project", "")
+    if wandb_project:
+        args.append(f"--wandb.project={wandb_project}")
 
-        finally:
-            executor._current_job_id = None
+    push_to_hub = getattr(request, "push_to_hub", False)
+    if not push_to_hub:
+        args.append("--policy.push_to_hub=false")
 
-    def _build_training_args(self, request: Any) -> list[str]:
-        """Build training arguments from request."""
-        args = []
+    tolerance_s = getattr(request, "tolerance_s", 0.0)
+    if tolerance_s and float(tolerance_s) > 0:
+        args.append(f"--tolerance_s={tolerance_s}")
+    else:
+        args.append("--tolerance_s=0.04")
 
-        policy_type = getattr(request, "policy_type", "act")
-        args.append(f"--policy.type={policy_type}")
+    return args
 
-        dataset_path = getattr(request, "dataset_path", "")
-        if dataset_path:
-            args.append(f"--dataset.repo_id={dataset_path}")
 
-        args.append("--policy.device=cuda")
+def _execute_training(server, args: list[str], start_time: float) -> None:
+    """Execute LeRobot training with progress monitoring."""
+    import draccus
 
-        workspace_dir = os.environ.get("LEROBOT_WORKSPACE", "/workspace")
-        checkpoints_dir = f"{workspace_dir}/checkpoints"
+    from lerobot.configs.train import TrainPipelineConfig
+    from lerobot.scripts.lerobot_train import train as lerobot_train
 
-        if hasattr(request, "output_dir") and request.output_dir:
-            output_dir = request.output_dir
-            if not output_dir.startswith("/"):
-                output_dir = f"{checkpoints_dir}/{output_dir}"
-            args.append(f"--output_dir={output_dir}")
-        else:
-            args.append(f"--output_dir={checkpoints_dir}")
+    _setup_logging_interceptor(server, start_time)
 
-        if hasattr(request, "steps") and request.steps > 0:
-            args.append(f"--steps={request.steps}")
-            self._executor._progress.total_steps = request.steps
+    cfg = draccus.parse(TrainPipelineConfig, None, args=args)
+    lerobot_train(cfg)
 
-        if hasattr(request, "batch_size") and request.batch_size > 0:
-            args.append(f"--batch_size={request.batch_size}")
 
-        if hasattr(request, "learning_rate") and request.learning_rate > 0:
-            args.append(f"--optimizer.lr={request.learning_rate}")
+def _setup_logging_interceptor(server, start_time: float) -> None:
+    """Setup logging interceptor to capture training progress from LeRobot logs."""
+    global _original_log_info
+    _original_log_info = logging.Logger.info
 
-        if hasattr(request, "eval_freq") and request.eval_freq > 0:
-            args.append(f"--eval_freq={request.eval_freq}")
+    patterns = {
+        "step": re.compile(r"step:([\d.]+)([KMB]?)"),
+        "loss": re.compile(r"loss:([\d.]+)"),
+        "grad": re.compile(r"grdn:([\d.]+)"),
+        "lr": re.compile(r"lr:([\d.e+-]+)"),
+        "epoch": re.compile(r"epch:([\d.]+)"),
+    }
 
-        if hasattr(request, "log_freq") and request.log_freq > 0:
-            args.append(f"--log_freq={request.log_freq}")
+    def parse_number_with_suffix(value_str, suffix):
+        value = float(value_str)
+        if suffix == "K":
+            value *= 1000
+        elif suffix == "M":
+            value *= 1000000
+        elif suffix == "B":
+            value *= 1000000000
+        return int(value)
 
-        if hasattr(request, "save_freq") and request.save_freq > 0:
-            args.append(f"--save_freq={request.save_freq}")
-        else:
-            args.append("--save_freq=500")
+    original = _original_log_info
 
-        if hasattr(request, "wandb_project") and request.wandb_project:
-            args.append(f"--wandb.project={request.wandb_project}")
-
-        push_to_hub = getattr(request, "push_to_hub", False)
-        if not push_to_hub:
-            args.append("--policy.push_to_hub=false")
-
-        # Relax video-timestamp tolerance for datasets with frame alignment issues
-        # Default 0.0001s is too strict; 0.04s allows up to ~1 frame drift at 30fps
-        tolerance_s = getattr(request, "tolerance_s", 0.0)
-        if tolerance_s > 0:
-            args.append(f"--tolerance_s={tolerance_s}")
-        else:
-            args.append("--tolerance_s=0.04")
-
-        return args
-
-    def _execute_training(self, args: list[str]) -> None:
-        """Execute LeRobot training with progress monitoring."""
-        import draccus
-
-        from lerobot.configs.train import TrainPipelineConfig
-        from lerobot.scripts.lerobot_train import train as lerobot_train
-
-        self._setup_logging_interceptor()
+    def interceptor(self_logger, msg, *args, **kwargs):
+        original(self_logger, msg, *args, **kwargs)
 
         try:
-            cfg = draccus.parse(TrainPipelineConfig, None, args=args)
-            lerobot_train(cfg)
-        finally:
-            self._restore_logging()
+            log_msg = str(msg) % args if args else str(msg)
 
-    def _setup_logging_interceptor(self) -> None:
-        """Setup logging interceptor to capture training progress."""
-        self._original_log_info = logging.Logger.info
-        executor = self._executor
+            if "step:" in log_msg:
+                for key, pattern in patterns.items():
+                    match = pattern.search(log_msg)
+                    if match:
+                        value = match.group(1)
+                        if key == "step":
+                            suffix_str = match.group(2) if len(match.groups()) > 1 else ""
+                            parsed_step = parse_number_with_suffix(value, suffix_str)
+                            server.report_progress(step=parsed_step)
+                        elif key == "loss":
+                            server.report_progress(loss=float(value))
+                        elif key == "grad":
+                            server.report_progress(gradient_norm=float(value))
+                        elif key == "lr":
+                            server.report_progress(learning_rate=float(value))
+                        elif key == "epoch":
+                            server.report_progress(epoch=float(value))
 
-        patterns = {
-            "step": re.compile(r"step:([\d.]+)([KMB]?)"),  # Handle K/M/B suffix
-            "loss": re.compile(r"loss:([\d.]+)"),
-            "grad": re.compile(r"grdn:([\d.]+)"),
-            "lr": re.compile(r"lr:([\d.e+-]+)"),
-            "epoch": re.compile(r"epch:([\d.]+)"),
-        }
+                elapsed = time.time() - start_time
+                server.report_progress(elapsed_seconds=elapsed)
+                step = server.progress.step
+                if step > 0:
+                    total = server.progress.total_steps
+                    time_per_step = elapsed / step
+                    server.report_progress(eta_seconds=(total - step) * time_per_step)
 
-        def parse_number_with_suffix(value_str, suffix):
-            """Parse numbers with K/M/B suffix (e.g., '1K' -> 1000)"""
-            value = float(value_str)
-            if suffix == "K":
-                value *= 1000
-            elif suffix == "M":
-                value *= 1000000
-            elif suffix == "B":
-                value *= 1000000000
-            return int(value)
+        except Exception:
+            pass
 
-        original = self._original_log_info
+    logging.Logger.info = interceptor
 
-        def interceptor(self_logger, msg, *args, **kwargs):
-            original(self_logger, msg, *args, **kwargs)
 
-            try:
-                log_msg = str(msg) % args if args else str(msg)
+def _restore_logging() -> None:
+    """Restore original logging."""
+    global _original_log_info
+    if _original_log_info is not None:
+        logging.Logger.info = _original_log_info
+        _original_log_info = None
 
-                if "step:" in log_msg:
-                    for key, pattern in patterns.items():
-                        match = pattern.search(log_msg)
-                        if match:
-                            value = match.group(1)
-                            if key == "step":
-                                suffix_str = (
-                                    match.group(2)
-                                    if len(match.groups()) > 1
-                                    else ""
-                                )
-                                parsed_step = parse_number_with_suffix(
-                                    value, suffix_str
-                                )
-                                executor._progress.step = parsed_step
-                            elif key == "loss":
-                                executor._progress.loss = float(value)
-                            elif key == "grad":
-                                executor._progress.gradient_norm = float(value)
-                            elif key == "lr":
-                                executor._progress.learning_rate = float(value)
-                            elif key == "epoch":
-                                executor._progress.epoch = float(value)
 
-                    if executor._start_time:
-                        elapsed = time.time() - executor._start_time
-                        executor._progress.elapsed_seconds = elapsed
-                        if executor._progress.step > 0:
-                            steps_remaining = (
-                                executor._progress.total_steps
-                                - executor._progress.step
-                            )
-                            time_per_step = elapsed / executor._progress.step
-                            executor._progress.eta_seconds = (
-                                steps_remaining * time_per_step
-                            )
-
-            except Exception:
-                pass
-
-        logging.Logger.info = interceptor
-
-    def _restore_logging(self) -> None:
-        """Restore original logging."""
-        if self._original_log_info is not None:
-            logging.Logger.info = self._original_log_info
-            self._original_log_info = None
-
-    def cleanup(self) -> None:
-        """Cleanup training resources."""
-        self._restore_logging()
+def cleanup_training() -> None:
+    """Cleanup training resources."""
+    _restore_logging()

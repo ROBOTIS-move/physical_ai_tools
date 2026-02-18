@@ -17,9 +17,9 @@
 # Author: Claude AI Assistant
 
 """
-Scale AI Data Converter.
+Rosbag to MP4 Data Converter.
 
-Converts rosbag2 MCAP files to Scale AI format:
+Converts rosbag2 MCAP files to MP4 format:
 - Image topics → MP4 video (removed from MCAP)
 - MCAP is modified: image topics removed, unmatched camera_info removed
 - Meta files (episode_info.json, metadata.yaml, robot.urdf) are copied
@@ -106,9 +106,9 @@ class CameraMatchResult:
     timestamp_mapping: Dict[int, int] = field(default_factory=dict)
 
 
-class ScaleAIConverter:
+class RosbagToMp4Converter:
     """
-    Converter for rosbag2 MCAP to Scale AI format.
+    Converter for rosbag2 MCAP to MP4 format.
 
     Converts image topics to MP4 video and creates a modified MCAP file
     with image topics removed and only matched camera_info retained.
@@ -141,7 +141,7 @@ class ScaleAIConverter:
     # Meta files to copy
     META_FILES = ['episode_info.json', 'metadata.yaml', 'robot.urdf']
 
-    # Timestamp smoothing configuration for Scale AI compliance (STD 007: 69ms threshold)
+    # Timestamp smoothing configuration for timestamp compliance (STD 007: 69ms threshold)
     # Smooth intervals exceeding 68ms to random value between 67-68ms
     # This ensures natural-looking intervals well below the 69ms threshold
     SMOOTHING_CONFIG = {
@@ -174,8 +174,7 @@ class ScaleAIConverter:
             joint_offsets: Dict of joint offsets to apply.
                 Format: {'topic_keyword': {'joint_name': offset_rad}}
                 Example: {'arm_left_leader': {'arm_l_joint6': 0.30}}
-            enable_timestamp_smoothing: Enable timestamp smoothing to comply with Scale AI
-                STD 007 (69ms max gap threshold). Adjusts intervals >68ms to 67-68ms.
+            enable_timestamp_smoothing: Enable timestamp smoothing to comply with STD 007 (69ms max gap threshold). Adjusts intervals >68ms to 67-68ms.
                 Default is True.
             trim_start_sec: Seconds to trim from the beginning of the recording.
                 Useful for removing initial sync issues (STD 010 compliance).
@@ -235,7 +234,7 @@ class ScaleAIConverter:
         output_dir: str
     ) -> Dict[str, ConversionResult]:
         """
-        Convert a single episode to Scale AI format.
+        Convert a single episode to MP4 format.
 
         Args:
             input_path: Path to episode directory containing MCAP file.
@@ -351,7 +350,7 @@ class ScaleAIConverter:
         self._write_drop_info(input_path, output_dir, video_results)
 
         if total_dropped == 0:
-            print('\n  Result: No frame drops — ScaleAI deliverable')
+            print('\n  Result: No frame drops — deliverable')
         else:
             print(f'\n  Result: {total_dropped} total frames filled — internal learning only')
 
@@ -475,7 +474,7 @@ class ScaleAIConverter:
             if len(frames) > 1:
                 frames, dropped_frames_filled = self._fill_dropped_frames(frames)
 
-            # Apply timestamp smoothing for Scale AI compliance (STD 007)
+            # Apply timestamp smoothing for timestamp compliance (STD 007)
             # After drop filling, remaining jitter (68-71ms) is smoothed to 67-68ms
             smoothed_count = 0
             warnings = []
@@ -565,7 +564,7 @@ class ScaleAIConverter:
         frames: List[FrameData]
     ) -> Tuple[List[FrameData], int, List[str], Dict[int, int]]:
         """
-        Smooth frame timestamps to comply with Scale AI STD 007 (69ms max gap threshold).
+        Smooth frame timestamps to comply with STD 007 (69ms max gap threshold).
 
         Only adjusts intervals exceeding 68ms threshold.
         Smoothed intervals are set to random value between 67-68ms to look natural.
@@ -1066,7 +1065,7 @@ class ScaleAIConverter:
         Compute smoothing mapping for camera_info timestamps.
 
         Smooths intervals exceeding 68ms threshold to random value between 67-68ms
-        to comply with Scale AI STD 007.
+        to comply with STD 007.
 
         Args:
             timestamps: List of timestamps in nanoseconds.
@@ -1514,8 +1513,8 @@ def convert_dataset(
     enable_timestamp_smoothing: bool = True,
     downsample_cameras: Optional[Dict[str, int]] = None
 ) -> Dict[str, Dict[str, ConversionResult]]:
-    """Convert all episodes in a dataset to Scale AI format."""
-    converter = ScaleAIConverter(
+    """Convert all episodes in a dataset to MP4 format."""
+    converter = RosbagToMp4Converter(
         fps=fps,
         use_hardware_encoding=use_hardware_encoding,
         exclude_topics=exclude_topics,
@@ -1594,7 +1593,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Convert rosbag2 MCAP to Scale AI format'
+        description='Convert rosbag2 MCAP to MP4 format'
     )
     parser.add_argument('input_path', help='Path to episode directory or dataset')
     parser.add_argument('--output', '-o', required=True, help='Output directory')
@@ -1618,7 +1617,7 @@ def main():
     parser.add_argument(
         '--no-smooth',
         action='store_true',
-        help='Disable timestamp smoothing for Scale AI STD 007 compliance. '
+        help='Disable timestamp smoothing for STD 007 compliance. '
              'By default, frame timestamps are adjusted to keep intervals '
              'within 67-68ms range (68ms threshold).'
     )
@@ -1638,7 +1637,7 @@ def main():
     # Timestamp smoothing
     enable_smoothing = not args.no_smooth
     if enable_smoothing:
-        print('Timestamp smoothing enabled (Scale AI STD 007 compliance)')
+        print('Timestamp smoothing enabled (STD 007 compliance)')
 
     if args.dataset:
         results = convert_dataset(
@@ -1652,7 +1651,7 @@ def main():
             downsample_cameras=None  # Use default downsampling config
         )
     else:
-        converter = ScaleAIConverter(
+        converter = RosbagToMp4Converter(
             fps=args.fps,
             use_hardware_encoding=not args.no_hw,
             exclude_topics=exclude_topics,

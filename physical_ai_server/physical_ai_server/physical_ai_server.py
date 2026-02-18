@@ -60,7 +60,6 @@ from physical_ai_server.data_processing.hf_api_worker import HfApiWorker
 from physical_ai_server.data_processing.mp4_conversion_worker import Mp4ConversionWorker
 from physical_ai_server.data_processing.replay_data_handler import ReplayDataHandler
 from physical_ai_server.inference.inference_manager import InferenceManager
-from physical_ai_server.inference.zenoh_inference_manager import ZenohInferenceManager
 from physical_ai_server.timer.timer_manager import TimerManager
 from physical_ai_server.training.zenoh_training_manager import ZenohTrainingManager
 from physical_ai_server.utils.file_browse_utils import FileBrowseUtils
@@ -124,11 +123,10 @@ class PhysicalAIServer(Node):
         self.timer_manager: Optional[TimerManager] = None
         self.heartbeat_timer: Optional[TimerManager] = None
         self.training_timer: Optional[TimerManager] = None
-        # Zenoh managers for inference/training (Docker container communication)
-        self.inference_manager: Optional[ZenohInferenceManager] = None
+        # Zenoh managers for training (Docker container communication)
         self.training_manager: Optional[ZenohTrainingManager] = None
         # Action chunk inference manager (GR00T, LeRobot, etc.)
-        self.inference_action_manager: Optional[InferenceManager] = None
+        self.inference_manager: Optional[InferenceManager] = None
 
         # Initialize HF API Worker
         self.hf_api_worker: Optional[HfApiWorker] = None
@@ -299,7 +297,6 @@ class PhysicalAIServer(Node):
         # Register joystick handler for immediate processing
         self.communicator.register_joystick_handler(self.handle_joystick_trigger)
 
-        self.inference_manager = ZenohInferenceManager(node=self)
         self.get_logger().info(
             f'ROS parameters initialized successfully for robot type: {robot_type}')
 
@@ -582,10 +579,10 @@ class PhysicalAIServer(Node):
         joint commands via communicator. Buffer is refilled in
         the background by InferenceManager.
         """
-        if not self.on_inference or self.inference_action_manager is None:
+        if not self.on_inference or self.inference_manager is None:
             return
 
-        joint_msg_datas = self.inference_action_manager.pop_action()
+        joint_msg_datas = self.inference_manager.pop_action()
         if joint_msg_datas is not None:
             self.communicator.publish_action(joint_msg_datas)
 
@@ -823,7 +820,7 @@ class PhysicalAIServer(Node):
                 service_prefix = "/groot"
 
                 # Create and start inference manager
-                self.inference_action_manager = InferenceManager(
+                self.inference_manager = InferenceManager(
                     node=self,
                     joint_topic_types=self.joint_topic_types,
                     joint_order=self.joint_order,
@@ -837,7 +834,7 @@ class PhysicalAIServer(Node):
                 )
 
                 try:
-                    self.inference_action_manager.start(
+                    self.inference_manager.start(
                         model_path=task_info.policy_path,
                         embodiment_tag='new_embodiment',
                         camera_topic_map=camera_topic_map,
@@ -845,7 +842,7 @@ class PhysicalAIServer(Node):
                         task_instruction=task_instruction,
                     )
                 except RuntimeError as e:
-                    self.inference_action_manager = None
+                    self.inference_manager = None
                     response.success = False
                     response.message = str(e)
                     self.get_logger().error(response.message)
@@ -1068,16 +1065,10 @@ class PhysicalAIServer(Node):
         return response
 
     def get_policy_list_callback(self, request, response):
-        policy_list = ZenohInferenceManager.get_available_policies()
-        if not policy_list:
-            self.get_logger().warning('No policies available')
-            response.success = False
-            response.message = 'No policies available'
-        else:
-            self.get_logger().info(f'Available policies: {policy_list}')
-            response.success = True
-            response.message = 'Policy list retrieved successfully'
-        response.policy_list = policy_list
+        # TODO: Implement dynamic policy list retrieval
+        response.policy_list = []
+        response.success = True
+        response.message = 'Not implemented yet'
         return response
 
     def get_available_list_callback(self, request, response):
@@ -1163,19 +1154,11 @@ class PhysicalAIServer(Node):
         return response
 
     def get_saved_policies_callback(self, request, response):
-        saved_policy_path, saved_policy_type = ZenohInferenceManager.get_saved_policies()
-        if not saved_policy_path and not saved_policy_type:
-            self.get_logger().warning('No saved policies found')
-            response.saved_policy_path = []
-            response.saved_policy_type = []
-            response.success = False
-            response.message = 'No saved policies found'
-        else:
-            self.get_logger().info(f'Saved policies path: {saved_policy_path}')
-            response.saved_policy_path = saved_policy_path
-            response.saved_policy_type = saved_policy_type
-            response.success = True
-            response.message = 'Saved policies retrieved successfully'
+        # TODO: Implement saved policy retrieval
+        response.saved_policy_path = []
+        response.saved_policy_type = []
+        response.success = True
+        response.message = 'Not implemented yet'
         return response
 
     def get_training_info_callback(self, request, response):
@@ -1563,12 +1546,12 @@ class PhysicalAIServer(Node):
 
     def _stop_groot_inference(self):
         """Stop GR00T inference and cleanup."""
-        if self.inference_action_manager is not None:
+        if self.inference_manager is not None:
             try:
-                self.inference_action_manager.stop()
+                self.inference_manager.stop()
             except Exception as e:
                 self.get_logger().error(f'Error stopping GR00T manager: {e}')
-            self.inference_action_manager = None
+            self.inference_manager = None
 
     def handle_joystick_trigger(self, joystick_mode: str):
         """

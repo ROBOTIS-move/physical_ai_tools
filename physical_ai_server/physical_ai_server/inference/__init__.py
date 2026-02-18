@@ -17,6 +17,6 @@
 # Author: Dongyun Kim
 
 
-from physical_ai_server.inference.zenoh_inference_manager import ZenohInferenceManager
+from physical_ai_server.inference.inference_manager import InferenceManager
 
-__all__ = ['ZenohInferenceManager']
+__all__ = ['InferenceManager']

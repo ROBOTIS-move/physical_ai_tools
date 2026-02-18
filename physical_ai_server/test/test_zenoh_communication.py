@@ -76,15 +76,15 @@ class TestZenohLeRobotClient(unittest.TestCase):
             self.fail(f"Failed to import ZenohTrainingManager: {e}")
 
     def test_04_import_inference_manager(self):
-        """Test that ZenohInferenceManager can be imported."""
+        """Test that InferenceManager can be imported."""
         try:
-            from physical_ai_server.inference.zenoh_inference_manager import (
-                ZenohInferenceManager,
+            from physical_ai_server.inference.inference_manager import (
+                InferenceManager,
             )
             self.assertTrue(True)
-            print("PASS: ZenohInferenceManager imported successfully")
+            print("PASS: InferenceManager imported successfully")
         except ImportError as e:
-            self.fail(f"Failed to import ZenohInferenceManager: {e}")
+            self.fail(f"Failed to import InferenceManager: {e}")
 
     def test_05_create_client_default(self):
         """Test creating ZenohLeRobotClient with default parameters."""

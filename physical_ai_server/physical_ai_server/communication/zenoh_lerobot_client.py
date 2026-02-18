@@ -149,7 +149,7 @@ class ZenohLeRobotClient:
         self._connected = False
 
         self._status_callback: Optional[Callable] = None
-        self._action_callback: Optional[Callable] = None
+
         self._training_log_callback: Optional[Callable] = None
 
         # Callback group for service clients
@@ -471,12 +471,6 @@ class ZenohLeRobotClient:
         except Exception as e:
             logger.error(f'Failed to subscribe to progress: {e}')
             return False
-
-    def subscribe_actions(self, callback: Callable[[Dict], None]) -> bool:
-        """Subscribe to action outputs from inference."""
-        self._action_callback = callback
-        # TODO: Implement when ActionOutput message is defined
-        return True
 
     def subscribe_training_log(self, callback: Callable[[Dict], None]) -> bool:
         """Subscribe to training log."""

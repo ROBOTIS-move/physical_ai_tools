@@ -16,7 +16,6 @@
 #
 # Author: Dongyun Kim, Seongwoo Kim
 
-import gc
 import json
 import os
 from pathlib import Path
@@ -73,7 +72,6 @@ class DataManager:
         self._cpu_checker = CPUChecker()
         self.data_converter = DataConverter()
         self.current_instruction = ''
-        self._current_task = 0
         self._init_task_limits()
         self._current_scenario_number = 0
 
@@ -141,16 +139,6 @@ class DataManager:
         self._start_time_s = 0
         print(f'[DataManager] Recording stopped - Episode saved. '
               f'Total episodes: {self._record_episode_count}')
-
-    def cancel_recording(self):
-        """
-        Cancel recording without saving (simplified mode).
-
-        Changes status to 'idle' without incrementing episode count.
-        """
-        self._status = 'idle'
-        self._start_time_s = 0
-        print('[DataManager] Recording cancelled - Episode discarded')
 
     def is_recording(self):
         """Check if currently recording."""
@@ -492,20 +480,6 @@ class DataManager:
     def _get_encoding_progress(self):
         """Get encoding progress. Always returns not-saving for rosbag2-only mode."""
         return False, 100.0
-
-    def _episode_reset(self):
-        """Reset episode state for next recording."""
-        self._start_time_s = 0
-        gc.collect()
-
-    def convert_action_to_joint_trajectory_msg(self, action):
-        joint_trajectory_msgs = self.data_converter.tensor_array2joint_trajectory(
-            action,
-            self.total_joint_order)
-        return joint_trajectory_msgs
-
-    def get_task_info(self):
-        return self._task_info
 
     def _init_task_limits(self):
         if not self._single_task:

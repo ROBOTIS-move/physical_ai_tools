@@ -19,11 +19,11 @@
 """
 Unit tests for Zenoh communication layer.
 
-Tests the ROS2 rmw_zenoh based communication with LeRobot Docker container.
+Tests the ROS2 rmw_zenoh based communication with Docker containers.
 
 Architecture:
 - physical_ai_server uses ROS2 + rmw_zenoh (standard ROS2 API)
-- lerobot container uses zenoh_ros2_sdk (no ROS2 installed)
+- container uses zenoh_ros2_sdk (no ROS2 installed)
 - rmw_zenoh converts ROS2 messages to Zenoh protocol = COMPATIBLE
 """
 
@@ -31,8 +31,8 @@ import unittest
 import sys
 
 
-class TestZenohLeRobotClient(unittest.TestCase):
-    """Test ZenohLeRobotClient with ROS2 rmw_zenoh."""
+class TestZenohServiceClient(unittest.TestCase):
+    """Test ZenohServiceClient with ROS2 rmw_zenoh."""
 
     def test_01_import_ros2_interfaces(self):
         """Test that ROS2 interfaces can be imported."""
@@ -41,28 +41,26 @@ class TestZenohLeRobotClient(unittest.TestCase):
             from physical_ai_interfaces.srv import (
                 TrainModel,
                 StartInference,
+                GetActionChunk,
                 StopTraining,
                 TrainingStatus,
-                PolicyList,
-                CheckpointList,
-                ModelList,
             )
             self.assertTrue(True)
             print("PASS: ROS2 interfaces imported successfully")
         except ImportError as e:
             self.fail(f"Failed to import ROS2 interfaces: {e}")
 
-    def test_02_import_zenoh_lerobot_client(self):
-        """Test that ZenohLeRobotClient can be imported."""
+    def test_02_import_zenoh_service_client(self):
+        """Test that ZenohServiceClient can be imported."""
         try:
-            from physical_ai_server.communication.zenoh_lerobot_client import (
-                ZenohLeRobotClient,
-                LeRobotResponse,
+            from physical_ai_server.communication.zenoh_service_client import (
+                ZenohServiceClient,
+                ServiceResponse,
             )
             self.assertTrue(True)
-            print("PASS: ZenohLeRobotClient imported successfully")
+            print("PASS: ZenohServiceClient imported successfully")
         except ImportError as e:
-            self.fail(f"Failed to import ZenohLeRobotClient: {e}")
+            self.fail(f"Failed to import ZenohServiceClient: {e}")
 
     def test_03_import_training_manager(self):
         """Test that ZenohTrainingManager can be imported."""
@@ -87,41 +85,39 @@ class TestZenohLeRobotClient(unittest.TestCase):
             self.fail(f"Failed to import InferenceManager: {e}")
 
     def test_05_create_client_default(self):
-        """Test creating ZenohLeRobotClient with default parameters."""
-        from physical_ai_server.communication.zenoh_lerobot_client import (
-            ZenohLeRobotClient,
+        """Test creating ZenohServiceClient with default parameters."""
+        from physical_ai_server.communication.zenoh_service_client import (
+            ZenohServiceClient,
         )
 
-        client = ZenohLeRobotClient()
+        client = ZenohServiceClient(node=None, service_prefix="/groot")
         self.assertIsNotNone(client)
         self.assertEqual(client.timeout_sec, 30.0)
         self.assertFalse(client._connected)
-        print("PASS: ZenohLeRobotClient created with default parameters")
+        print("PASS: ZenohServiceClient created with default parameters")
 
     def test_06_create_client_custom_params(self):
-        """Test creating ZenohLeRobotClient with custom parameters."""
-        from physical_ai_server.communication.zenoh_lerobot_client import (
-            ZenohLeRobotClient,
+        """Test creating ZenohServiceClient with custom parameters."""
+        from physical_ai_server.communication.zenoh_service_client import (
+            ZenohServiceClient,
         )
 
-        client = ZenohLeRobotClient(
+        client = ZenohServiceClient(
+            node=None,
+            service_prefix="/lerobot",
             timeout_sec=10.0,
-            # These params are ignored but accepted for compatibility
-            router_ip='192.168.1.100',
-            router_port=7448,
-            domain_id=42,
         )
         self.assertIsNotNone(client)
         self.assertEqual(client.timeout_sec, 10.0)
-        print("PASS: ZenohLeRobotClient created with custom parameters")
+        print("PASS: ZenohServiceClient created with custom parameters")
 
     def test_07_connect_requires_node(self):
         """Test that connect() requires a ROS2 node."""
-        from physical_ai_server.communication.zenoh_lerobot_client import (
-            ZenohLeRobotClient,
+        from physical_ai_server.communication.zenoh_service_client import (
+            ZenohServiceClient,
         )
 
-        client = ZenohLeRobotClient()
+        client = ZenohServiceClient(node=None, service_prefix="/groot")
         result = client.connect()
 
         # Should fail without a ROS2 node
@@ -129,48 +125,57 @@ class TestZenohLeRobotClient(unittest.TestCase):
         self.assertFalse(client._connected)
         print("PASS: connect() correctly requires ROS2 node")
 
-    def test_08_service_names_defined(self):
-        """Test that service names are defined."""
-        from physical_ai_server.communication.zenoh_lerobot_client import (
-            ZenohLeRobotClient,
+    def test_08_service_names_with_prefix(self):
+        """Test that service names use the configured prefix."""
+        from physical_ai_server.communication.zenoh_service_client import (
+            ZenohServiceClient,
         )
 
-        self.assertEqual(ZenohLeRobotClient.SERVICE_TRAIN, '/lerobot/train')
-        self.assertEqual(ZenohLeRobotClient.SERVICE_INFER, '/lerobot/infer')
-        self.assertEqual(ZenohLeRobotClient.SERVICE_STOP, '/lerobot/stop')
-        self.assertEqual(ZenohLeRobotClient.SERVICE_STATUS, '/lerobot/status')
+        # Test with /groot prefix
+        groot_client = ZenohServiceClient(node=None, service_prefix="/groot")
+        self.assertEqual(groot_client.service_infer, '/groot/infer')
+        self.assertEqual(groot_client.service_stop, '/groot/stop')
+        self.assertEqual(groot_client.service_train, '/groot/train')
+        self.assertEqual(groot_client.service_status, '/groot/status')
         self.assertEqual(
-            ZenohLeRobotClient.SERVICE_POLICY_LIST, '/lerobot/policy_list'
-        )
-        self.assertEqual(
-            ZenohLeRobotClient.SERVICE_CHECKPOINT_LIST, '/lerobot/checkpoint_list'
-        )
-        self.assertEqual(
-            ZenohLeRobotClient.SERVICE_MODEL_LIST, '/lerobot/model_list'
-        )
-        print("PASS: Service names are correctly defined")
-
-    def test_09_topic_names_defined(self):
-        """Test that topic names are defined."""
-        from physical_ai_server.communication.zenoh_lerobot_client import (
-            ZenohLeRobotClient,
+            groot_client.service_get_action_chunk, '/groot/get_action_chunk'
         )
 
-        self.assertEqual(ZenohLeRobotClient.TOPIC_PROGRESS, '/lerobot/progress')
-        self.assertEqual(ZenohLeRobotClient.TOPIC_ACTION, '/lerobot/action')
-        print("PASS: Topic names are correctly defined")
+        # Test with /lerobot prefix
+        lerobot_client = ZenohServiceClient(node=None, service_prefix="/lerobot")
+        self.assertEqual(lerobot_client.service_infer, '/lerobot/infer')
+        self.assertEqual(lerobot_client.service_stop, '/lerobot/stop')
+        self.assertEqual(lerobot_client.service_train, '/lerobot/train')
+        self.assertEqual(lerobot_client.service_status, '/lerobot/status')
+
+        print("PASS: Service names correctly use configured prefix")
+
+    def test_09_topic_names_with_prefix(self):
+        """Test that topic names use the configured prefix."""
+        from physical_ai_server.communication.zenoh_service_client import (
+            ZenohServiceClient,
+        )
+
+        client = ZenohServiceClient(node=None, service_prefix="/lerobot")
+        self.assertEqual(client.topic_progress, '/lerobot/progress')
+
+        client2 = ZenohServiceClient(node=None, service_prefix="/groot")
+        self.assertEqual(client2.topic_progress, '/groot/progress')
+
+        print("PASS: Topic names correctly use configured prefix")
 
 
-class TestLeRobotResponse(unittest.TestCase):
-    """Test LeRobotResponse dataclass."""
+
+class TestServiceResponse(unittest.TestCase):
+    """Test ServiceResponse dataclass."""
 
     def test_create_response(self):
-        """Test creating LeRobotResponse."""
-        from physical_ai_server.communication.zenoh_lerobot_client import (
-            LeRobotResponse,
+        """Test creating ServiceResponse."""
+        from physical_ai_server.communication.zenoh_service_client import (
+            ServiceResponse,
         )
 
-        response = LeRobotResponse(
+        response = ServiceResponse(
             success=True,
             message="Test message",
             data={"key": "value"},
@@ -181,15 +186,15 @@ class TestLeRobotResponse(unittest.TestCase):
         self.assertEqual(response.message, "Test message")
         self.assertEqual(response.data["key"], "value")
         self.assertEqual(response.request_id, "test-123")
-        print("PASS: LeRobotResponse created successfully")
+        print("PASS: ServiceResponse created successfully")
 
     def test_from_service_response_none(self):
         """Test from_service_response with None."""
-        from physical_ai_server.communication.zenoh_lerobot_client import (
-            LeRobotResponse,
+        from physical_ai_server.communication.zenoh_service_client import (
+            ServiceResponse,
         )
 
-        response = LeRobotResponse.from_service_response(None, "test-id")
+        response = ServiceResponse.from_service_response(None, "test-id")
 
         self.assertFalse(response.success)
         self.assertIn("No response", response.message)
@@ -198,8 +203,8 @@ class TestLeRobotResponse(unittest.TestCase):
 
     def test_extract_data_with_attributes(self):
         """Test _extract_data extracts various attributes."""
-        from physical_ai_server.communication.zenoh_lerobot_client import (
-            LeRobotResponse,
+        from physical_ai_server.communication.zenoh_service_client import (
+            ServiceResponse,
         )
 
         class MockResponse:
@@ -215,7 +220,7 @@ class TestLeRobotResponse(unittest.TestCase):
             checkpoints = ["ckpt1", "ckpt2"]
             models = ["model1"]
 
-        response = LeRobotResponse.from_service_response(MockResponse())
+        response = ServiceResponse.from_service_response(MockResponse())
 
         self.assertTrue(response.success)
         self.assertEqual(response.data['job_id'], "job-123")
@@ -232,8 +237,8 @@ def main():
     suite = unittest.TestSuite()
 
     # Add tests in order
-    suite.addTests(loader.loadTestsFromTestCase(TestLeRobotResponse))
-    suite.addTests(loader.loadTestsFromTestCase(TestZenohLeRobotClient))
+    suite.addTests(loader.loadTestsFromTestCase(TestServiceResponse))
+    suite.addTests(loader.loadTestsFromTestCase(TestZenohServiceClient))
 
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)

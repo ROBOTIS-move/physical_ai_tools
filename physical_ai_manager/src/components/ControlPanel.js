@@ -39,14 +39,9 @@ const phaseGuideMessages = {
   [TaskPhase.INFERENCING]: 'Inferencing',
 };
 
-const requiredFieldsForRecord = [
-  { key: 'taskName', label: 'Task Name' },
-  { key: 'taskInstruction', label: 'Task Instruction' },
-];
+const requiredFieldsForRecord = [];
 
 const requiredFieldsForRecordInferenceMode = [
-  { key: 'taskName', label: 'Task Name' },
-  { key: 'taskInstruction', label: 'Task Instruction' },
   { key: 'policyPath', label: 'Policy Path' },
 ];
 

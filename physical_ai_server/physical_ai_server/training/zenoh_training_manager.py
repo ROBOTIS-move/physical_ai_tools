@@ -25,21 +25,24 @@ from typing import Callable, Optional
 from rclpy.node import Node
 
 from physical_ai_interfaces.msg import TrainingInfo, TrainingStatus
-from physical_ai_server.communication import LeRobotResponse, ZenohLeRobotClient
+from physical_ai_server.communication.zenoh_service_client import (
+    ServiceResponse,
+    ZenohServiceClient,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class ZenohTrainingManager:
     """
-    Training manager that delegates to LeRobot Docker container via Zenoh.
+    Training manager that delegates to Docker container via Zenoh.
 
-    This manager does not import lerobot directly. Instead, it sends commands
-    to the isolated LeRobot Docker container through ROS2 service clients.
+    Works with any container (LeRobot, GR00T, etc.) that implements
+    the standard training service interface, parameterized by service_prefix.
 
     Architecture:
     - physical_ai_server uses ROS2 + rmw_zenoh (standard ROS2 API)
-    - lerobot container uses zenoh_ros2_sdk (no ROS2 installed)
+    - container uses zenoh_ros2_sdk (no ROS2 installed)
     - rmw_zenoh converts ROS2 messages to Zenoh protocol = COMPATIBLE
     """
 
@@ -53,11 +56,14 @@ class ZenohTrainingManager:
     _cached_policies: Optional[list] = None
     _cached_policy_details: Optional[list] = None
 
-    def __init__(self, node: Node = None):
+    def __init__(self, node: Node = None, service_prefix: str = "/lerobot"):
         # ROS2 node required for creating service clients
         self._node = node
+        self._service_prefix = service_prefix
         self.training_info = TrainingInfo()
-        self.client = ZenohLeRobotClient(node=node)
+        self.client = ZenohServiceClient(
+            node=node, service_prefix=service_prefix
+        )
         self._connected = False
         self._status_callback: Optional[Callable] = None
         self._current_status = 'idle'
@@ -75,10 +81,9 @@ class ZenohTrainingManager:
             return True
         if node is not None:
             self._node = node
-        self._connected = self.client.connect(node=self._node)
+        self._connected = self.client.connect()
         if self._connected:
-            self.client.subscribe_status(self._on_status_update)
-            self.client.subscribe_training_log(self._on_training_log_update)
+            self.client.subscribe_progress(self._on_status_update)
         return self._connected
 
     def disconnect(self):
@@ -109,15 +114,6 @@ class ZenohTrainingManager:
 
         if self._status_callback:
             self._status_callback(status_data)
-
-    def _on_training_log_update(self, log_data: dict):
-        """Handle detailed training log updates from lerobot/training_log topic."""
-        if 'step' in log_data:
-            self._current_step = log_data.get('step', 0)
-        if 'loss' in log_data:
-            loss_value = log_data.get('loss')
-            if loss_value is not None and loss_value != 0:
-                self._current_loss = float(loss_value)
 
     def set_status_callback(self, callback: Callable):
         self._status_callback = callback
@@ -175,13 +171,13 @@ class ZenohTrainingManager:
         status.current_loss = self._current_loss
         return status
 
-    def train(self) -> LeRobotResponse:
+    def train(self) -> ServiceResponse:
         """Start training and wait for completion."""
         if not self._connected:
             if not self.connect():
-                return LeRobotResponse(
+                return ServiceResponse(
                     success=False,
-                    message='Failed to connect to LeRobot server',
+                    message='Failed to connect to training server',
                     data={},
                     request_id=''
                 )
@@ -218,7 +214,7 @@ class ZenohTrainingManager:
                 logger.warning(f'Training timeout after {timeout}s')
                 break
 
-        final_response = LeRobotResponse(
+        final_response = ServiceResponse(
             success=self._current_status == 'idle',
             message=f'Training {self._current_status}',
             data={
@@ -231,22 +227,22 @@ class ZenohTrainingManager:
 
         return final_response
 
-    def stop(self) -> LeRobotResponse:
+    def stop(self) -> ServiceResponse:
         self.stop_event.set()
         if not self._connected:
-            return LeRobotResponse(
+            return ServiceResponse(
                 success=False,
-                message='Not connected to LeRobot server',
+                message='Not connected to training server',
                 data={},
                 request_id=''
             )
         return self.client.stop_training()
 
-    def get_status(self) -> LeRobotResponse:
+    def get_status(self) -> ServiceResponse:
         if not self._connected:
-            return LeRobotResponse(
+            return ServiceResponse(
                 success=False,
-                message='Not connected to LeRobot server',
+                message='Not connected to training server',
                 data={},
                 request_id=''
             )

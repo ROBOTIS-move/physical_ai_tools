@@ -55,7 +55,7 @@ def load_policy(server, request) -> dict:
     """Load GR00T policy and setup subscribers. Returns dict for service response."""
     global _loaded_policy, _inference_config, _latest_observations, _action_keys
 
-    model_path = getattr(request, "model_path", "")
+    model_path = getattr(request, "model_path", "").strip()
     if not model_path:
         return {"success": False, "message": "Missing required parameter: model_path"}
 

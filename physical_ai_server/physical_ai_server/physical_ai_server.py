@@ -26,8 +26,6 @@ import time
 import traceback
 from typing import Optional
 
-import yaml
-
 from ament_index_python.packages import get_package_share_directory
 from physical_ai_interfaces.msg import (
     BrowserItem,
@@ -45,7 +43,6 @@ from physical_ai_interfaces.srv import (
     GetPolicyList,
     GetReplayData,
     GetRobotTypeList,
-    GetSavedPolicyList,
     GetTrainingInfo,
     GetUserList,
     SendCommand,
@@ -190,8 +187,6 @@ class PhysicalAIServer(Node):
             ('/set_robot_type', SetRobotType, self.set_robot_type_callback),
             ('/register_hf_user', SetHFUser, self.set_hf_user_callback),
             ('/get_registered_hf_user', GetHFUser, self.get_hf_user_callback),
-            ('/get_policy_list', GetPolicyList, self.get_policy_list_callback),
-            ('/get_saved_policies', GetSavedPolicyList, self.get_saved_policies_callback),
             ('/training/command', SendTrainingCommand, self.user_training_interaction_callback),
             ('/training/get_available_policy', GetPolicyList, self.get_available_list_callback),
             ('/training/get_user_list', GetUserList, self.get_user_list_callback),
@@ -1064,13 +1059,6 @@ class PhysicalAIServer(Node):
         response.message = 'Robot type list retrieved successfully'
         return response
 
-    def get_policy_list_callback(self, request, response):
-        # TODO: Implement dynamic policy list retrieval
-        response.policy_list = []
-        response.success = True
-        response.message = 'Not implemented yet'
-        return response
-
     def get_available_list_callback(self, request, response):
         response.success = True
         response.message = 'Policy and device lists retrieved successfully'
@@ -1151,14 +1139,6 @@ class PhysicalAIServer(Node):
             response.message = f'Error: {str(e)}'
             response.model_weight_list = []
 
-        return response
-
-    def get_saved_policies_callback(self, request, response):
-        # TODO: Implement saved policy retrieval
-        response.saved_policy_path = []
-        response.saved_policy_type = []
-        response.success = True
-        response.message = 'Not implemented yet'
         return response
 
     def get_training_info_callback(self, request, response):

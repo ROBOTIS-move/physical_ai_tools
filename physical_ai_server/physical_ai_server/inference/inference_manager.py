@@ -22,7 +22,7 @@ InferenceManager - Action chunk based async inference manager.
 Generic manager that works with any inference container (GR00T, LeRobot, etc.)
 by parameterizing the service prefix.
 
-Manages action buffer, background chunk requests via ZenohInferenceClient,
+Manages action buffer, background chunk requests via ZenohServiceClient,
 L2-based chunk alignment, and action-to-JointTrajectory conversion.
 
 Architecture:
@@ -45,7 +45,7 @@ import numpy as np
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-from physical_ai_server.communication.zenoh_inference_client import ZenohInferenceClient
+from physical_ai_server.communication.zenoh_service_client import ZenohServiceClient
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class InferenceManager:
         self._buffer_lock = threading.Lock()
 
         # Zenoh service client for inference container
-        self._client: Optional[ZenohInferenceClient] = None
+        self._client: Optional[ZenohServiceClient] = None
 
         # Background inference thread
         self._inference_thread: Optional[threading.Thread] = None
@@ -119,7 +119,7 @@ class InferenceManager:
         """
         self._task_instruction = task_instruction
 
-        self._client = ZenohInferenceClient(
+        self._client = ZenohServiceClient(
             node=self._node,
             service_prefix=self._service_prefix,
         )

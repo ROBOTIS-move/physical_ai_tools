@@ -27,16 +27,28 @@ Both modes share the same load_policy() / cleanup_inference() lifecycle.
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, Optional
 
+import cv2
 import numpy as np
 import torch
-
+from transformers import AutoProcessor
 from zenoh_ros2_sdk import ROS2Subscriber
 
-import logging
+import gr00t.model  # noqa: F401 - register custom models
+from gr00t.configs.data.embodiment_configs import MODALITY_CONFIGS
+from gr00t.data.embodiment_tags import EmbodimentTag
+from gr00t.policy.gr00t_policy import Gr00tPolicy
+
 logger = logging.getLogger("groot_inference")
+
+# Test-only: hardcoded camera rotations (degrees). Wrist cams rotated 270° (remove for production)
+TEST_CAMERA_ROTATIONS = {
+    "cam_left_wrist": 270,
+    "cam_right_wrist": 270,
+}
 
 # Module-level inference state
 _loaded_policy: Optional[Any] = None
@@ -78,8 +90,9 @@ def load_policy(server, request) -> dict:
         video_keys = modality_config["video"].modality_keys if "video" in modality_config else []
         state_keys = modality_config["state"].modality_keys if "state" in modality_config else []
         action_keys = modality_config["action"].modality_keys if "action" in modality_config else []
+        language_keys = modality_config["language"].modality_keys if "language" in modality_config else []
 
-        logger.info(f"Modality config - video: {video_keys}, state: {state_keys}, action: {action_keys}")
+        logger.info(f"Modality config - video: {video_keys}, state: {state_keys}, action: {action_keys}, language: {language_keys}")
 
         # 3. Parse topic maps from request
         camera_topic_map = _parse_topic_map(getattr(request, "camera_topic_map", []))
@@ -91,7 +104,7 @@ def load_policy(server, request) -> dict:
         logger.info(f"Active cameras: {list(active_cameras.keys())}")
         logger.info(f"Active joints: {list(active_joints.keys())}")
 
-        # 4. Store config
+        # 4. Store config (test: use hardcoded camera_rotations; remove TEST_CAMERA_ROTATIONS for production)
         task_instruction = getattr(request, "task_instruction", "")
         _inference_config = {
             "model_path": model_path,
@@ -99,6 +112,8 @@ def load_policy(server, request) -> dict:
             "camera_topic_map": active_cameras,
             "joint_topic_map": active_joints,
             "task_instruction": task_instruction,
+            "language_keys": language_keys,
+            "camera_rotations": TEST_CAMERA_ROTATIONS,
         }
 
         # 5. Initialize observation dict
@@ -126,27 +141,33 @@ def load_policy(server, request) -> dict:
 def get_action_chunk(server, request) -> dict:
     """Run inference and return action chunk as dict (service response mode)."""
     if _loaded_policy is None:
+        logger.error("Not in inference mode")
         return {"success": False, "message": "Not in inference mode"}
 
     try:
         obs = _latest_observations
 
         if obs["timestamp"] is None or time.time() - obs["timestamp"] > 2.0:
+            logger.error("No recent observations")
             return {"success": False, "message": "No recent observations"}
 
         for key in obs["video"]:
             if obs["video"][key] is None:
+                logger.error(f"Missing video observation: {key}")
                 return {"success": False, "message": f"Missing video observation: {key}"}
         for key in obs["state"]:
             if obs["state"][key] is None:
+                logger.error(f"Missing state observation: {key}")
                 return {"success": False, "message": f"Missing state observation: {key}"}
 
-        # Language instruction
+        # Task instruction: from request (GetActionChunk) or from config (set at StartInference).
+        # Same format as training (one string per episode from meta/episodes.jsonl / tasks.jsonl).
         task = getattr(request, "task_instruction", "") or (
             _inference_config.get("task_instruction", "") if _inference_config else ""
         )
-        if task:
-            obs["language"]["annotation.human.task_description"] = [[task]]
+        language_keys = _inference_config.get("language_keys", []) if _inference_config else []
+        for lang_key in language_keys:
+            obs["language"][lang_key] = [[task]]
 
         observation = {
             "video": obs["video"],
@@ -154,7 +175,7 @@ def get_action_chunk(server, request) -> dict:
             "language": obs["language"],
         }
 
-        logger.debug("Running inference...")
+        logger.info("Running inference...")
         action, info = _loaded_policy.get_action(observation)
 
         chunks = []
@@ -173,6 +194,7 @@ def get_action_chunk(server, request) -> dict:
                 "action_dim": D,
             }
 
+        logger.error("No action output from policy")
         return {"success": False, "message": "No action output from policy"}
 
     except Exception as e:
@@ -215,6 +237,16 @@ def _parse_topic_map(topic_map_list: list) -> dict:
     return result
 
 
+def _parse_camera_rotations(rotations_list: list) -> dict:
+    """Parse 'key:degrees' string list into {key: int} dict. E.g. ['cam_left_wrist:270']."""
+    result = {}
+    for entry in rotations_list or []:
+        if ":" in entry:
+            key, angle = entry.split(":", 1)
+            result[key.strip()] = int(angle.strip())
+    return result
+
+
 def _load_groot_policy(model_path: str, embodiment_tag: str):
     """Load a GR00T policy from checkpoint.
 
@@ -222,9 +254,6 @@ def _load_groot_policy(model_path: str, embodiment_tag: str):
     falls back to the first available embodiment config.
     """
     try:
-        from gr00t.data.embodiment_tags import EmbodimentTag
-        from gr00t.policy.gr00t_policy import Gr00tPolicy
-
         try:
             emb_tag = EmbodimentTag(embodiment_tag)
         except ValueError:
@@ -244,8 +273,6 @@ def _load_groot_policy(model_path: str, embodiment_tag: str):
             return policy
         except KeyError:
             # Embodiment tag not in model's processor configs - find available ones
-            from transformers import AutoProcessor
-            import gr00t.model  # noqa: F401 - register custom models
             proc = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
             available = list(proc.get_modality_configs().keys())
             logger.warning(
@@ -279,8 +306,6 @@ def _load_groot_policy(model_path: str, embodiment_tag: str):
 def _get_modality_config(policy, embodiment_tag: str) -> dict:
     """Get modality config for the loaded embodiment."""
     try:
-        from gr00t.data.embodiment_tags import EmbodimentTag
-
         try:
             emb_tag = EmbodimentTag(embodiment_tag)
         except ValueError:
@@ -296,7 +321,6 @@ def _get_modality_config(policy, embodiment_tag: str) -> dict:
 
         # Try from registry
         try:
-            from gr00t.configs.data.embodiment_configs import MODALITY_CONFIGS
             if emb_tag.value in MODALITY_CONFIGS:
                 return MODALITY_CONFIGS[emb_tag.value]
         except Exception as e:
@@ -333,10 +357,11 @@ def _setup_ros2_subscribers(server, active_cameras: dict, active_joints: dict) -
             topic=topic_path,
             msg_type="sensor_msgs/msg/CompressedImage",
             callback=make_image_callback(modality_key),
-            **common_kwargs,
+            domain_id=30
+            # **common_kwargs,
         )
         _ros2_subscribers.append(sub)
-        logger.info(f"Camera subscribed: {modality_key} -> {topic_path}")
+        logger.info(f"Camera subscribed: {modality_key} -> {topic_path}, {common_kwargs}")
 
     for modality_key, topic_path in active_joints.items():
         def make_joint_callback(key):
@@ -348,34 +373,55 @@ def _setup_ros2_subscribers(server, active_cameras: dict, active_joints: dict) -
             topic=topic_path,
             msg_type="sensor_msgs/msg/JointState",
             callback=make_joint_callback(modality_key),
-            **common_kwargs,
+            domain_id=30
+            # **common_kwargs,
         )
         _ros2_subscribers.append(sub)
-        logger.info(f"Joint subscribed: {modality_key} -> {topic_path}")
+        logger.info(f"Joint subscribed: {modality_key} -> {topic_path}, {common_kwargs}")
 
     logger.info(f"Setup {len(_ros2_subscribers)} ROS2 subscribers")
 
 
+# Target image size for GR00T
+IMAGE_SIZE = (256, 256)
+
+
 def _on_image_received(modality_key: str, msg) -> None:
-    """Store camera image by modality key."""
+    """Decode image, apply rotation if configured, resize to IMAGE_SIZE, store by modality key."""
     try:
-        import cv2
         image_data = np.frombuffer(bytes(msg.data), dtype=np.uint8)
         image = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+        logger.info(f"Image received from {modality_key}: {image.shape}")
 
         if image is not None:
-            target_size = (224, 224)
-            if image.shape[:2] != target_size:
-                image = cv2.resize(image, (target_size[1], target_size[0]))
-            image = image[np.newaxis, np.newaxis, ...]  # (1,1,H,W,C)
+            # BGR -> RGB (GR00T expects RGB)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+            # Apply rotation if configured for this camera (e.g. wrist cams 270°)
+            rotations = _inference_config.get("camera_rotations", {}) if _inference_config else {}
+            angle = rotations.get(modality_key)
+            if angle is not None:
+                if angle == 90:
+                    image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+                elif angle == 180:
+                    image = cv2.rotate(image, cv2.ROTATE_180)
+                elif angle == 270:
+                    image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+            # Resize to 256x256 (match dataset: INTER_LINEAR)
+            image = cv2.resize(image, IMAGE_SIZE, interpolation=cv2.INTER_LINEAR)
+
+            # (1, 1, H, W, C): batch=1, T=1
+            image = image[np.newaxis, np.newaxis, ...]
             _latest_observations["video"][modality_key] = image
             _latest_observations["timestamp"] = time.time()
     except Exception as e:
-        logger.debug(f"Error decoding image for {modality_key}: {e}")
+        logger.warning(f"Error decoding image for {modality_key}: {e}")
 
 
 def _on_joint_state_received(modality_key: str, msg) -> None:
     """Store joint state by modality key as (1,1,D) array."""
+    # logger.info(f"Joint state received from {modality_key}: {msg.position}")
     try:
         positions = np.array(msg.position, dtype=np.float32)
         _latest_observations["state"][modality_key] = positions[np.newaxis, np.newaxis, :]

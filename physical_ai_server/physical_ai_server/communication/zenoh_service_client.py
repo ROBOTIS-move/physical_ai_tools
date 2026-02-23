@@ -113,7 +113,7 @@ class ZenohServiceClient:
         self,
         node: Node,
         service_prefix: str = "/groot",
-        timeout_sec: float = 30.0,
+        timeout_sec: float = 180.0,
     ):
         self._node = node
         self._service_prefix = service_prefix

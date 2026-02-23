@@ -29,36 +29,27 @@ services:
       rttime: -1
       memlock: 8428281856
     network_mode: host
-    # Shared Memory support for Zenoh communication with lerobot
     ipc: host
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
-      # ROS2 Domain ID - MUST match all containers
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
-      # ROS2 RMW configuration - use Zenoh instead of DDS
       - RMW_IMPLEMENTATION=rmw_zenoh_cpp
-      # Zenoh configuration
       - ZENOH_ROUTER_IP=127.0.0.1
       - ZENOH_ROUTER_PORT=7447
+      - ZENOH_CONFIG_OVERRIDE=transport/shared_memory/enabled=true
     volumes:
       - /dev:/dev
+      - /dev/shm:/dev/shm
       - ./workspace:/workspace
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
       - ../:/root/ros2_ws/src/physical_ai_tools/
       - ./huggingface:/root/.cache/huggingface
-      # Docker socket for cross-container exec (v2.1 -> v3.0 conversion)
       - /var/run/docker.sock:/var/run/docker.sock
-      # Shared Memory (Zenoh SHM zero-copy transport)
-      - /dev/shm:/dev/shm
-      # Zenoh SHM negotiation requires shared /tmp between containers
-      - /tmp:/tmp
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     privileged: true
-    # Zenoh router is managed externally, just keep container running
-    command: bash
     runtime: nvidia
     deploy:
       resources:
@@ -79,14 +70,43 @@ services:
       dockerfile: Dockerfile.${ARCH:-arm64}
       args:
         GPU_ARCH: ${GPU_ARCH:-default}
-
-    # Network: host mode for Zenoh communication
+    restart: unless-stopped
+    cap_add:
+      - SYS_NICE
+    ulimits:
+      rtprio: 99
+      rttime: -1
+      memlock: 8428281856
     network_mode: host
-
-    # Shared Memory support for high-performance Zenoh transport
     ipc: host
-
-    # GPU support for training and inference
+    volumes:
+      - /dev:/dev
+      - /dev/shm:/dev/shm
+      - ./workspace:/workspace
+      - ./huggingface:/root/.cache/huggingface
+      - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
+      - ../third_party/robot_client/robot_client:/robot_client:ro
+      - ../third_party/lerobot/executor.py:/app/executor.py:ro
+      - ../third_party/lerobot/training.py:/app/training.py:ro
+      - ../third_party/lerobot/inference.py:/app/inference.py:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
+      - ZENOH_ROUTER_IP=127.0.0.1
+      - ZENOH_ROUTER_PORT=7447
+      - ZENOH_SDK_PATH=/zenoh_sdk
+      - ZENOH_CONFIG_OVERRIDE=transport/shared_memory/enabled=true
+      - ZENOH_TRANSPORT_SHM_ENABLED=
+      - ZENOH_SHM_ENABLED=
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - PYTHONUNBUFFERED=1
+      - ROBOT_CLIENT_PATH=/robot_client
+      - LEROBOT_WORKSPACE=/workspace
+    command: server
+    depends_on:
+      - physical_ai_server
     runtime: nvidia
     deploy:
       resources:
@@ -94,71 +114,6 @@ services:
           devices:
             - driver: nvidia
               capabilities: [gpu]
-
-    # Volume mappings
-    volumes:
-      # Shared Memory device
-      - /dev/shm:/dev/shm
-
-      # Zenoh SHM negotiation requires shared /tmp between containers
-      - /tmp:/tmp
-
-      # Shared workspace with physical_ai_server (datasets, models, outputs)
-      - ./workspace:/workspace
-
-      # HuggingFace cache (shared with physical_ai_server)
-      - ./huggingface:/root/.cache/huggingface
-
-      # Zenoh SDK (shared across all opensource integrations)
-      - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
-
-      # Robot Client (shared high-level API)
-      - ../third_party/robot_client/robot_client:/robot_client:ro
-
-      # LeRobot executor modules (for development - mount latest code)
-      - ../third_party/lerobot/executor.py:/app/executor.py:ro
-      - ../third_party/lerobot/training.py:/app/training.py:ro
-      - ../third_party/lerobot/inference.py:/app/inference.py:ro
-
-      # Timezone
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-
-    # Environment variables
-    environment:
-      # ROS Domain ID - MUST match physical_ai_server
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
-
-      # Zenoh configuration - peer-to-peer mode (no router needed)
-      - ZENOH_ROUTER_IP=127.0.0.1
-      - ZENOH_ROUTER_PORT=7447
-      - ZENOH_SHM_ENABLED=true
-      - ZENOH_SDK_PATH=/zenoh_sdk
-      # Override to enable peer-to-peer scouting (connects to rmw_zenoh router via default endpoint)
-      - ZENOH_CONFIG_OVERRIDE=mode="peer";scouting/multicast/enabled=true;scouting/gossip/enabled=true
-
-      # GPU
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
-
-      # Python
-      - PYTHONUNBUFFERED=1
-
-      # Robot Client path
-      - ROBOT_CLIENT_PATH=/robot_client
-
-      # Workspace path
-      - LEROBOT_WORKSPACE=/workspace
-
-    # Auto restart
-    restart: unless-stopped
-
-    # Default command: start Zenoh server
-    command: server
-
-    # Dependencies
-    depends_on:
-      - physical_ai_server
 
   # ============================================
   # GR00T N1.6 Server (Isolated Docker Container)
@@ -173,14 +128,44 @@ services:
       dockerfile: Dockerfile.${ARCH:-arm64}
       args:
         GPU_ARCH: ${GPU_ARCH:-default}
-
-    # Network: host mode for Zenoh communication
+    restart: unless-stopped
+    cap_add:
+      - SYS_NICE
+    ulimits:
+      rtprio: 99
+      rttime: -1
+      memlock: 8428281856
     network_mode: host
-
-    # Shared Memory support for high-performance Zenoh transport
     ipc: host
-
-    # GPU support for training and inference
+    environment:
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
+      - ZENOH_ROUTER_IP=127.0.0.1
+      - ZENOH_ROUTER_PORT=7447
+      - ZENOH_SDK_PATH=/zenoh_sdk
+      - ZENOH_CONFIG_OVERRIDE=transport/shared_memory/enabled=true
+      - ZENOH_TRANSPORT_SHM_ENABLED=
+      - ZENOH_SHM_ENABLED=
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - PYTHONUNBUFFERED=1
+      - ROBOT_CLIENT_PATH=/robot_client
+      - GROOT_WORKSPACE=/workspace
+    volumes:
+      - /dev:/dev
+      - /dev/shm:/dev/shm
+      - /home/hc/gr00t_ws:/gr00t_ws:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - ./huggingface:/root/.cache/huggingface
+      - ../third_party/groot/workspace:/workspace
+      - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
+      - ../third_party/robot_client/robot_client:/robot_client:ro
+      - ../third_party/groot/executor.py:/app/executor.py:ro
+      - ../third_party/groot/training.py:/app/training.py:ro
+      - ../third_party/groot/inference.py:/app/inference.py:ro
+    command: server
+    depends_on:
+      - physical_ai_server
     runtime: nvidia
     deploy:
       resources:
@@ -188,72 +173,3 @@ services:
           devices:
             - driver: nvidia
               capabilities: [gpu]
-
-    # Volume mappings
-    volumes:
-      # Shared Memory device
-      - /dev/shm:/dev/shm
-
-      # Zenoh SHM negotiation requires shared /tmp between containers
-      - /tmp:/tmp
-
-      # GR00T workspace (datasets, checkpoints, outputs)
-      # Maps: host third_party/groot/workspace <-> container /workspace
-      - ../third_party/groot/workspace:/workspace
-
-      # HuggingFace cache (shared with physical_ai_server and lerobot)
-      - ./huggingface:/root/.cache/huggingface
-
-      # Zenoh SDK (shared across all opensource integrations)
-      - ../third_party/zenoh_ros2_sdk:/zenoh_sdk:ro
-
-      # Robot Client (shared high-level API)
-      - ../third_party/robot_client/robot_client:/robot_client:ro
-
-      # GR00T model checkpoints (host gr00t_ws → container /gr00t_ws)
-      - /home/hc/gr00t_ws:/gr00t_ws:ro
-
-      # GR00T executor modules (for development - mount latest code)
-      - ../third_party/groot/executor.py:/app/executor.py:ro
-      - ../third_party/groot/training.py:/app/training.py:ro
-      - ../third_party/groot/inference.py:/app/inference.py:ro
-
-      # Timezone
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-
-    # Environment variables
-    environment:
-      # ROS Domain ID - MUST match physical_ai_server
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
-
-      # Zenoh configuration - peer-to-peer mode (no router needed)
-      - ZENOH_ROUTER_IP=127.0.0.1
-      - ZENOH_ROUTER_PORT=7447
-      - ZENOH_SHM_ENABLED=true
-      - ZENOH_SDK_PATH=/zenoh_sdk
-      # Override to enable peer-to-peer scouting (connects to rmw_zenoh router via default endpoint)
-      - ZENOH_CONFIG_OVERRIDE=mode="peer";scouting/multicast/enabled=true;scouting/gossip/enabled=true
-
-      # GPU
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
-
-      # Python
-      - PYTHONUNBUFFERED=1
-
-      # Robot Client path
-      - ROBOT_CLIENT_PATH=/robot_client
-
-      # Workspace path
-      - GROOT_WORKSPACE=/workspace
-
-    # Auto restart
-    restart: unless-stopped
-
-    # Default command: start Zenoh server
-    command: server
-
-    # Dependencies
-    depends_on:
-      - physical_ai_server

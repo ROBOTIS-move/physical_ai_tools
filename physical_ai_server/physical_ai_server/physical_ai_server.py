@@ -872,15 +872,20 @@ class PhysicalAIServer(Node):
                     response.message = 'MP4 conversion is already in progress'
                     return response
 
-                if source_folders:
-                    # === Merge & Convert mode ===
+                if len(source_folders) >= 2:
+                    # === Merge & Convert mode (requires at least 2 sources) ===
                     dataset_path = base_path / task_name
 
                     # Validate source folders
                     source_paths = []
                     for folder_name in source_folders:
-                        src = Path(folder_name) if folder_name.startswith('/') \
-                            else base_path / folder_name
+                        if folder_name.startswith('/'):
+                            src = Path(folder_name)
+                        else:
+                            # Try with robot_type prefix first, then raw name
+                            src = base_path / f'{self.robot_type}_{folder_name}'
+                            if not src.exists():
+                                src = base_path / folder_name
                         if not src.exists():
                             response.success = False
                             response.message = f'Source folder not found: {src}'

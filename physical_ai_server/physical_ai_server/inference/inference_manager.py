@@ -57,7 +57,7 @@ class InferenceManager:
     via the service_prefix parameter.
     """
 
-    BUFFER_REFILL_THRESHOLD = 6  # Request new chunk when buffer < this
+    BUFFER_REFILL_THRESHOLD = 1  # Request new chunk when buffer < this
     ACTION_FREQ_HZ = 10.0       # Joint command publish frequency
 
     def __init__(

@@ -128,7 +128,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Default setup.py targets SM 80/90 but Orin is SM 8.7 → "no kernel image" at runtime.
 # We download source, patch setup.py to add SM 8.7, and build with only SM 8.7 target.
 # MAX_JOBS=4 to avoid OOM on Jetson (build takes ~100 min on Orin)
-RUN uv pip download flash-attn --no-binary :all: --no-deps -d /tmp/flash-attn-src \
+RUN pip download flash-attn --no-binary :all: --no-deps -d /tmp/flash-attn-src \
     && mkdir -p /tmp/flash-attn-build \
     && tar xzf /tmp/flash-attn-src/flash_attn-*.tar.gz -C /tmp/flash-attn-build --strip-components=1 \
     && cd /tmp/flash-attn-build \

@@ -49,6 +49,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+      - /var/run/robotis/agent_sockets/physical_ai_server:/var/run/agent
     privileged: true
     runtime: nvidia
     deploy:

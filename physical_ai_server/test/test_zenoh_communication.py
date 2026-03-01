@@ -17,22 +17,17 @@
 # Author: Dongyun Kim
 
 """
-Unit tests for Zenoh communication layer.
+Unit tests for container service communication layer.
 
-Tests the ROS2 rmw_zenoh based communication with Docker containers.
-
-Architecture:
-- physical_ai_server uses ROS2 + rmw_zenoh (standard ROS2 API)
-- container uses zenoh_ros2_sdk (no ROS2 installed)
-- rmw_zenoh converts ROS2 messages to Zenoh protocol = COMPATIBLE
+Tests the ROS2 service based communication with Docker containers.
 """
 
 import unittest
 import sys
 
 
-class TestZenohServiceClient(unittest.TestCase):
-    """Test ZenohServiceClient with ROS2 rmw_zenoh."""
+class TestInferenceServiceClient(unittest.TestCase):
+    """Test InferenceServiceClient for container communication."""
 
     def test_01_import_ros2_interfaces(self):
         """Test that ROS2 interfaces can be imported."""
@@ -50,17 +45,17 @@ class TestZenohServiceClient(unittest.TestCase):
         except ImportError as e:
             self.fail(f"Failed to import ROS2 interfaces: {e}")
 
-    def test_02_import_zenoh_service_client(self):
-        """Test that ZenohServiceClient can be imported."""
+    def test_02_import_inference_service_client(self):
+        """Test that InferenceServiceClient can be imported."""
         try:
-            from physical_ai_server.communication.zenoh_service_client import (
-                ZenohServiceClient,
+            from physical_ai_server.communication.inference_service_client import (
+                InferenceServiceClient,
                 ServiceResponse,
             )
             self.assertTrue(True)
-            print("PASS: ZenohServiceClient imported successfully")
+            print("PASS: InferenceServiceClient imported successfully")
         except ImportError as e:
-            self.fail(f"Failed to import ZenohServiceClient: {e}")
+            self.fail(f"Failed to import InferenceServiceClient: {e}")
 
     def test_03_import_training_manager(self):
         """Test that ZenohTrainingManager can be imported."""
@@ -85,54 +80,52 @@ class TestZenohServiceClient(unittest.TestCase):
             self.fail(f"Failed to import InferenceManager: {e}")
 
     def test_05_create_client_default(self):
-        """Test creating ZenohServiceClient with default parameters."""
-        from physical_ai_server.communication.zenoh_service_client import (
-            ZenohServiceClient,
+        """Test creating InferenceServiceClient with default parameters."""
+        from physical_ai_server.communication.inference_service_client import (
+            InferenceServiceClient,
         )
 
-        client = ZenohServiceClient(node=None, service_prefix="/groot")
+        client = InferenceServiceClient(node=None, service_prefix="/groot")
         self.assertIsNotNone(client)
         self.assertEqual(client.timeout_sec, 30.0)
         self.assertFalse(client._connected)
-        print("PASS: ZenohServiceClient created with default parameters")
+        print("PASS: InferenceServiceClient created with default parameters")
 
     def test_06_create_client_custom_params(self):
-        """Test creating ZenohServiceClient with custom parameters."""
-        from physical_ai_server.communication.zenoh_service_client import (
-            ZenohServiceClient,
+        """Test creating InferenceServiceClient with custom parameters."""
+        from physical_ai_server.communication.inference_service_client import (
+            InferenceServiceClient,
         )
 
-        client = ZenohServiceClient(
+        client = InferenceServiceClient(
             node=None,
             service_prefix="/lerobot",
             timeout_sec=10.0,
         )
         self.assertIsNotNone(client)
         self.assertEqual(client.timeout_sec, 10.0)
-        print("PASS: ZenohServiceClient created with custom parameters")
+        print("PASS: InferenceServiceClient created with custom parameters")
 
     def test_07_connect_requires_node(self):
         """Test that connect() requires a ROS2 node."""
-        from physical_ai_server.communication.zenoh_service_client import (
-            ZenohServiceClient,
+        from physical_ai_server.communication.inference_service_client import (
+            InferenceServiceClient,
         )
 
-        client = ZenohServiceClient(node=None, service_prefix="/groot")
+        client = InferenceServiceClient(node=None, service_prefix="/groot")
         result = client.connect()
 
-        # Should fail without a ROS2 node
         self.assertFalse(result)
         self.assertFalse(client._connected)
         print("PASS: connect() correctly requires ROS2 node")
 
     def test_08_service_names_with_prefix(self):
         """Test that service names use the configured prefix."""
-        from physical_ai_server.communication.zenoh_service_client import (
-            ZenohServiceClient,
+        from physical_ai_server.communication.inference_service_client import (
+            InferenceServiceClient,
         )
 
-        # Test with /groot prefix
-        groot_client = ZenohServiceClient(node=None, service_prefix="/groot")
+        groot_client = InferenceServiceClient(node=None, service_prefix="/groot")
         self.assertEqual(groot_client.service_infer, '/groot/infer')
         self.assertEqual(groot_client.service_stop, '/groot/stop')
         self.assertEqual(groot_client.service_train, '/groot/train')
@@ -141,8 +134,7 @@ class TestZenohServiceClient(unittest.TestCase):
             groot_client.service_get_action_chunk, '/groot/get_action_chunk'
         )
 
-        # Test with /lerobot prefix
-        lerobot_client = ZenohServiceClient(node=None, service_prefix="/lerobot")
+        lerobot_client = InferenceServiceClient(node=None, service_prefix="/lerobot")
         self.assertEqual(lerobot_client.service_infer, '/lerobot/infer')
         self.assertEqual(lerobot_client.service_stop, '/lerobot/stop')
         self.assertEqual(lerobot_client.service_train, '/lerobot/train')
@@ -152,14 +144,14 @@ class TestZenohServiceClient(unittest.TestCase):
 
     def test_09_topic_names_with_prefix(self):
         """Test that topic names use the configured prefix."""
-        from physical_ai_server.communication.zenoh_service_client import (
-            ZenohServiceClient,
+        from physical_ai_server.communication.inference_service_client import (
+            InferenceServiceClient,
         )
 
-        client = ZenohServiceClient(node=None, service_prefix="/lerobot")
+        client = InferenceServiceClient(node=None, service_prefix="/lerobot")
         self.assertEqual(client.topic_progress, '/lerobot/progress')
 
-        client2 = ZenohServiceClient(node=None, service_prefix="/groot")
+        client2 = InferenceServiceClient(node=None, service_prefix="/groot")
         self.assertEqual(client2.topic_progress, '/groot/progress')
 
         print("PASS: Topic names correctly use configured prefix")
@@ -171,7 +163,7 @@ class TestServiceResponse(unittest.TestCase):
 
     def test_create_response(self):
         """Test creating ServiceResponse."""
-        from physical_ai_server.communication.zenoh_service_client import (
+        from physical_ai_server.communication.inference_service_client import (
             ServiceResponse,
         )
 
@@ -190,7 +182,7 @@ class TestServiceResponse(unittest.TestCase):
 
     def test_from_service_response_none(self):
         """Test from_service_response with None."""
-        from physical_ai_server.communication.zenoh_service_client import (
+        from physical_ai_server.communication.inference_service_client import (
             ServiceResponse,
         )
 
@@ -203,7 +195,7 @@ class TestServiceResponse(unittest.TestCase):
 
     def test_extract_data_with_attributes(self):
         """Test _extract_data extracts various attributes."""
-        from physical_ai_server.communication.zenoh_service_client import (
+        from physical_ai_server.communication.inference_service_client import (
             ServiceResponse,
         )
 
@@ -238,7 +230,7 @@ def main():
 
     # Add tests in order
     suite.addTests(loader.loadTestsFromTestCase(TestServiceResponse))
-    suite.addTests(loader.loadTestsFromTestCase(TestZenohServiceClient))
+    suite.addTests(loader.loadTestsFromTestCase(TestInferenceServiceClient))
 
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)

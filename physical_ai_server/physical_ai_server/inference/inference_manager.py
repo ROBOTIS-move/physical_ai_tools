@@ -22,7 +22,7 @@ InferenceManager - Action chunk based async inference manager.
 Generic manager that works with any inference container (GR00T, LeRobot, etc.)
 by parameterizing the service prefix.
 
-Manages action buffer, background chunk requests via ZenohServiceClient,
+Manages action buffer, background chunk requests via InferenceServiceClient,
 L2-based chunk alignment, and action-to-JointTrajectory conversion.
 
 Architecture:
@@ -45,7 +45,7 @@ import numpy as np
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-from physical_ai_server.communication.zenoh_service_client import ZenohServiceClient
+from physical_ai_server.communication.inference_service_client import InferenceServiceClient
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +86,17 @@ class InferenceManager:
         self._action_buffer: collections.deque = collections.deque()
         self._buffer_lock = threading.Lock()
 
-        # Zenoh service client for inference container
-        self._client: Optional[ZenohServiceClient] = None
+        self._client: Optional[InferenceServiceClient] = None
 
-        # Background inference thread
+        # Background threads
         self._inference_thread: Optional[threading.Thread] = None
+        self._load_thread: Optional[threading.Thread] = None
         self._running = False
         self._requesting = False  # Prevent duplicate requests
+
+        # Async load state
+        self._loading = False
+        self._load_error: Optional[str] = None
 
         # Chunk alignment
         self._last_action: Optional[np.ndarray] = None
@@ -100,57 +104,87 @@ class InferenceManager:
         # Task instruction for language-conditioned policies
         self._task_instruction: str = ""
 
+    @property
+    def is_loading(self) -> bool:
+        return self._loading
+
+    @property
+    def is_ready(self) -> bool:
+        return self._running and not self._loading
+
+    @property
+    def load_error(self) -> Optional[str]:
+        return self._load_error
+
     def start(
         self,
         model_path: str,
         embodiment_tag: str,
-        camera_topic_map: list,
-        joint_topic_map: list,
+        robot_type: str,
         task_instruction: str,
     ):
-        """Setup inference: call /{prefix}/infer + start buffer management.
+        """Start inference asynchronously. Returns immediately.
 
-        Args:
-            model_path: Path to the model checkpoint.
-            embodiment_tag: Embodiment tag for the model.
-            camera_topic_map: ["name:topic", ...] pairs.
-            joint_topic_map: ["modality_key:topic", ...] pairs.
-            task_instruction: Language instruction for the policy.
+        Connects to the service client and launches a background thread
+        to load the policy. Use is_loading / is_ready / load_error to
+        monitor progress.
         """
         self._task_instruction = task_instruction
+        self._loading = True
+        self._load_error = None
 
-        self._client = ZenohServiceClient(
+        self._client = InferenceServiceClient(
             node=self._node,
             service_prefix=self._service_prefix,
         )
         self._client.connect()
 
-        # Call /{prefix}/infer service (setup only — model load + subscriber start)
-        response = self._client.start_inference(
-            model_path=model_path,
-            embodiment_tag=embodiment_tag,
-            camera_topic_map=camera_topic_map,
-            joint_topic_map=joint_topic_map,
-            task_instruction=task_instruction,
+        self._load_thread = threading.Thread(
+            target=self._load_policy_thread,
+            args=(model_path, embodiment_tag, robot_type, task_instruction),
+            daemon=True,
         )
-        if not response.success:
-            raise RuntimeError(
-                f"Inference setup failed ({self._service_prefix}): "
-                f"{response.message}"
+        self._load_thread.start()
+        logger.info(f"Policy load started in background ({self._service_prefix})")
+
+    def _load_policy_thread(
+        self,
+        model_path: str,
+        embodiment_tag: str,
+        robot_type: str,
+        task_instruction: str,
+    ):
+        """Background thread: call start_inference service and transition to ready."""
+        try:
+            response = self._client.start_inference(
+                model_path=model_path,
+                embodiment_tag=embodiment_tag,
+                robot_type=robot_type,
+                task_instruction=task_instruction,
             )
+            if not response.success:
+                self._load_error = (
+                    f"Inference setup failed ({self._service_prefix}): "
+                    f"{response.message}"
+                )
+                logger.error(self._load_error)
+                return
 
-        # Build action_joint_map from action_keys returned by the executor
-        action_keys = response.data.get("action_keys", [])
-        self._build_action_joint_map(action_keys)
+            action_keys = response.data.get("action_keys", [])
+            self._build_action_joint_map(action_keys)
 
-        self._running = True
-        logger.info(
-            f"InferenceManager started ({self._service_prefix}), "
-            f"action_keys={action_keys}, requesting first chunk..."
-        )
+            self._running = True
+            logger.info(
+                f"InferenceManager ready ({self._service_prefix}), "
+                f"action_keys={action_keys}, requesting first chunk..."
+            )
+            self._request_chunk_async()
 
-        # Request first chunk immediately
-        self._request_chunk_async()
+        except Exception as e:
+            self._load_error = str(e)
+            logger.error(f"Policy load failed: {e}")
+        finally:
+            self._loading = False
 
     def pop_action(self) -> Optional[dict]:
         """Pop one action from buffer and convert to joint messages.
@@ -309,6 +343,10 @@ class InferenceManager:
     def stop(self):
         """Stop inference and cleanup."""
         self._running = False
+        self._loading = False
+
+        if self._load_thread and self._load_thread.is_alive():
+            self._load_thread.join(timeout=5.0)
 
         if self._client:
             try:
@@ -326,5 +364,6 @@ class InferenceManager:
 
         self._last_action = None
         self._action_joint_map = {}
+        self._load_error = None
         logger.info(f"InferenceManager stopped ({self._service_prefix})")
 

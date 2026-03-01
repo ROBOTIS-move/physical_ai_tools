@@ -56,8 +56,7 @@ string job_id
 START_INFERENCE_REQUEST_DEF = """\
 string model_path
 string embodiment_tag
-string[] camera_topic_map
-string[] joint_topic_map
+string robot_type
 string task_instruction
 """
 

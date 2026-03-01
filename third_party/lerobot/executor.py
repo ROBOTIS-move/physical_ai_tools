@@ -28,21 +28,8 @@ Services (via RobotServiceServer):
 """
 import logging
 import os
-import sys
 
-# Add zenoh_ros2_sdk to path
-ZENOH_SDK_PATH = os.environ.get("ZENOH_SDK_PATH", "/zenoh_sdk")
-if os.path.exists(ZENOH_SDK_PATH):
-    sys.path.insert(0, ZENOH_SDK_PATH)
-
-# Add robot_client to path
-ROBOT_CLIENT_PATH = os.environ.get("ROBOT_CLIENT_PATH", "/robot_client")
-if os.path.exists(ROBOT_CLIENT_PATH):
-    _rc_parent = os.path.dirname(ROBOT_CLIENT_PATH)
-    if _rc_parent not in sys.path:
-        sys.path.insert(0, _rc_parent)
-
-from robot_client import RobotServiceServer  # noqa: E402
+from robot_client import RobotServiceServer
 
 # Configure logging
 logging.basicConfig(
@@ -60,25 +47,25 @@ server = RobotServiceServer(
 
 
 @server.on_train
-def handle_train(request):
+def train_callback(request):
     from training import run_training
     run_training(server, request)
 
 
 @server.on_load_policy
-def handle_infer(request):
+def load_policy_callback(request):
     from inference import load_policy
     return load_policy(server, request)
 
 
 @server.on_get_action
-def handle_get_action(request):
+def get_action_callback(request):
     from inference import get_action_chunk
     return get_action_chunk(server, request)
 
 
 @server.on_stop
-def handle_stop():
+def stop_callback():
     from inference import cleanup_inference
     from training import cleanup_training
     cleanup_inference()

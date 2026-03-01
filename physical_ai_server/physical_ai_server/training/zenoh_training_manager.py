@@ -25,9 +25,9 @@ from typing import Callable, Optional
 from rclpy.node import Node
 
 from physical_ai_interfaces.msg import TrainingInfo, TrainingStatus
-from physical_ai_server.communication.zenoh_service_client import (
+from physical_ai_server.communication.inference_service_client import (
     ServiceResponse,
-    ZenohServiceClient,
+    InferenceServiceClient,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class ZenohTrainingManager:
         self._node = node
         self._service_prefix = service_prefix
         self.training_info = TrainingInfo()
-        self.client = ZenohServiceClient(
+        self.client = InferenceServiceClient(
             node=node, service_prefix=service_prefix
         )
         self._connected = False

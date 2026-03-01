@@ -103,7 +103,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - PYTHONUNBUFFERED=1
-      - ROBOT_CLIENT_PATH=/robot_client
+      - PYTHONPATH=/
       - LEROBOT_WORKSPACE=/workspace
     command: server
     depends_on:
@@ -149,7 +149,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - PYTHONUNBUFFERED=1
-      - ROBOT_CLIENT_PATH=/robot_client
+      - PYTHONPATH=/
       - GROOT_WORKSPACE=/workspace
     volumes:
       - /dev:/dev

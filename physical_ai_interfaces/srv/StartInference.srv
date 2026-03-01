@@ -1,7 +1,6 @@
 string model_path
 string embodiment_tag
-string[] camera_topic_map      # ["cam_name:/topic/path", ...] name:topic pairs
-string[] joint_topic_map       # ["modality_key:/topic/path", ...] name:topic pairs
+string robot_type
 string task_instruction
 ---
 bool success

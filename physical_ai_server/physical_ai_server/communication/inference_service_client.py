@@ -17,7 +17,7 @@
 # Author: Dongyun Kim
 
 """
-ZenohServiceClient - Unified ROS2 Service Client for container communication.
+InferenceServiceClient - Unified ROS2 Service Client for container communication.
 
 Generic client that works with any container (GR00T, LeRobot, etc.)
 by parameterizing the service prefix (e.g., "/groot", "/lerobot").
@@ -28,15 +28,6 @@ Supports both inference and training services:
   - /{prefix}/train             (TrainModel)
   - /{prefix}/stop              (StopTraining)
   - /{prefix}/status            (TrainingStatus)
-
-Uses ROS2 standard Service Client with rmw_zenoh middleware.
-rmw_zenoh automatically handles Zenoh protocol conversion, enabling
-communication with Docker container's zenoh_ros2_sdk server.
-
-Architecture:
-- physical_ai_server uses ROS2 + rmw_zenoh (standard ROS2 API)
-- container uses zenoh_ros2_sdk (no ROS2 installed)
-- rmw_zenoh converts ROS2 messages to Zenoh protocol = COMPATIBLE
 """
 
 from dataclasses import dataclass
@@ -102,8 +93,8 @@ class ServiceResponse:
 
 
 
-class ZenohServiceClient:
-    """Unified client for container services via ROS2 + rmw_zenoh.
+class InferenceServiceClient:
+    """Unified ROS2 service client for inference/training containers.
 
     Works with any container (GR00T, LeRobot, etc.) that implements
     the standard service interface, parameterized by service_prefix.
@@ -199,7 +190,7 @@ class ZenohServiceClient:
 
             self._connected = True
             logger.info(
-                f"Connected to container services via ROS2 rmw_zenoh "
+                f"Connected to container services "
                 f"(prefix={self._service_prefix})"
             )
             return True
@@ -311,16 +302,14 @@ class ZenohServiceClient:
         self,
         model_path: str,
         embodiment_tag: str,
-        camera_topic_map: list,
-        joint_topic_map: list,
+        robot_type: str,
         task_instruction: str = "",
     ) -> ServiceResponse:
-        """Call /{prefix}/infer to setup model + subscribers."""
+        """Call /{prefix}/infer to setup model + RobotClient."""
         request = StartInference.Request()
         request.model_path = model_path
         request.embodiment_tag = embodiment_tag
-        request.camera_topic_map = camera_topic_map
-        request.joint_topic_map = joint_topic_map
+        request.robot_type = robot_type
         request.task_instruction = task_instruction
 
         return self._call_service(

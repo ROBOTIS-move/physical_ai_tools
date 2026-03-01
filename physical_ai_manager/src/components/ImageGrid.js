@@ -173,7 +173,6 @@ export default function ImageGrid({ isActive = true }) {
 
   const handleCellClose = (idx) => {
     console.log(`Manually closing cell ${idx}`);
-    // Only update state - DOM cleanup is handled by ImageGridCell
     setAsignedImageTopicList(asignedImageTopicList.map((t, i) => (i === idx ? null : t)));
   };
 

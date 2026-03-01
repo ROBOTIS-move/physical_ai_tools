@@ -16,11 +16,12 @@
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { MdFolder, MdPlayArrow, MdPause, MdRefresh, MdUnfoldMore, MdUnfoldLess, MdReplay, MdKeyboardArrowUp, MdKeyboardArrowDown, MdClose } from 'react-icons/md';
+import { MdFolder, MdPlayArrow, MdPause, MdRefresh, MdUnfoldMore, MdUnfoldLess, MdReplay, MdKeyboardArrowUp, MdKeyboardArrowDown, MdClose, MdViewInAr } from 'react-icons/md';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import FileBrowserModal from '../components/FileBrowserModal';
+import RobotViewer3D from '../components/RobotViewer3D';
 import { JointChart } from '../components/replay';
 import {
   lttbDownsample,
@@ -86,7 +87,8 @@ function ReplayPage({ isActive }) {
   const [videoBlobUrls, setVideoBlobUrls] = useState([]); // Downloaded video blob URLs
   const [downloadProgress, setDownloadProgress] = useState(0); // 0-100
   const [isDownloading, setIsDownloading] = useState(false);
-  const [expandedVideoIndex, setExpandedVideoIndex] = useState(null); // For 2x video expansion
+  const [expandedVideoIndex, setExpandedVideoIndex] = useState(null);
+  const [show3DViewer, setShow3DViewer] = useState(false);
   const [rosbagList, setRosbagList] = useState([]); // List of ROSbags in parent folder
   const [currentBagIndex, setCurrentBagIndex] = useState(-1); // Current bag index in list
   const [parentFolderPath, setParentFolderPath] = useState(''); // Parent folder path
@@ -1110,13 +1112,30 @@ function ReplayPage({ isActive }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-800">Replay Viewer</h1>
-        <button
-          onClick={() => setShowFileBrowser(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <MdFolder size={20} />
-          Select ROSbag
-        </button>
+        <div className="flex items-center gap-2">
+          {isLoaded && (
+            <button
+              onClick={() => setShow3DViewer(!show3DViewer)}
+              className={clsx(
+                'flex items-center gap-2 px-4 py-2 rounded-lg transition-colors',
+                show3DViewer
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              )}
+              title="Toggle 3D robot visualization"
+            >
+              <MdViewInAr size={20} />
+              3D View
+            </button>
+          )}
+          <button
+            onClick={() => setShowFileBrowser(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <MdFolder size={20} />
+            Select ROSbag
+          </button>
+        </div>
       </div>
 
       {/* Main content */}
@@ -1162,9 +1181,11 @@ function ReplayPage({ isActive }) {
                     <div
                       className={clsx(
                         'grid gap-4 w-full h-full',
-                        videoFiles.length === 1 && 'grid-cols-1',
-                        videoFiles.length === 2 && 'grid-cols-2',
-                        videoFiles.length >= 3 && 'grid-cols-2 lg:grid-cols-3'
+                        {
+                          'grid-cols-1': !show3DViewer && videoFiles.length === 1,
+                          'grid-cols-2': !show3DViewer ? videoFiles.length === 2 : videoFiles.length <= 1,
+                          'grid-cols-2 lg:grid-cols-3': !show3DViewer ? videoFiles.length >= 3 : videoFiles.length >= 2,
+                        }
                       )}
                     >
                       {videoFiles.map((file, index) => (
@@ -1174,7 +1195,6 @@ function ReplayPage({ isActive }) {
                           onClick={() => setExpandedVideoIndex(index)}
                           title="Click to expand"
                         >
-                          {/* Video label - use videoNames from config, fallback to short name */}
                           <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-black bg-opacity-60 text-white text-xs rounded font-medium">
                             {videoNames[index] || getShortVideoName(file)}
                           </div>
@@ -1183,10 +1203,32 @@ function ReplayPage({ isActive }) {
                             src={videoBlobUrls[index] || ''}
                             className="w-full h-full object-contain bg-gray-50"
                             playsInline
-                            muted={index > 0} // Mute all except first video
+                            muted={index > 0}
                           />
                         </div>
                       ))}
+                      {show3DViewer && (
+                        <div className="relative bg-gray-900 rounded-lg overflow-hidden shadow flex flex-col">
+                          <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-black bg-opacity-60 text-white text-xs rounded font-medium">
+                            3D Robot View
+                          </div>
+                          <RobotViewer3D
+                            mode="replay"
+                            jointData={{
+                              timestamps: jointTimestamps,
+                              names: jointNames,
+                              positions: jointPositions,
+                            }}
+                            actionData={{
+                              timestamps: actionTimestamps,
+                              names: actionNames,
+                              values: actionValues,
+                            }}
+                            currentTime={currentTime}
+                            className="w-full h-full"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                   {isDownloading && (

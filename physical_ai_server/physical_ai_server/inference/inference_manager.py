@@ -97,6 +97,7 @@ class InferenceManager:
         # Async load state
         self._loading = False
         self._load_error: Optional[str] = None
+        self._paused = False
 
         # Chunk alignment
         self._last_action: Optional[np.ndarray] = None
@@ -115,6 +116,11 @@ class InferenceManager:
     @property
     def load_error(self) -> Optional[str]:
         return self._load_error
+
+    @property
+    def is_paused(self) -> bool:
+        """Return True if inference is paused (model loaded but not running)."""
+        return self._paused and self._running
 
     def start(
         self,
@@ -192,6 +198,8 @@ class InferenceManager:
         Called by 10Hz timer in physical_ai_server.
         Returns dict of {group_name: JointTrajectory msg} or None if buffer empty.
         """
+        if self._paused:
+            return None
         with self._buffer_lock:
             if not self._action_buffer:
                 # Buffer empty — request new chunk if not already requesting
@@ -209,7 +217,7 @@ class InferenceManager:
 
     def _request_chunk_async(self):
         """Start background thread to fetch next action chunk."""
-        if not self._running:
+        if not self._running or self._paused:
             return
         self._requesting = True
         self._inference_thread = threading.Thread(
@@ -344,6 +352,7 @@ class InferenceManager:
         """Stop inference and cleanup."""
         self._running = False
         self._loading = False
+        self._paused = False
 
         if self._load_thread and self._load_thread.is_alive():
             self._load_thread.join(timeout=5.0)
@@ -366,4 +375,29 @@ class InferenceManager:
         self._action_joint_map = {}
         self._load_error = None
         logger.info(f"InferenceManager stopped ({self._service_prefix})")
+
+    def pause(self):
+        """Pause inference loop.
+
+        Model stays loaded, stops requesting new chunks.
+        Clears action buffer to prevent stale actions causing
+        sudden movement on resume.
+        """
+        self._paused = True
+        with self._buffer_lock:
+            self._action_buffer.clear()
+        self._last_action = None
+        logger.info(
+            "InferenceManager paused (%s)", self._service_prefix
+        )
+
+    def resume(self, task_instruction: str = ""):
+        """Resume inference loop and start requesting chunks again."""
+        if task_instruction:
+            self._task_instruction = task_instruction
+        self._paused = False
+        self._request_chunk_async()
+        logger.info(
+            "InferenceManager resumed (%s)", self._service_prefix
+        )
 

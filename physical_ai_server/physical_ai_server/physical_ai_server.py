@@ -440,16 +440,10 @@ class PhysicalAIServer(Node):
 
             # Simplified state transitions
             if current == 'recording' and previous in ('idle', None):
-                # Start recording
-                rosbag_path = self.data_manager.get_save_rosbag_path()
-                self.get_logger().info(
-                    f'Rosbag state: idle->recording, path={rosbag_path}, '
-                    f'episode={self.data_manager._record_episode_count}')
-                if rosbag_path:
-                    self.communicator.start_rosbag(rosbag_uri=rosbag_path)
-                    self.get_logger().info(f'Rosbag recording started: {rosbag_path}')
-                else:
-                    self.get_logger().error('Rosbag path is None - cannot start recording!')
+                # Rosbag is started directly in the service handler
+                # (START_RECORD / START_INFERENCE_RECORD).
+                # No action needed here.
+                pass
 
             elif current == 'idle' and previous == 'recording':
                 # This is handled by stop_recording_and_save or cancel_recording
@@ -593,6 +587,12 @@ class PhysicalAIServer(Node):
         # Still loading policy
         if self.inference_manager.is_loading:
             current_status.phase = TaskStatus.LOADING
+            self.communicator.publish_status(status=current_status)
+            return
+
+        # Paused — model loaded but not inferencing
+        if self.inference_manager.is_paused:
+            current_status.phase = TaskStatus.PAUSED
             self.communicator.publish_status(status=current_status)
             return
 
@@ -809,9 +809,14 @@ class PhysicalAIServer(Node):
 
                 self.on_recording = True
 
-                # Start recording (simplified mode)
+                # Start recording and rosbag directly
                 self.get_logger().info('Starting recording')
                 self.data_manager.start_recording()
+                rosbag_path = self.data_manager.get_save_rosbag_path()
+                if rosbag_path:
+                    self.communicator.start_rosbag(
+                        rosbag_uri=rosbag_path
+                    )
                 self.start_recording_time = time.perf_counter()
                 self.communicator.publish_action_event('start')
                 response.success = True
@@ -820,6 +825,10 @@ class PhysicalAIServer(Node):
             elif request.command == SendCommand.Request.START_INFERENCE:
                 self.operation_mode = 'inference'
                 task_info = request.task_info
+
+                # Clean up existing inference session if any
+                if self.inference_manager is not None:
+                    self._stop_groot_inference()
 
                 self.init_robot_control_parameters_from_user_task(task_info)
                 self.joint_topic_types = self.communicator.get_publisher_msg_types()
@@ -995,13 +1004,95 @@ class PhysicalAIServer(Node):
                         response.success = True
                         response.message = 'Recording cancelled'
 
+                    elif request.command == SendCommand.Request.STOP_INFERENCE:
+                        if self.inference_manager is not None:
+                            self.inference_manager.pause()
+                            response.success = True
+                            response.message = 'Inference paused'
+                        else:
+                            response.success = False
+                            response.message = 'No inference session active'
+
+                    elif request.command == SendCommand.Request.RESUME_INFERENCE:
+                        if self.inference_manager is not None:
+                            task_instruction = (
+                                request.task_info.task_instruction[0]
+                                if request.task_info.task_instruction
+                                else ''
+                            )
+                            self.inference_manager.resume(
+                                task_instruction=task_instruction
+                            )
+                            response.success = True
+                            response.message = 'Inference resumed'
+                        else:
+                            response.success = False
+                            response.message = 'No inference session active'
+
+                    elif request.command == SendCommand.Request.START_INFERENCE_RECORD:
+                        self.get_logger().info(
+                            'Starting recording during inference'
+                        )
+                        if self.data_manager is not None:
+                            self.data_manager.start_recording()
+                            rosbag_path = \
+                                self.data_manager.get_save_rosbag_path()
+                            if rosbag_path:
+                                self.communicator.start_rosbag(
+                                    rosbag_uri=rosbag_path
+                                )
+                            self.on_recording = True
+                            self.start_recording_time = time.perf_counter()
+                            self.communicator.publish_action_event('start')
+                            response.success = True
+                            response.message = (
+                                'Recording started during inference'
+                            )
+                        else:
+                            response.success = False
+                            response.message = 'Data manager not initialized'
+
+                    elif request.command == SendCommand.Request.STOP_INFERENCE_RECORD:
+                        self.get_logger().info(
+                            'Stopping and saving recording'
+                        )
+                        if (
+                            self.data_manager
+                            and self.data_manager.is_recording()
+                        ):
+                            self.stop_recording_and_save()
+                            self.on_recording = False
+                            self.communicator.publish_action_event('finish')
+                            response.success = True
+                            response.message = 'Recording saved'
+                        else:
+                            response.success = False
+                            response.message = 'Not currently recording'
+
+                    elif request.command == SendCommand.Request.CANCEL_INFERENCE_RECORD:
+                        self.get_logger().info(
+                            'Cancelling recording during inference'
+                        )
+                        if (
+                            self.data_manager
+                            and self.data_manager.is_recording()
+                        ):
+                            self.cancel_current_recording()
+                            self.on_recording = False
+                            self.communicator.publish_action_event('cancel')
+                            response.success = True
+                            response.message = 'Recording cancelled'
+                        else:
+                            response.success = False
+                            response.message = 'Not currently recording'
+
                     elif request.command == SendCommand.Request.FINISH:
                         # Finish all operations
                         self.get_logger().info('Finishing all operations')
                         if self.data_manager and self.data_manager.is_recording():
                             self.stop_recording_and_save()
-                        self.communicator.publish_action_event('finish')
-                        self.communicator.finish_rosbag()
+                            self.communicator.publish_action_event('finish')
+                            self.communicator.finish_rosbag()
                         self._stop_groot_inference()
                         self.on_recording = False
                         self.on_inference = False

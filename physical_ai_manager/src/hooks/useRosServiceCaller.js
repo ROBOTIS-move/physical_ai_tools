@@ -117,6 +117,21 @@ export function useRosServiceCaller() {
           case 'convert_mp4':
             command_enum = TaskCommand.CONVERT_MP4;
             break;
+          case 'stop_inference':
+            command_enum = TaskCommand.STOP_INFERENCE;
+            break;
+          case 'resume_inference':
+            command_enum = TaskCommand.RESUME_INFERENCE;
+            break;
+          case 'start_inference_record':
+            command_enum = TaskCommand.START_INFERENCE_RECORD;
+            break;
+          case 'stop_inference_record':
+            command_enum = TaskCommand.STOP_INFERENCE_RECORD;
+            break;
+          case 'cancel_inference_record':
+            command_enum = TaskCommand.CANCEL_INFERENCE_RECORD;
+            break;
           default:
             throw new Error(`Unknown command: ${command}`);
         }

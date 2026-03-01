@@ -19,8 +19,9 @@ import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
 import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight, MdTask } from 'react-icons/md';
-import ControlPanel from '../components/ControlPanel';
+import RecordControlPanel from '../components/RecordControlPanel';
 import HeartbeatStatus from '../components/HeartbeatStatus';
+import InlineSystemStatus from '../components/InlineSystemStatus';
 import ImageGrid from '../components/ImageGrid';
 import InfoPanel from '../components/InfoPanel';
 import { addTag } from '../features/tasks/taskSlice';
@@ -133,22 +134,15 @@ export default function RecordPage({ isActive = true }) {
     }
   );
 
+  const classTopBar = clsx(
+    'absolute', 'top-4', 'left-4', 'right-4', 'z-20',
+    'flex', 'items-center', 'gap-3'
+  );
   const classRobotTypeContainer = clsx(
-    'absolute',
-    'top-4',
-    'left-4',
-    'z-20',
-    'flex',
-    'flex-row',
-    'items-center',
-    'bg-white/90',
-    'backdrop-blur-sm',
-    'rounded-full',
-    'px-3',
-    'py-1',
-    'shadow-md',
-    'border',
-    'border-gray-100'
+    'flex', 'flex-row', 'items-center',
+    'bg-white/90', 'backdrop-blur-sm',
+    'rounded-full', 'px-3', 'py-1',
+    'shadow-md', 'border', 'border-gray-100'
   );
   const classRobotType = clsx('ml-2 mr-1 my-2 text-gray-600 text-lg');
   const classRobotTypeValue = clsx(
@@ -206,9 +200,12 @@ export default function RecordPage({ isActive = true }) {
     <div className={classMainContainer}>
       <div className={classContentsArea}>
         <div className="w-full h-full flex flex-col relative">
-          <div className={classRobotTypeContainer}>
-            <div className={classRobotType}>Robot Type</div>
-            <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
+          <div className={classTopBar}>
+            <div className={classRobotTypeContainer}>
+              <div className={classRobotType}>Robot Type</div>
+              <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
+            </div>
+            <InlineSystemStatus />
           </div>
           <div className={classHeartbeatStatus}>
             <HeartbeatStatus />
@@ -253,7 +250,7 @@ export default function RecordPage({ isActive = true }) {
           </div>
         </div>
       </div>
-      <ControlPanel />
+      <RecordControlPanel />
     </div>
   );
 }

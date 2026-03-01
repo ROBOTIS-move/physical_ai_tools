@@ -402,7 +402,9 @@ def is_paused(self) -> bool:
     return self._paused and self._running
 
 def pause(self):
-    """Pause inference loop. Model stays loaded, stops requesting chunks."""
+    """Pause inference loop. Model stays loaded, stops requesting chunks.
+    Clears action buffer to prevent stale actions causing sudden movement on resume.
+    """
     self._paused = True
     with self._buffer_lock:
         self._action_buffer.clear()

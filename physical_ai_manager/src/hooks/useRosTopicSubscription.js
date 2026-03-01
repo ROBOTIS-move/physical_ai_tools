@@ -286,9 +286,14 @@ export function useRosTopicSubscription() {
           })
         );
 
-        // Extract TaskInfo from TaskStatus message
-        if (msg.task_info) {
-          // update task info only when task is not stopped
+        // Extract TaskInfo from TaskStatus message.
+        // Skip update when server sends empty task_info (e.g. during
+        // LOADING, PAUSED, INFERENCING) to preserve user-entered values.
+        const hasTaskInfo = msg.task_info && (
+          (msg.task_info.task_name && msg.task_info.task_name.length > 0) ||
+          (msg.task_info.policy_path && msg.task_info.policy_path.length > 0)
+        );
+        if (hasTaskInfo) {
           dispatch(
             setTaskInfo({
               taskName: msg.task_info.task_name || '',

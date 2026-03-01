@@ -11,10 +11,11 @@ uint8 STOPPED = 5
 uint8 INFERENCING = 6
 uint8 CONVERTING = 7
 uint8 LOADING = 8
+uint8 PAUSED = 9
 
 TaskInfo task_info
 string robot_type
-uint8 phase                     # (0: READY, 1: WARMING_UP, 2: RESETTING, 3: RECORDING, 4: SAVING, 5: STOPPED, 6: INFERENCING, 7: CONVERTING, 8: LOADING)
+uint8 phase                     # (0: READY, 1: WARMING_UP, 2: RESETTING, 3: RECORDING, 4: SAVING, 5: STOPPED, 6: INFERENCING, 7: CONVERTING, 8: LOADING, 9: PAUSED)
 uint16 total_time               # [s]
 uint16 proceed_time             # [s]
 uint16 current_episode_number

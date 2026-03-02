@@ -255,19 +255,18 @@ export default function InferenceControlPanel() {
   }, [handleKeyAction, handleStart, handleStop, handleClear, handleRecordStart, handleRecordSave]);
 
   const classBody = clsx(
-    'h-14',
-    'bg-gray-300',
-    'rounded-2xl',
-    'mx-4',
-    'mt-1',
-    'mb-2',
-    'px-2',
-    'py-1.5',
+    'bg-white/90',
+    'backdrop-blur-sm',
+    'rounded-full',
+    'px-3',
+    'py-1',
     'flex',
     'flex-row',
     'items-center',
     'gap-1.5',
-    'shadow-lg'
+    'shadow-md',
+    'border',
+    'border-gray-100'
   );
 
   const classBtn = (label, isDisabled) =>
@@ -276,16 +275,16 @@ export default function InferenceControlPanel() {
       'rounded-lg',
       'border-none',
       'cursor-pointer',
-      'px-4',
+      'px-2.5',
       'flex',
       'items-center',
       'justify-center',
-      'gap-1.5',
+      'gap-1',
       'bg-gray-100',
       'transition-all',
       'duration-150',
       'font-semibold',
-      'text-sm',
+      'text-lg',
       'shrink-0',
       {
         'bg-gray-400': pressed === label && !isDisabled,
@@ -300,13 +299,13 @@ export default function InferenceControlPanel() {
       'rounded-lg',
       'border-none',
       'cursor-pointer',
-      'px-4',
+      'px-2.5',
       'flex',
       'items-center',
       'justify-center',
-      'gap-1.5',
+      'gap-1',
       'font-semibold',
-      'text-sm',
+      'text-lg',
       'transition-all',
       'duration-150',
       'shrink-0',
@@ -350,11 +349,14 @@ export default function InferenceControlPanel() {
 
   return (
     <div className={classBody}>
+      <span className="text-lg font-semibold text-gray-500 whitespace-nowrap px-1 shrink-0">Inference</span>
+      <div className="w-px h-2/3 bg-gray-300 shrink-0"></div>
       {controlButtons.map(({ label, icon: Icon, color, enabled, handler, description, shortcut }) => {
         const isDisabled = !enabled;
         return (
           <Tooltip
             key={label}
+            position="bottom"
             content={
               <div className="text-center">
                 <div className="font-semibold">{description}</div>
@@ -392,6 +394,7 @@ export default function InferenceControlPanel() {
 
       {!isRecording ? (
         <Tooltip
+          position="bottom"
           content={
             <div className="text-center">
               <div className="font-semibold">Start recording</div>
@@ -415,11 +418,12 @@ export default function InferenceControlPanel() {
         </Tooltip>
       ) : (
         <>
-          <div className="flex items-center gap-0.5 text-red-500 font-bold text-xs animate-pulse shrink-0">
-            <MdFiberManualRecord style={{ fontSize: '0.6rem' }} />
+          <div className="flex items-center gap-0.5 text-red-500 font-bold text-lg animate-pulse shrink-0">
+            <MdFiberManualRecord style={{ fontSize: '0.5rem' }} />
             REC
           </div>
           <Tooltip
+            position="bottom"
             content={
               <div className="text-center">
                 <div className="font-semibold">Save recording</div>
@@ -440,6 +444,7 @@ export default function InferenceControlPanel() {
             </button>
           </Tooltip>
           <Tooltip
+            position="bottom"
             content={
               <div className="text-center">
                 <div className="font-semibold">Discard recording</div>
@@ -462,12 +467,12 @@ export default function InferenceControlPanel() {
       {(phaseGuideMessages[phase] || isInferencing || isLoading) && (
         <>
           <div className="w-px h-2/3 bg-gray-400 shrink-0"></div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-gray-600 font-semibold text-sm whitespace-nowrap">
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-gray-600 font-semibold text-lg whitespace-nowrap">
               {phaseGuideMessages[phase] || ''}
             </span>
             {(isInferencing || isLoading) && (
-              <span className="font-mono text-blue-500 text-base">
+              <span className="font-mono text-blue-500 text-sm">
                 {spinnerFrames[spinnerIndex]}
               </span>
             )}

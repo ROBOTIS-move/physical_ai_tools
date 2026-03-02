@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
@@ -197,19 +197,18 @@ export default function RecordControlPanel() {
   }, [handleKeyAction, handleStart, handleFinish, handleCancel]);
 
   const classBody = clsx(
-    'h-14',
-    'bg-gray-300',
-    'rounded-2xl',
-    'mx-4',
-    'mt-1',
-    'mb-2',
-    'px-2',
-    'py-1.5',
+    'bg-white/90',
+    'backdrop-blur-sm',
+    'rounded-full',
+    'px-3',
+    'py-1',
     'flex',
     'flex-row',
     'items-center',
     'gap-1.5',
-    'shadow-lg'
+    'shadow-md',
+    'border',
+    'border-gray-100'
   );
 
   const classBtn = (label, isDisabled) =>
@@ -218,16 +217,16 @@ export default function RecordControlPanel() {
       'rounded-lg',
       'border-none',
       'cursor-pointer',
-      'px-4',
+      'px-2.5',
       'flex',
       'items-center',
       'justify-center',
-      'gap-1.5',
+      'gap-1',
       'bg-gray-100',
       'transition-all',
       'duration-150',
       'font-semibold',
-      'text-sm',
+      'text-lg',
       'shrink-0',
       {
         'bg-gray-400': pressed === label && !isDisabled,
@@ -268,11 +267,14 @@ export default function RecordControlPanel() {
 
   return (
     <div className={classBody}>
+      <span className="text-lg font-semibold text-gray-500 whitespace-nowrap px-1 shrink-0">Record</span>
+      <div className="w-px h-2/3 bg-gray-300 shrink-0"></div>
       {controlButtons.map(({ label, icon: Icon, color, enabled, handler, description, shortcut }) => {
         const isDisabled = !enabled;
         return (
           <Tooltip
             key={label}
+            position="bottom"
             content={
               <div className="text-center">
                 <div className="font-semibold">{description}</div>
@@ -308,12 +310,12 @@ export default function RecordControlPanel() {
 
       <div className="w-px h-2/3 bg-gray-400 shrink-0"></div>
 
-      <div className="flex items-center gap-2 shrink-0 px-1">
-        <span className="text-gray-600 font-semibold text-sm whitespace-nowrap">
+      <div className="flex items-center gap-1 shrink-0 px-1">
+        <span className="text-gray-600 font-semibold text-lg whitespace-nowrap">
           {phaseGuideMessages[phase] || ''}
         </span>
         {isBusy && (
-          <span className="font-mono text-blue-500 text-base">
+          <span className="font-mono text-blue-500 text-sm">
             {spinnerFrames[spinnerIndex]}
           </span>
         )}
@@ -322,9 +324,9 @@ export default function RecordControlPanel() {
       {isRecording && (
         <>
           <div className="w-px h-2/3 bg-gray-400 shrink-0"></div>
-          <div className="flex items-center gap-2 shrink-0 px-1">
-            <span className="text-gray-500 text-sm font-medium">
-              {taskStatus.proceedTime} / {taskStatus.totalTime}s
+          <div className="flex items-center gap-1 shrink-0 px-1">
+            <span className="text-gray-500 text-lg font-medium">
+              {taskStatus.proceedTime}s{taskStatus.totalTime > 0 ? ` / ${taskStatus.totalTime}s` : ''}
             </span>
           </div>
         </>
@@ -332,9 +334,9 @@ export default function RecordControlPanel() {
 
       <div className="w-px h-2/3 bg-gray-400 shrink-0"></div>
 
-      <div className="flex items-center gap-1.5 shrink-0 px-1">
-        <span className="text-gray-500 text-xs font-medium">EP</span>
-        <span className="bg-gray-100 rounded px-2 py-0.5 text-sm font-bold">
+      <div className="flex items-center gap-1 shrink-0 px-1">
+        <span className="text-gray-500 text-lg font-medium">EP</span>
+        <span className="bg-gray-100 rounded px-1.5 py-0.5 text-lg font-bold">
           {taskStatus.currentEpisodeNumber}
         </span>
       </div>

@@ -135,7 +135,7 @@ export default function InferencePage({ isActive = true }) {
 
   const classTopBar = clsx(
     'absolute', 'top-4', 'left-4', 'right-4', 'z-20',
-    'flex', 'items-center', 'gap-3'
+    'flex', 'items-center', 'gap-4'
   );
   const classRobotTypeContainer = clsx(
     'flex', 'flex-row', 'items-center',
@@ -148,23 +148,25 @@ export default function InferencePage({ isActive = true }) {
     'mx-1 my-2 px-2 text-lg text-blue-600 focus:outline-none bg-blue-100 rounded-full'
   );
 
-  const classHeartbeatStatus = clsx('absolute', 'top-20', 'left-5', 'z-10');
+  const classHeartbeatStatus = clsx('absolute', 'top-[4.5rem]', 'left-5', 'z-10');
 
   return (
     <div className={classMainContainer}>
       <div className={classContentsArea}>
         <div className={classLeftArea}>
-          <div className="relative">
+          <div className="relative flex-[5] min-h-0 overflow-hidden pt-20">
             <div className={classTopBar}>
               <div className={classRobotTypeContainer}>
                 <div className={classRobotType}>Robot Type</div>
                 <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
               </div>
               <InlineSystemStatus />
+              <div className="flex-grow" />
+              <InferenceControlPanel />
               <button
                 onClick={() => setShow3DViewer(!show3DViewer)}
                 className={clsx(
-                  'ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors shadow-md border',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors shadow-md border',
                   show3DViewer
                     ? 'bg-indigo-500/90 text-white border-indigo-400 backdrop-blur-sm'
                     : 'bg-white/90 text-gray-600 border-gray-100 backdrop-blur-sm hover:bg-gray-50'
@@ -180,8 +182,8 @@ export default function InferencePage({ isActive = true }) {
             <ImageGrid isActive={isActive} />
           </div>
           {show3DViewer && (
-            <div className="flex-1 min-h-[150px] flex items-center justify-center mx-1 mb-1">
-              <div className="h-full rounded-2xl overflow-hidden relative" style={{ aspectRatio: '4/3' }}>
+            <div className="flex-[4] min-h-[120px] flex items-center justify-center mx-1">
+              <div className="h-[85%] rounded-2xl overflow-hidden relative" style={{ aspectRatio: '4/3' }}>
                 <RobotViewer3D mode="live" />
               </div>
             </div>
@@ -207,7 +209,6 @@ export default function InferencePage({ isActive = true }) {
           </div>
         </div>
       </div>
-      <InferenceControlPanel />
     </div>
   );
 }

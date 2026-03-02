@@ -4,3 +4,4 @@ string[] task_instruction
 string policy_path
 string[] tags
 bool record_inference_mode
+uint16 control_hz

@@ -168,6 +168,7 @@ export function useRosServiceCaller() {
             policy_path: String(taskInfo.policyPath || ''),
             record_inference_mode: Boolean(taskInfo.recordInferenceMode),
             tags: taskInfo.tags || [],
+            control_hz: Number(taskInfo.controlHz || 10),
           },
           command: Number(command_enum),
         };

@@ -24,6 +24,8 @@ const initialState = {
   rosHost: '',
   rosbridgeUrl: '',
   imageTopicList: [],
+  /** Persisted camera topic assignment [left, center, right] so it survives ImageGrid remounts */
+  assignedImageTopics: [],
   connectionError: null,
 };
 
@@ -47,6 +49,9 @@ const rosSlice = createSlice({
     setImageTopicList: (state, action) => {
       state.imageTopicList = action.payload;
     },
+    setAssignedImageTopics: (state, action) => {
+      state.assignedImageTopics = action.payload;
+    },
     setConnectionError: (state, action) => {
       state.connectionError = action.payload;
     },
@@ -64,6 +69,7 @@ export const {
   setRosHost,
   setRosbridgeUrl,
   setImageTopicList,
+  setAssignedImageTopics,
   setConnectionError,
   resetConnection,
 } = rosSlice.actions;

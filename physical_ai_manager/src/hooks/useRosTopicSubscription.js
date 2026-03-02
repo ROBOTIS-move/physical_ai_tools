@@ -116,15 +116,40 @@ export function useRosTopicSubscription() {
     [initializeAudioContext]
   );
 
+  const preferredVoiceRef = useRef(null);
+
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const pickVoice = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length === 0) return;
+      preferredVoiceRef.current = voices.find(v =>
+        v.lang.startsWith('en') && v.name.toLowerCase().includes('female')
+      ) || voices.find(v =>
+        v.lang.startsWith('en') && /samantha|karen|victoria|fiona|moira|tessa/i.test(v.name)
+      ) || voices.find(v =>
+        v.lang.startsWith('en-US') && !v.name.toLowerCase().includes('male')
+      ) || null;
+      if (preferredVoiceRef.current) {
+        console.log('TTS voice selected:', preferredVoiceRef.current.name);
+      }
+    };
+    pickVoice();
+    window.speechSynthesis.addEventListener('voiceschanged', pickVoice);
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', pickVoice);
+  }, []);
+
   const speakText = useCallback(
     (text) => {
       try {
         if ('speechSynthesis' in window) {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = 'ko-KR';
-          utterance.rate = 1.2;
+          utterance.lang = 'en-US';
+          utterance.rate = 1.1;
+          utterance.pitch = 1.1;
           utterance.volume = 1.0;
+          if (preferredVoiceRef.current) utterance.voice = preferredVoiceRef.current;
           window.speechSynthesis.speak(utterance);
           console.log(`Speech: "${text}"`);
         } else {
@@ -221,7 +246,6 @@ export function useRosTopicSubscription() {
       });
 
       taskStatusTopicRef.current.subscribe((msg) => {
-        console.log('Received task status:', msg);
 
         let progress = 0;
 
@@ -263,9 +287,13 @@ export function useRosTopicSubscription() {
           msg.phase === TaskPhase.INFERENCING;
 
         // ROS message to React state
+        // Preserve existing robotType when backend sends empty value
+        const incomingRobotType = msg.robot_type && msg.robot_type.trim() !== ''
+          ? msg.robot_type
+          : store.getState().tasks.taskStatus.robotType;
         dispatch(
           setTaskStatus({
-            robotType: msg.robot_type || '',
+            robotType: incomingRobotType,
             taskName: msg.task_info?.task_name || 'idle',
             running: isRunning,
             phase: msg.phase || 0,
@@ -302,7 +330,7 @@ export function useRosTopicSubscription() {
               policyPath: msg.task_info.policy_path || '',
               recordInferenceMode: msg.task_info.record_inference_mode || false,
               userId: msg.task_info.user_id || '',
-              fps: msg.task_info.fps || 0,
+              controlHz: msg.task_info.control_hz || 0,
               tags: msg.task_info.tags || [],
               warmupTime: msg.task_info.warmup_time_s || 0,
               episodeTime: msg.task_info.episode_time_s || 0,

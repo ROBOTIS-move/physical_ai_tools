@@ -1,13 +1,13 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Grid } from '@react-three/drei';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
+import { OrbitControls, Grid, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { MdCenterFocusStrong } from 'react-icons/md';
 import useUrdfRobot from '../hooks/useUrdfRobot';
 import useJointStateSubscription from '../hooks/useJointStateSubscription';
 
 const CAMERA_PRESETS = {
-  perspective: { label: '3/4' },
+  perspective: { label: 'Perspective' },
   front:       { label: 'Front' },
   side:        { label: 'Side' },
   top:         { label: 'Top' },
@@ -30,6 +30,89 @@ function RobotModel({ robot }) {
   return <group ref={groupRef} rotation={[-Math.PI / 2, 0, 0]} />;
 }
 
+function SimAnimator({ robot, actionChunk, viewMode }) {
+  const chunkRef = useRef(null);
+  const indexRef = useRef(0);
+  const lastTimeRef = useRef(0);
+  const STEP_INTERVAL = 1 / 10;
+
+  useEffect(() => {
+    if (viewMode !== 'sim' || !actionChunk) return;
+    chunkRef.current = actionChunk;
+    indexRef.current = 0;
+    lastTimeRef.current = 0;
+  }, [actionChunk, viewMode]);
+
+  useFrame((_, delta) => {
+    if (viewMode !== 'sim' || !robot || !chunkRef.current) return;
+
+    const chunk = chunkRef.current;
+    lastTimeRef.current += delta;
+    if (lastTimeRef.current < STEP_INTERVAL) return;
+    lastTimeRef.current = 0;
+
+    if (indexRef.current >= chunk.points.length) return;
+
+    const positions = chunk.points[indexRef.current];
+    chunk.names.forEach((name, i) => {
+      if (robot.joints[name]) {
+        robot.joints[name].setJointValue(positions[i]);
+      }
+    });
+    indexRef.current++;
+  });
+
+  return null;
+}
+
+function TrajectoryPathLines({ paths }) {
+  const convertedPaths = useMemo(() => {
+    if (!paths) return { left: [], right: [] };
+
+    const toArray = (pts) => pts.map((p) => [p.x, p.y, p.z]);
+
+    return {
+      left: paths.left?.length >= 2 ? toArray(paths.left) : [],
+      right: paths.right?.length >= 2 ? toArray(paths.right) : [],
+    };
+  }, [paths]);
+
+  return (
+    <>
+      {convertedPaths.left.length >= 2 && (
+        <Line
+          points={convertedPaths.left}
+          color="#38bdf8"
+          lineWidth={3}
+          transparent
+          opacity={0.7}
+        />
+      )}
+      {convertedPaths.right.length >= 2 && (
+        <Line
+          points={convertedPaths.right}
+          color="#f472b6"
+          lineWidth={3}
+          transparent
+          opacity={0.7}
+        />
+      )}
+      {convertedPaths.left.length > 0 && (
+        <mesh position={convertedPaths.left[convertedPaths.left.length - 1]}>
+          <sphereGeometry args={[0.015, 12, 12]} />
+          <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.5} />
+        </mesh>
+      )}
+      {convertedPaths.right.length > 0 && (
+        <mesh position={convertedPaths.right[convertedPaths.right.length - 1]}>
+          <sphereGeometry args={[0.015, 12, 12]} />
+          <meshStandardMaterial color="#f472b6" emissive="#f472b6" emissiveIntensity={0.5} />
+        </mesh>
+      )}
+    </>
+  );
+}
+
 const CameraController = forwardRef(function CameraController({ robot }, ref) {
   const { camera } = useThree();
   const controlsRef = useRef();
@@ -40,16 +123,26 @@ const CameraController = forwardRef(function CameraController({ robot }, ref) {
   useEffect(() => {
     if (!robot || initialized.current) return;
 
-    const box = new THREE.Box3().setFromObject(robot);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
+    const computeAndApply = () => {
+      robot.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(robot);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
 
-    centerRef.current.copy(center);
-    baseDist.current = maxDim;
-    initialized.current = true;
+      if (maxDim < 0.01) return false;
 
-    applyPreset('perspective', false);
+      centerRef.current.copy(center);
+      baseDist.current = maxDim;
+      initialized.current = true;
+      applyPreset('perspective', false);
+      return true;
+    };
+
+    if (!computeAndApply()) {
+      const timer = setTimeout(computeAndApply, 500);
+      return () => clearTimeout(timer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [robot]);
 
@@ -72,7 +165,7 @@ const CameraController = forwardRef(function CameraController({ robot }, ref) {
         break;
       case 'perspective':
       default:
-        pos = [c.x + d * 0.7, c.y + d * 0.5, c.z + d * 0.7];
+        pos = [c.x + d * 0.7, c.y + d * 0.5, c.z - d * 0.7];
         break;
     }
 
@@ -126,11 +219,13 @@ function SharedScene({ showGrid }) {
   );
 }
 
-function SceneContent({ robot, showGrid, cameraRef }) {
+function SceneContent({ robot, trajectoryPaths, hasTrajectory, actionChunk, viewMode, showGrid, cameraRef }) {
   return (
     <>
       <SharedScene showGrid={showGrid} />
       {robot && <RobotModel robot={robot} />}
+      {hasTrajectory && <TrajectoryPathLines paths={trajectoryPaths} />}
+      <SimAnimator robot={robot} actionChunk={actionChunk} viewMode={viewMode} />
       <CameraController ref={cameraRef} robot={robot} />
     </>
   );
@@ -206,7 +301,7 @@ function CameraPresetButtons({ onPreset, activePreset }) {
         <button
           key={key}
           onClick={() => onPreset(key)}
-          className={`px-2 py-1 text-[10px] rounded font-medium transition-colors ${
+          className={`px-3 py-2 text-sm rounded font-medium transition-colors ${
             activePreset === key
               ? 'bg-blue-500 text-white'
               : 'bg-black/50 text-white/80 hover:bg-black/70'
@@ -219,19 +314,86 @@ function CameraPresetButtons({ onPreset, activePreset }) {
   );
 }
 
+function ViewModeToggle({ viewMode, onChange }) {
+  return (
+    <div className="absolute top-2 right-14 z-10 flex bg-black/50 rounded overflow-hidden">
+      <button
+        onClick={() => onChange('live')}
+        className={`px-3 py-2 text-sm font-medium transition-colors ${
+          viewMode === 'live'
+            ? 'bg-emerald-500 text-white'
+            : 'text-white/70 hover:text-white'
+        }`}
+      >
+        Live
+      </button>
+      <button
+        onClick={() => onChange('sim')}
+        className={`px-3 py-2 text-sm font-medium transition-colors ${
+          viewMode === 'sim'
+            ? 'bg-amber-500 text-white'
+            : 'text-white/70 hover:text-white'
+        }`}
+      >
+        Sim
+      </button>
+    </div>
+  );
+}
+
+function TrajectoryLegend({ visible }) {
+  if (!visible) return null;
+  return (
+    <div className="absolute bottom-2 left-2 z-10 flex gap-3 bg-black/50 rounded px-2 py-1">
+      <div className="flex items-center gap-1">
+        <div className="w-4 h-1 rounded bg-sky-400" />
+        <span className="text-xs text-white/70">Left</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="w-4 h-1 rounded bg-pink-400" />
+        <span className="text-xs text-white/70">Right</span>
+      </div>
+    </div>
+  );
+}
+
 export default function RobotViewer3D({
   mode = 'live',
   jointData = null,
-  actionData = null,
   currentTime = 0,
   showGrid = true,
   className = '',
 }) {
-  const { robot, loading, error, setJointValues, reload } = useUrdfRobot();
+  const { robot, loading, error, setJointValues, computeTrajectoryPaths, reload } = useUrdfRobot();
   const cameraRef = useRef();
   const [activePreset, setActivePreset] = useState('perspective');
+  const [trajectoryPaths, setTrajectoryPaths] = useState(null);
+  const [hasTrajectory, setHasTrajectory] = useState(false);
+  const [viewMode, setViewMode] = useState('live');
+  const [actionChunk, setActionChunk] = useState(null);
+  const viewModeRef = useRef(viewMode);
 
-  useJointStateSubscription(setJointValues, mode === 'live' && !!robot);
+  useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
+
+  const handleJointState = useCallback((data) => {
+    if (viewModeRef.current === 'live') {
+      setJointValues(data);
+    }
+  }, [setJointValues]);
+
+  const handleActionChunk = useCallback((data) => {
+    if (!data?.names?.length || !data?.points?.length) return;
+
+    setActionChunk(data);
+
+    const paths = computeTrajectoryPaths(data);
+    if (paths.left.length > 0 || paths.right.length > 0) {
+      setTrajectoryPaths(paths);
+      setHasTrajectory(true);
+    }
+  }, [computeTrajectoryPaths]);
+
+  useJointStateSubscription(handleJointState, handleActionChunk, mode === 'live' && !!robot);
 
   const handlePreset = useCallback((presetName) => {
     setActivePreset(presetName);
@@ -242,15 +404,37 @@ export default function RobotViewer3D({
     background: 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
   }), []);
 
+  const glRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (glRef.current) {
+        glRef.current.dispose();
+        glRef.current.forceContextLoss();
+        glRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <div className={`relative w-full h-full ${className}`}>
       {loading && <LoadingOverlay />}
       {error && <ErrorOverlay message={error} onRetry={reload} />}
       <CameraPresetButtons onPreset={handlePreset} activePreset={activePreset} />
+      {mode === 'live' && (
+        <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
+      )}
+      <TrajectoryLegend visible={hasTrajectory} />
       <Canvas
         camera={{ position: [1.5, 1.5, 1.5], fov: 50, near: 0.01, far: 100 }}
         style={canvasStyle}
-        gl={{ antialias: true, alpha: false }}
+        gl={{ antialias: true, alpha: false, powerPreference: 'low-power' }}
+        frameloop="demand"
+        onCreated={({ gl, invalidate }) => {
+          gl.shadowMap.type = THREE.PCFShadowMap;
+          glRef.current = gl;
+          setInterval(invalidate, 33);
+        }}
         shadows
       >
         {mode === 'replay' ? (
@@ -262,15 +446,23 @@ export default function RobotViewer3D({
             cameraRef={cameraRef}
           />
         ) : (
-          <SceneContent robot={robot} showGrid={showGrid} cameraRef={cameraRef} />
+          <SceneContent
+            robot={robot}
+            trajectoryPaths={trajectoryPaths}
+            hasTrajectory={hasTrajectory}
+            actionChunk={actionChunk}
+            viewMode={viewMode}
+            showGrid={showGrid}
+            cameraRef={cameraRef}
+          />
         )}
       </Canvas>
       <button
         onClick={() => handlePreset(activePreset)}
-        className="absolute bottom-2 right-2 z-10 p-1.5 bg-black/50 text-white/80 rounded hover:bg-black/70 transition-colors"
+        className="absolute bottom-2 right-2 z-10 p-2.5 bg-black/50 text-white/80 rounded hover:bg-black/70 transition-colors"
         title="Reset camera"
       >
-        <MdCenterFocusStrong size={16} />
+        <MdCenterFocusStrong size={22} />
       </button>
     </div>
   );

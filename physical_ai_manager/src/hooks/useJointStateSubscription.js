@@ -9,29 +9,23 @@ const JOINT_STATE_TOPICS = [
   { name: '/robot/lift_follower/joint_states', type: 'sensor_msgs/msg/JointState' },
 ];
 
-const TRAJECTORY_TOPICS = [
-  {
-    name: '/leader/joint_trajectory_command_broadcaster_left/joint_trajectory',
-    type: 'trajectory_msgs/msg/JointTrajectory',
-  },
-  {
-    name: '/leader/joint_trajectory_command_broadcaster_right/joint_trajectory',
-    type: 'trajectory_msgs/msg/JointTrajectory',
-  },
-];
+const ACTION_CHUNK_TOPIC = {
+  name: '/inference/trajectory_preview',
+  type: 'trajectory_msgs/msg/JointTrajectory',
+};
 
-const THROTTLE_MS = 33; // ~30fps
+const THROTTLE_MS = 33;
 
-export default function useJointStateSubscription(setJointValues, enabled = true) {
+export default function useJointStateSubscription(setJointValues, setActionChunk, enabled = true) {
   const rosHost = useSelector((state) => state.ros.rosHost);
   const subscribersRef = useRef([]);
-  const lastUpdateRef = useRef(0);
+  const lastJointUpdateRef = useRef(0);
 
   const handleJointState = useCallback(
     (msg) => {
       const now = Date.now();
-      if (now - lastUpdateRef.current < THROTTLE_MS) return;
-      lastUpdateRef.current = now;
+      if (now - lastJointUpdateRef.current < THROTTLE_MS) return;
+      lastJointUpdateRef.current = now;
 
       if (msg.name && msg.position) {
         setJointValues({ name: msg.name, position: msg.position });
@@ -40,20 +34,18 @@ export default function useJointStateSubscription(setJointValues, enabled = true
     [setJointValues]
   );
 
-  const handleTrajectory = useCallback(
+  const handleActionChunk = useCallback(
     (msg) => {
-      const now = Date.now();
-      if (now - lastUpdateRef.current < THROTTLE_MS) return;
-      lastUpdateRef.current = now;
+      if (!msg.joint_names || !msg.points || msg.points.length === 0) return;
 
-      if (msg.joint_names && msg.points && msg.points.length > 0) {
-        setJointValues({
-          name: msg.joint_names,
-          position: msg.points[0].positions,
+      if (setActionChunk) {
+        setActionChunk({
+          names: msg.joint_names,
+          points: msg.points.map((p) => p.positions),
         });
       }
     },
-    [setJointValues]
+    [setActionChunk]
   );
 
   useEffect(() => {
@@ -74,16 +66,13 @@ export default function useJointStateSubscription(setJointValues, enabled = true
         subs.push(sub);
       });
 
-      TRAJECTORY_TOPICS.forEach((topic) => {
-        const sub = new ROSLIB.Topic({
-          ros,
-          name: topic.name,
-          messageType: topic.type,
-          throttle_rate: THROTTLE_MS,
-        });
-        sub.subscribe(handleTrajectory);
-        subs.push(sub);
+      const chunkSub = new ROSLIB.Topic({
+        ros,
+        name: ACTION_CHUNK_TOPIC.name,
+        messageType: ACTION_CHUNK_TOPIC.type,
       });
+      chunkSub.subscribe(handleActionChunk);
+      subs.push(chunkSub);
 
       subscribersRef.current = subs;
     });
@@ -103,5 +92,5 @@ export default function useJointStateSubscription(setJointValues, enabled = true
         ros.close();
       } catch (_e) { /* ignore */ }
     };
-  }, [enabled, rosHost, handleJointState, handleTrajectory]);
+  }, [enabled, rosHost, handleJointState, handleActionChunk]);
 }

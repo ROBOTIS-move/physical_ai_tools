@@ -58,7 +58,6 @@ class InferenceManager:
     """
 
     BUFFER_REFILL_THRESHOLD = 1  # Request new chunk when buffer < this
-    ACTION_FREQ_HZ = 10.0       # Joint command publish frequency
 
     def __init__(
         self,
@@ -66,6 +65,7 @@ class InferenceManager:
         joint_topic_types: dict,
         joint_order: dict,
         service_prefix: str = "/groot",
+        on_chunk_received: callable = None,
     ):
         """
         Args:
@@ -75,11 +75,14 @@ class InferenceManager:
                 Keys are like "joint_order.leader_arm_left".
             service_prefix: Service prefix for the inference container
                 (e.g., "/groot", "/lerobot").
+            on_chunk_received: Optional callback(chunk_msg: JointTrajectory)
+                called when a new action chunk arrives, for visualization.
         """
         self._node = node
         self._joint_topic_types = joint_topic_types
         self._joint_order = joint_order
         self._service_prefix = service_prefix
+        self._on_chunk_received = on_chunk_received
         self._action_joint_map: dict = {}
 
         # Action buffer (deque of 1D np arrays, each length = total action DOF)
@@ -254,6 +257,7 @@ class InferenceManager:
                     if chunk_size > 0 and action_dim > 0 and len(chunk_data) > 0:
                         chunk = np.array(chunk_data).reshape(chunk_size, action_dim)
                         self._align_and_enqueue(chunk)
+                        self._publish_chunk_preview(chunk)
                         logger.info(
                             f"Chunk received: T={chunk_size}, D={action_dim}, "
                             f"buffer={len(self._action_buffer)}"
@@ -299,6 +303,32 @@ class InferenceManager:
 
             if len(chunk) > 0:
                 self._last_action = chunk[-1].copy()
+
+    def _publish_chunk_preview(self, chunk: np.ndarray):
+        """Publish full action chunk as a single JointTrajectory for 3D preview."""
+        if self._on_chunk_received is None:
+            return
+
+        try:
+            all_joint_names = []
+            for modality_key, leader_group in self._action_joint_map.items():
+                joint_names = self._joint_order.get(leader_group, [])
+                all_joint_names.extend(joint_names)
+
+            if not all_joint_names:
+                return
+
+            msg = JointTrajectory()
+            msg.joint_names = list(all_joint_names)
+
+            for t in range(len(chunk)):
+                point = JointTrajectoryPoint()
+                point.positions = [float(v) for v in chunk[t]]
+                msg.points.append(point)
+
+            self._on_chunk_received(msg)
+        except Exception as e:
+            logger.debug(f"Failed to publish chunk preview: {e}")
 
     def _build_action_joint_map(self, action_keys: list):
         """Build action_joint_map from model's action_keys and joint_order.

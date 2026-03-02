@@ -4,12 +4,38 @@ import URDFLoader from 'urdf-loader';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 
 const DEFAULT_URDF_PATH = '/urdf/urdf/ffw_sg2_follower.urdf';
+const EE_LINKS = ['end_effector_l_link', 'end_effector_r_link'];
+const ROS_TO_THREE = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+
+function createFkSolver(robot) {
+  const solver = robot.clone();
+
+  const jointMap = {};
+  solver.traverse((child) => {
+    if (child.isURDFJoint) {
+      const src = robot.joints[child.name];
+      if (src) {
+        child.jointType = src.jointType;
+        child.axis = src.axis?.clone ? src.axis.clone() : src.axis;
+        child.limit = { ...src.limit };
+        child.ignoreLimits = src.ignoreLimits;
+        child.jointValue = [...(src.jointValue || [])];
+        child.mimicJoints = src.mimicJoints ? [...src.mimicJoints] : [];
+      }
+      jointMap[child.name] = child;
+    }
+  });
+  solver.joints = jointMap;
+
+  return solver;
+}
 
 export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
   const [robot, setRobot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const robotRef = useRef(null);
+  const fkSolverRef = useRef(null);
 
   const loadRobot = useCallback(() => {
     setLoading(true);
@@ -22,18 +48,14 @@ export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
       'ffw_description': '/urdf/ffw_description',
     };
 
-    loader.loadMeshCb = (path, _manager, onComplete) => {
-      if (path.startsWith('file://') || path.startsWith('package://')) {
-        const fallback = new THREE.Mesh(
-          new THREE.BoxGeometry(0.02, 0.02, 0.02),
-          new THREE.MeshStandardMaterial({ color: 0x888888, transparent: true, opacity: 0.3 })
-        );
-        onComplete(fallback);
-        return;
-      }
+    const makeFallback = (color = 0x888888) => new THREE.Mesh(
+      new THREE.BoxGeometry(0.02, 0.02, 0.02),
+      new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.3 })
+    );
 
+    const loadStl = (url, onComplete) => {
       stlLoader.load(
-        path,
+        url,
         (geometry) => {
           geometry.computeVertexNormals();
           const material = new THREE.MeshStandardMaterial({
@@ -41,19 +63,41 @@ export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
             metalness: 0.3,
             roughness: 0.6,
           });
-          const mesh = new THREE.Mesh(geometry, material);
-          onComplete(mesh);
+          onComplete(new THREE.Mesh(geometry, material));
         },
         undefined,
-        (_err) => {
-          console.warn('Failed to load mesh:', path);
-          const fallback = new THREE.Mesh(
-            new THREE.BoxGeometry(0.02, 0.02, 0.02),
-            new THREE.MeshStandardMaterial({ color: 0xff4444, transparent: true, opacity: 0.5 })
-          );
-          onComplete(fallback);
+        () => {
+          console.warn('Failed to load mesh:', url);
+          onComplete(makeFallback(0xff4444));
         }
       );
+    };
+
+    loader.loadMeshCb = (path, _manager, onComplete) => {
+      if (path.startsWith('package://')) {
+        onComplete(makeFallback());
+        return;
+      }
+
+      // urdf-loader prepends base URL to file:/// paths, producing
+      // e.g. /urdf/urdf/file:///root/ros2_ws/install/<pkg>/share/<pkg>/meshes/...
+      const fileIdx = path.indexOf('file:///');
+      if (fileIdx !== -1) {
+        const absPath = path.substring(fileIdx + 'file:///'.length);
+        const shareMatch = absPath.match(/\/share\/([^/]+)\/(.+)$/);
+        if (shareMatch) {
+          const [, pkgName, relPath] = shareMatch;
+          const pkgBase = loader.packages[pkgName];
+          if (pkgBase) {
+            loadStl(`${pkgBase}/${relPath}`, onComplete);
+            return;
+          }
+        }
+        onComplete(makeFallback());
+        return;
+      }
+
+      loadStl(path, onComplete);
     };
 
     loader.load(
@@ -80,6 +124,9 @@ export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
 
         robotRef.current = loadedRobot;
         setRobot(loadedRobot);
+
+        fkSolverRef.current = createFkSolver(loadedRobot);
+
         setLoading(false);
       },
       undefined,
@@ -109,6 +156,7 @@ export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
         });
         robotRef.current = null;
       }
+      fkSolverRef.current = null;
     };
   }, [loadRobot]);
 
@@ -130,5 +178,58 @@ export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
     }
   }, []);
 
-  return { robot, loading, error, setJointValues, reload: loadRobot };
+  const computeTrajectoryPaths = useCallback((trajectoryData) => {
+    const fk = fkSolverRef.current;
+    const r = robotRef.current;
+    if (!fk || !r || !trajectoryData?.names || !trajectoryData?.points?.length) {
+      return { left: [], right: [] };
+    }
+
+    Object.keys(r.joints).forEach((name) => {
+      if (fk.joints[name] && r.joints[name]) {
+        const val = r.joints[name].jointValue;
+        if (val && val.length > 0) {
+          fk.joints[name].setJointValue(...val);
+        }
+      }
+    });
+
+    const eeObjects = {};
+    fk.traverse((child) => {
+      if (EE_LINKS.includes(child.name)) {
+        eeObjects[child.name] = child;
+      }
+    });
+
+    if (!eeObjects[EE_LINKS[0]] && !eeObjects[EE_LINKS[1]]) {
+      return { left: [], right: [] };
+    }
+
+    const leftPath = [];
+    const rightPath = [];
+    const localPos = new THREE.Vector3();
+
+    for (const positions of trajectoryData.points) {
+      trajectoryData.names.forEach((name, i) => {
+        if (fk.joints[name]) {
+          fk.joints[name].setJointValue(positions[i]);
+        }
+      });
+
+      fk.updateMatrixWorld(true);
+
+      if (eeObjects[EE_LINKS[0]]) {
+        eeObjects[EE_LINKS[0]].getWorldPosition(localPos);
+        leftPath.push(localPos.clone().applyMatrix4(ROS_TO_THREE));
+      }
+      if (eeObjects[EE_LINKS[1]]) {
+        eeObjects[EE_LINKS[1]].getWorldPosition(localPos);
+        rightPath.push(localPos.clone().applyMatrix4(ROS_TO_THREE));
+      }
+    }
+
+    return { left: leftPath, right: rightPath };
+  }, []);
+
+  return { robot, loading, error, setJointValues, computeTrajectoryPaths, reload: loadRobot };
 }

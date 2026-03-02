@@ -45,8 +45,8 @@ function StatusItem({ label, percentage, detail }) {
 
   return (
     <div className="flex items-center gap-1.5">
-      <div className="relative w-7 h-7 shrink-0">
-        <svg className="w-7 h-7 transform -rotate-90" viewBox="0 0 28 28">
+      <div className="relative w-8 h-8 shrink-0">
+        <svg className="w-8 h-8 transform -rotate-90" viewBox="0 0 28 28">
           <circle
             cx="14" cy="14" r={radius}
             stroke="currentColor" strokeWidth="2.5"
@@ -63,13 +63,13 @@ function StatusItem({ label, percentage, detail }) {
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[9px] font-bold text-gray-600">
+          <span className="text-[11px] font-bold text-gray-600">
             {Math.round(percentage)}%
           </span>
         </div>
       </div>
       <div className="flex flex-col min-w-0">
-        <span className="text-[10px] font-semibold text-gray-600 leading-none">{label}</span>
+        <span className="text-lg font-semibold text-gray-600 leading-none">{label}</span>
         <div className="flex items-center gap-1 mt-0.5">
           <div className="w-12 bg-gray-200 rounded-full h-1.5">
             <div
@@ -77,7 +77,7 @@ function StatusItem({ label, percentage, detail }) {
               style={{ width: `${Math.min(percentage, 100)}%` }}
             />
           </div>
-          <span className="text-[9px] text-gray-500 whitespace-nowrap">{detail}</span>
+          <span className="text-sm text-gray-500 whitespace-nowrap">{detail}</span>
         </div>
       </div>
     </div>

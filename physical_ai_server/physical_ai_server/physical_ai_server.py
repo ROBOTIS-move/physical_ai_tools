@@ -328,17 +328,18 @@ class PhysicalAIServer(Node):
             task_info=task_info
         )
 
+        control_hz = getattr(task_info, 'control_hz', 0) or 10
+        self._control_hz = control_hz
+
         self.timer_manager = TimerManager(node=self)
-        # Use 10 Hz for status publishing (rosbag2-only mode, no data collection needed)
-        # TODO: Consider moving to event-based approach instead of timer
         self.timer_manager.set_timer(
             timer_name=self.operation_mode,
-            timer_frequency=10,
+            timer_frequency=control_hz,
             callback_function=self.timer_callback_dict[self.operation_mode]
         )
         self.timer_manager.start(timer_name=self.operation_mode)
         self.get_logger().info(
-            'Robot control parameters initialized successfully')
+            f'Robot control parameters initialized (control_hz={control_hz})')
 
     def clear_parameters(self):
         if self.communicator is not None:
@@ -562,7 +563,7 @@ class PhysicalAIServer(Node):
 
     def _inference_timer_callback(self):
         """
-        Timer callback for inference mode (10Hz).
+        Timer callback for inference mode (runs at control_hz).
 
         Pops one action from the action buffer and publishes
         joint commands via communicator. Buffer is refilled in
@@ -572,6 +573,8 @@ class PhysicalAIServer(Node):
             return
 
         current_status = TaskStatus()
+        if hasattr(self, 'robot_type') and self.robot_type:
+            current_status.robot_type = self.robot_type
 
         # Handle async load error
         load_error = self.inference_manager.load_error
@@ -842,6 +845,7 @@ class PhysicalAIServer(Node):
                     joint_topic_types=self.joint_topic_types,
                     joint_order=self.joint_order,
                     service_prefix=service_prefix,
+                    on_chunk_received=self.communicator.publish_action_chunk,
                 )
 
                 task_instruction = (

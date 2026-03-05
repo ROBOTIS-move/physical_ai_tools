@@ -16,7 +16,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import clsx from 'clsx';
-import { MdHome, MdVideocam, MdMemory, MdWidgets, MdPlayCircle } from 'react-icons/md';
+import { MdHome, MdVideocam, MdMemory, MdWidgets, MdPlayCircle, MdAccountTree } from 'react-icons/md';
 import { GoGraph } from 'react-icons/go';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
@@ -27,6 +27,7 @@ import InferencePage from './pages/InferencePage';
 import TrainingPage from './pages/TrainingPage';
 import EditDatasetPage from './pages/EditDatasetPage';
 import ReplayPage from './pages/ReplayPage';
+import BTManagerPage from './pages/BTManagerPage';
 import { useRosTopicSubscription } from './hooks/useRosTopicSubscription';
 import rosConnectionManager from './utils/rosConnectionManager';
 import { useDispatch, useSelector } from 'react-redux';
@@ -207,6 +208,11 @@ function App() {
     dispatch(moveToPage(PageType.REPLAY));
   };
 
+  const handleBTManagerPageNavigation = () => {
+    isFirstLoad.current = false;
+    dispatch(moveToPage(PageType.BT_MANAGER));
+  };
+
   // Force cleanup of all image streams when page changes
   useEffect(() => {
     return () => {
@@ -317,6 +323,18 @@ function App() {
             <MdPlayCircle size={28} className="mb-2" />
             <span className="mt-1 text-sm whitespace-nowrap">Replay</span>
           </button>
+
+          {/* BT Manager page button */}
+          <button
+            className={clsx(classPageButton, {
+              'hover:bg-gray-200 active:bg-gray-400': page !== PageType.BT_MANAGER,
+              'bg-gray-300': page === PageType.BT_MANAGER,
+            })}
+            onClick={handleBTManagerPageNavigation}
+          >
+            <MdAccountTree size={28} className="mb-2" />
+            <span className="mt-1 text-sm whitespace-nowrap">BT Manager</span>
+          </button>
         </div>
       </aside>
       <main className="flex-1 flex flex-col h-screen">
@@ -332,6 +350,8 @@ function App() {
           <EditDatasetPage isActive={page === PageType.EDIT_DATASET} />
         ) : page === PageType.REPLAY ? (
           <ReplayPage isActive={page === PageType.REPLAY} />
+        ) : page === PageType.BT_MANAGER ? (
+          <BTManagerPage isActive={page === PageType.BT_MANAGER} />
         ) : (
           <HomePage />
         )}

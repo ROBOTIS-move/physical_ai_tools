@@ -32,6 +32,7 @@ const initialState = {
     home: true,
     record: true,
     inference: true,
+    btmanager: true,
   },
 };
 

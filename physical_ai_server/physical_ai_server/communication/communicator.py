@@ -178,6 +178,13 @@ class Communicator:
             self.PUB_QOS_SIZE
         )
 
+        # Action chunk preview publisher (full chunk for 3D visualization)
+        self.action_chunk_publisher = self.node.create_publisher(
+            JointTrajectory,
+            '/inference/trajectory_preview',
+            self.PUB_QOS_SIZE
+        )
+
         # Heartbeat publisher
         self.heartbeat_publisher = self.node.create_publisher(
             Empty,
@@ -287,6 +294,10 @@ class Communicator:
         for name, joint_msg in joint_msg_datas.items():
             self.joint_publishers[name].publish(joint_msg)
 
+    def publish_action_chunk(self, msg: JointTrajectory):
+        """Publish full action chunk for 3D trajectory visualization."""
+        self.action_chunk_publisher.publish(msg)
+
     def publish_status(self, status: TaskStatus):
         """Publish task status."""
         self.status_publisher.publish(status)
@@ -343,10 +354,8 @@ class Communicator:
     def get_image_topic_list_callback(self, request, response):
         camera_topic_list = []
         for topic_name in self.camera_topics.values():
-            topic = topic_name
-            if topic.endswith('/compressed'):
-                topic = topic[:-11]
-            camera_topic_list.append(topic)
+            # Return full topic path (e.g. .../image_raw/compressed) so the viewer uses the correct topic
+            camera_topic_list.append(topic_name)
 
         if len(camera_topic_list) == 0:
             self.node.get_logger().error('No image topics found')

@@ -18,10 +18,12 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
-import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight } from 'react-icons/md';
-import ControlPanel from '../components/ControlPanel';
+import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight, MdViewInAr } from 'react-icons/md';
+import InferenceControlPanel from '../components/InferenceControlPanel';
 import HeartbeatStatus from '../components/HeartbeatStatus';
+import InlineSystemStatus from '../components/InlineSystemStatus';
 import ImageGrid from '../components/ImageGrid';
+import RobotViewer3D from '../components/RobotViewer3D';
 import InferencePanel from '../components/InferencePanel';
 import { addTag } from '../features/tasks/taskSlice';
 import { setIsFirstLoadFalse } from '../features/ui/uiSlice';
@@ -37,6 +39,7 @@ export default function InferencePage({ isActive = true }) {
   const taskInfo = useSelector((state) => state.tasks.taskInfo);
 
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
+  const [show3DViewer, setShow3DViewer] = useState(true);
 
   const isFirstLoad = useSelector((state) => state.ui.isFirstLoad.inference);
 
@@ -57,13 +60,12 @@ export default function InferencePage({ isActive = true }) {
 
   const classMainContainer = 'h-full flex flex-col overflow-hidden';
   const classContentsArea = 'flex-1 flex min-h-0 pt-0 px-0 justify-center items-start';
-  const classImageGridContainer = clsx(
+  const classLeftArea = clsx(
     'transition-all',
     'duration-300',
     'ease-in-out',
     'flex',
-    'items-center',
-    'justify-center',
+    'flex-col',
     'min-h-0',
     'h-full',
     'overflow-hidden',
@@ -131,44 +133,61 @@ export default function InferencePage({ isActive = true }) {
     }
   );
 
+  const classTopBar = clsx(
+    'absolute', 'top-4', 'left-4', 'right-4', 'z-20',
+    'flex', 'items-center', 'gap-4'
+  );
   const classRobotTypeContainer = clsx(
-    'absolute',
-    'top-4',
-    'left-4',
-    'z-20',
-    'flex',
-    'flex-row',
-    'items-center',
-    'bg-white/90',
-    'backdrop-blur-sm',
-    'rounded-full',
-    'px-3',
-    'py-1',
-    'shadow-md',
-    'border',
-    'border-gray-100'
+    'flex', 'flex-row', 'items-center',
+    'bg-white/90', 'backdrop-blur-sm',
+    'rounded-full', 'px-3', 'py-1',
+    'shadow-md', 'border', 'border-gray-100'
   );
   const classRobotType = clsx('ml-2 mr-1 my-2 text-gray-600 text-lg');
   const classRobotTypeValue = clsx(
     'mx-1 my-2 px-2 text-lg text-blue-600 focus:outline-none bg-blue-100 rounded-full'
   );
 
-  const classHeartbeatStatus = clsx('absolute', 'top-20', 'left-5', 'z-10');
+  const classHeartbeatStatus = clsx('absolute', 'top-[4.5rem]', 'left-5', 'z-10');
 
   return (
     <div className={classMainContainer}>
       <div className={classContentsArea}>
-        <div className="w-full h-full flex flex-col relative">
-          <div className={classRobotTypeContainer}>
-            <div className={classRobotType}>Robot Type</div>
-            <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
-          </div>
-          <div className={classHeartbeatStatus}>
-            <HeartbeatStatus />
-          </div>
-          <div className={classImageGridContainer}>
+        <div className={classLeftArea}>
+          <div className="relative flex-[5] min-h-0 overflow-hidden pt-20">
+            <div className={classTopBar}>
+              <div className={classRobotTypeContainer}>
+                <div className={classRobotType}>Robot Type</div>
+                <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
+              </div>
+              <InlineSystemStatus />
+              <div className="flex-grow" />
+              <InferenceControlPanel />
+              <button
+                onClick={() => setShow3DViewer(!show3DViewer)}
+                className={clsx(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors shadow-md border',
+                  show3DViewer
+                    ? 'bg-indigo-500/90 text-white border-indigo-400 backdrop-blur-sm'
+                    : 'bg-white/90 text-gray-600 border-gray-100 backdrop-blur-sm hover:bg-gray-50'
+                )}
+              >
+                <MdViewInAr size={18} />
+                3D
+              </button>
+            </div>
+            <div className={classHeartbeatStatus}>
+              <HeartbeatStatus />
+            </div>
             <ImageGrid isActive={isActive} />
           </div>
+          {show3DViewer && (
+            <div className="flex-[4] min-h-[120px] flex items-center justify-center mx-1">
+              <div className="h-[85%] rounded-2xl overflow-hidden relative" style={{ aspectRatio: '4/3' }}>
+                <RobotViewer3D mode="live" />
+              </div>
+            </div>
+          )}
         </div>
         <div className={classRightPanelArea}>
           <button
@@ -190,7 +209,6 @@ export default function InferencePage({ isActive = true }) {
           </div>
         </div>
       </div>
-      <ControlPanel />
     </div>
   );
 }

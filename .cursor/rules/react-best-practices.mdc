@@ -1,0 +1,98 @@
+---
+description: React performance best practices (Vercel Engineering). Apply when writing, reviewing, or refactoring React components.
+globs: "**/*.{js,jsx,ts,tsx}"
+alwaysApply: false
+---
+
+# React Performance Best Practices
+
+Based on [Vercel React Best Practices](https://github.com/vercel-labs/agent-skills/blob/main/skills/react-best-practices/AGENTS.md). Prioritized by impact.
+
+## CRITICAL: Eliminating Waterfalls
+
+- **Defer await**: Move `await` into the branch where it's actually used.
+- **Parallel fetches**: Use `Promise.all()` for independent async operations, never sequential awaits.
+- **Suspense boundaries**: Wrap slow async parts in `<Suspense>` to stream content.
+
+## CRITICAL: Bundle Size
+
+- **No barrel imports**: Import directly from the module file, not from `index.js` barrel files.
+- **Dynamic imports**: Use `React.lazy()` / `next/dynamic` for heavy components (3D viewers, charts, modals).
+- **Defer third-party**: Load analytics, logging, and non-essential libraries after initial render.
+
+## HIGH: Re-render Optimization
+
+- **Derived state during render, not in useEffect**:
+```jsx
+// BAD
+const [filtered, setFiltered] = useState([]);
+useEffect(() => { setFiltered(items.filter(fn)); }, [items]);
+
+// GOOD
+const filtered = useMemo(() => items.filter(fn), [items]);
+```
+
+- **Functional setState**: Use updater functions for stable callbacks.
+```jsx
+// BAD - causes rerender on every parent render
+const increment = useCallback(() => setCount(count + 1), [count]);
+
+// GOOD - stable reference
+const increment = useCallback(() => setCount(c => c + 1), []);
+```
+
+- **Hoist default non-primitive props**: Extract constants outside components.
+```jsx
+// BAD - new object every render
+function Comp({ options = {} }) { ... }
+
+// GOOD
+const DEFAULT_OPTIONS = {};
+function Comp({ options = DEFAULT_OPTIONS }) { ... }
+```
+
+- **useRef for transient values**: Use refs for values read only in callbacks (e.g., throttle timestamps, animation frames). Avoids re-subscription on every change.
+```jsx
+const viewModeRef = useRef(viewMode);
+useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
+
+const handleData = useCallback((data) => {
+  if (viewModeRef.current === 'live') setJointValues(data);
+}, [setJointValues]); // stable - no viewMode dependency
+```
+
+- **Don't useMemo simple primitives**: `useMemo(() => a + b, [a, b])` is slower than just `a + b`.
+- **Narrow effect dependencies**: Use primitive values instead of objects in dependency arrays.
+- **Put interaction logic in event handlers**, not useEffect.
+
+## MEDIUM: Rendering Performance
+
+- **Hoist static JSX**: Extract unchanging JSX elements outside the component.
+```jsx
+// BAD - recreated every render
+function App() {
+  return <div><header>Static</header>{dynamic}</div>;
+}
+
+// GOOD
+const HEADER = <header>Static</header>;
+function App() {
+  return <div>{HEADER}{dynamic}</div>;
+}
+```
+
+- **Explicit conditional rendering**: Use ternary `? :` instead of `&&` to avoid rendering `0` or `""`.
+- **Use `startTransition`** for non-urgent state updates (search filtering, tab switching).
+
+## MEDIUM: JavaScript Performance
+
+- **Early return**: Exit functions early to avoid unnecessary computation.
+- **Set/Map for lookups**: Use `Set` or `Map` instead of `Array.includes()` / `Array.find()` for repeated lookups.
+- **Combine iterations**: Merge multiple `.filter().map()` chains into a single loop.
+- **Cache property access**: Store `obj.prop` in a local variable when used repeatedly in loops.
+- **Hoist RegExp**: Create regex outside loops/components, not inside hot paths.
+
+## LOW: Advanced Patterns
+
+- **Initialize once**: Use module-level flags to prevent re-initialization on re-mount.
+- **Store handlers in refs**: For event handlers that change frequently but shouldn't trigger re-subscription.

@@ -10,6 +10,9 @@ services:
       dockerfile: Dockerfile
     network_mode: host
     restart: unless-stopped
+    volumes:
+      - ../rosbag_recorder/config/urdf:/usr/share/nginx/html/urdf/urdf:ro
+      - ../rosbag_recorder/config/ffw_description:/usr/share/nginx/html/urdf/ffw_description:ro
 
   # ============================================
   # Physical AI Server (ROS2 + Zenoh)
@@ -103,7 +106,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - PYTHONUNBUFFERED=1
-      - ROBOT_CLIENT_PATH=/robot_client
+      - PYTHONPATH=/
       - LEROBOT_WORKSPACE=/workspace
     command: server
     depends_on:
@@ -149,7 +152,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - PYTHONUNBUFFERED=1
-      - ROBOT_CLIENT_PATH=/robot_client
+      - PYTHONPATH=/
       - GROOT_WORKSPACE=/workspace
     volumes:
       - /dev:/dev

@@ -14,63 +14,147 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import ImageGridCell from './ImageGridCell';
 import ImageTopicSelectModal from './ImageTopicSelectModal';
-import { setImageTopicList } from '../features/ros/rosSlice';
+import { setImageTopicList, setAssignedImageTopics } from '../features/ros/rosSlice';
 
-const layout = [{ aspect: '16/9' }, { aspect: '16/9' }, { aspect: '16/9' }];
+// [left(idx 0), center(idx 1), right(idx 2)]
+// rotate: true = wrist camera (landscape stream displayed as portrait)
+const DEFAULT_LAYOUT = [
+  { aspect: '3/4', rotate: true },
+  { aspect: '16/9', rotate: false },
+  { aspect: '3/4', rotate: true },
+];
+
+// Robot-type specific camera topic assignments: [left, center, right]
+const ROBOT_CAMERA_PRESETS = {
+  ffw_sg2_rev1: [
+    '/robot/camera/cam_left_wrist/image_raw/compressed',
+    '/robot/camera/cam_left_head/image_raw/compressed',
+    '/robot/camera/cam_right_wrist/image_raw/compressed',
+  ],
+  ffw_bg2_rev4: [
+    '/robot/camera/cam_left_wrist/image_raw/compressed',
+    '/robot/camera/cam_left_head/image_raw/compressed',
+    '/robot/camera/cam_right_wrist/image_raw/compressed',
+  ],
+};
 
 export default function ImageGrid({ isActive = true }) {
   const dispatch = useDispatch();
   const imageTopicList = useSelector((state) => state.ros.imageTopicList);
+  const assignedImageTopicsFromRedux = useSelector((state) => state.ros.assignedImageTopics);
+  const robotType = useSelector((state) => state.tasks.taskStatus.robotType);
 
   const [modalOpen, setModalOpen] = React.useState(false);
   const [selectedIdx, setSelectedIdx] = React.useState(null);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [topicListError, setTopicListError] = useState(null);
-  const [asignedImageTopicList, setAsignedImageTopicList] = useState([]);
+  // Initialise with default preset so first paint and remounts show cameras (avoid [] then length-effect overwrite)
+  const [asignedImageTopicList, setAsignedImageTopicList] = useState(
+    () => [...(ROBOT_CAMERA_PRESETS.ffw_sg2_rev1 || Array(DEFAULT_LAYOUT.length).fill(null))]
+  );
+  const [presetApplied, setPresetApplied] = useState(false);
+  // Per-cell rotation override: 0 = landscape, -90 = portrait; undefined = use layout default
+  const [rotationOverrides, setRotationOverrides] = useState({});
 
   const { getImageTopicList } = useRosServiceCaller();
 
-  // Auto-assign topics to grid cells (center, left, right order)
+  const layout = DEFAULT_LAYOUT;
+
+  const rotationDegrees = useMemo(
+    () => layout.map((cell, idx) => rotationOverrides[idx] ?? (cell.rotate ? -90 : 0)),
+    [layout, rotationOverrides]
+  );
+
+  const handleRotateClick = useCallback((idx) => {
+    setRotationOverrides((prev) => ({
+      ...prev,
+      [idx]: rotationDegrees[idx] === -90 ? 0 : -90,
+    }));
+  }, [rotationDegrees]);
+
+  // Use robot type preset, or fallback to ffw_sg2_rev1 when robotType not yet received (e.g. right after page load)
+  const preset = useMemo(
+    () => ROBOT_CAMERA_PRESETS[robotType] || ROBOT_CAMERA_PRESETS.ffw_sg2_rev1,
+    [robotType]
+  );
+
+  // Restore persisted topic assignment when Redux has a valid list (e.g. after remount when Inference starts)
+  // Only set state when current state differs to avoid triggering persist → Redux update → restore loop
+  useEffect(() => {
+    const hasSaved =
+      assignedImageTopicsFromRedux.length === layout.length &&
+      assignedImageTopicsFromRedux.some(Boolean);
+    if (!hasSaved) return;
+    setAsignedImageTopicList((prev) => {
+      const same = prev.length === assignedImageTopicsFromRedux.length && prev.every((t, i) => t === assignedImageTopicsFromRedux[i]);
+      return same ? prev : [...assignedImageTopicsFromRedux];
+    });
+  }, [assignedImageTopicsFromRedux, layout.length]);
+
+  // Apply preset when we haven't applied yet and Redux has no valid saved list (don't overwrite restored list on remount)
+  useEffect(() => {
+    if (!preset || presetApplied) return;
+    const hasSaved = assignedImageTopicsFromRedux.length === layout.length && assignedImageTopicsFromRedux.some(Boolean);
+    if (hasSaved) {
+      setPresetApplied(true);
+      return;
+    }
+    setAsignedImageTopicList([...preset]);
+    setPresetApplied(true);
+    console.log(`Applied camera preset for ${robotType || 'default (ffw_sg2_rev1)'}:`, preset);
+  }, [preset, robotType, presetApplied, assignedImageTopicsFromRedux, layout.length]);
+
+  // Reset presetApplied when robotType changes
+  useEffect(() => {
+    setPresetApplied(false);
+  }, [robotType]);
+
   const autoAssignTopics = useCallback((imageTopics, isRefresh = false) => {
     if (imageTopics.length > 0) {
       const autoTopics = Array(layout.length).fill(null);
-
-      // Assignment order: center (idx=1), left (idx=0), right (idx=2)
       const assignmentOrder = [1, 0, 2];
 
       for (let i = 0; i < Math.min(imageTopics.length, assignmentOrder.length); i++) {
         autoTopics[assignmentOrder[i]] = imageTopics[i];
-        console.log(
-          `${isRefresh ? 'Re-a' : 'A'}ssigned topic ${imageTopics[i]} to grid position ${
-            assignmentOrder[i]
-          }`
-        );
       }
 
-      console.log(`Final ${isRefresh ? 're-assigned' : 'auto-assigned'} topics:`, autoTopics);
+      console.log(`${isRefresh ? 'Re-assigned' : 'Auto-assigned'} topics:`, autoTopics);
       setAsignedImageTopicList(autoTopics);
       toast.success(
         `${isRefresh ? 'Re-a' : 'Auto-a'}ssigned ${Math.min(imageTopics.length, 3)} topics to grid`
       );
     }
-  }, []);
+  }, [layout.length]);
 
-  // Adjust the length of the topics array
-  React.useEffect(() => {
-    if (asignedImageTopicList.length !== layout.length) {
-      setAsignedImageTopicList(Array(layout.length).fill(null));
+  // Sync list length when layout length changes (extend or trim)
+  useEffect(() => {
+    setAsignedImageTopicList((prev) => {
+      const L = layout.length;
+      if (prev.length === L) return prev;
+      if (prev.length < L) return [...prev, ...Array(L - prev.length).fill(null)];
+      return prev.slice(0, L);
+    });
+  }, [layout]);
+
+  // Persist topic assignment to Redux so it survives remounts (e.g. Inference start)
+  // Only dispatch when list actually changed to avoid loop: restore sets state → persist dispatches → Redux updates → restore runs again
+  useEffect(() => {
+    if (asignedImageTopicList.length === 0) return;
+    const same =
+      assignedImageTopicsFromRedux.length === asignedImageTopicList.length &&
+      asignedImageTopicList.every((t, i) => t === assignedImageTopicsFromRedux[i]);
+    if (!same) {
+      dispatch(setAssignedImageTopics(asignedImageTopicList));
     }
-    // eslint-disable-next-line
-  }, []);
+  }, [asignedImageTopicList, dispatch, assignedImageTopicsFromRedux]);
 
-  // Fetch image topic list on component mount and auto-assign topics
   useEffect(() => {
     const fetchTopicList = async () => {
       setIsLoadingTopics(true);
@@ -82,18 +166,14 @@ export default function ImageGrid({ isActive = true }) {
           dispatch(setImageTopicList(imageTopics));
           setTopicListError(null);
           toast.success(`Loaded ${imageTopics.length} image topics`);
-
-          // Auto-assign topics to grid cells
-          autoAssignTopics(imageTopics, false);
+          // Preset is always used (with fallback), so no need to auto-assign from list here
         } else {
-          console.error('Failed to get image topic list:', result?.message);
           const errorMsg = result?.message || 'Unknown error occurred';
           setTopicListError(`Service error: ${errorMsg}`);
           dispatch(setImageTopicList([]));
           toast.error(`Failed to load image topics: ${errorMsg}`);
         }
       } catch (error) {
-        console.error('Error fetching image topic list:', error);
         setTopicListError('Failed to load image topic list');
         dispatch(setImageTopicList([]));
         toast.error('Failed to load image topic list');
@@ -103,37 +183,29 @@ export default function ImageGrid({ isActive = true }) {
     };
 
     fetchTopicList();
-  }, [getImageTopicList, autoAssignTopics, dispatch]);
+  }, [getImageTopicList, autoAssignTopics, dispatch, preset]);
 
-  // Cleanup all image streams when component unmounts
   useEffect(() => {
     return () => {
       console.log('ImageGrid unmounting - cleaning up all streams');
-
-      // Clear all image streams when ImageGrid unmounts
       layout.forEach((_, idx) => {
-        // Clean up images by ID
         const imgById = document.querySelector(`#img-stream-${idx}`);
         if (imgById) {
           imgById.src = '';
           if (imgById.parentNode) {
             imgById.parentNode.removeChild(imgById);
           }
-          console.log(`ImageGrid cleanup: removed img with id img-stream-${idx}`);
         }
       });
-
-      // Clean up all streaming images without IDs (perform query only once)
       const streamingImgs = document.querySelectorAll('img[src*="/stream"]');
-      streamingImgs.forEach((img, streamIdx) => {
+      streamingImgs.forEach((img) => {
         img.src = '';
         if (img.parentNode) {
           img.parentNode.removeChild(img);
         }
-        console.log(`ImageGrid cleanup: removed streaming img ${streamIdx}`);
       });
     };
-  }, []);
+  }, [layout]);
 
   const handlePlusClick = (idx) => {
     setSelectedIdx(idx);
@@ -172,22 +244,12 @@ export default function ImageGrid({ isActive = true }) {
   };
 
   const handleCellClose = (idx) => {
-    console.log(`Manually closing cell ${idx}`);
-    // Only update state - DOM cleanup is handled by ImageGridCell
     setAsignedImageTopicList(asignedImageTopicList.map((t, i) => (i === idx ? null : t)));
   };
 
   const classImageGridArea = clsx(
-    'flex',
-    'flex-row',
-    'justify-center',
-    'items-center',
-    'gap-[0.5vw]',
-    'w-full',
-    'h-full',
-    'max-w-full',
-    'max-h-full',
-    'overflow-hidden'
+    'flex', 'flex-row', 'justify-center', 'items-center',
+    'gap-[0.5vw]', 'w-full', 'h-full', 'max-w-full', 'max-h-full', 'overflow-hidden'
   );
 
   const classImageGridCell = (idx) =>
@@ -197,16 +259,8 @@ export default function ImageGrid({ isActive = true }) {
     });
 
   const classTopicLabel = clsx(
-    'absolute',
-    'bottom-2',
-    'left-2',
-    'text-xs',
-    'text-white',
-    'bg-black',
-    'bg-opacity-50',
-    'px-2',
-    'py-1',
-    'rounded'
+    'absolute', 'bottom-2', 'left-2', 'text-xs', 'text-white',
+    'bg-black', 'bg-opacity-50', 'px-2', 'py-1', 'rounded', 'z-10'
   );
 
   return (
@@ -217,6 +271,8 @@ export default function ImageGrid({ isActive = true }) {
             <ImageGridCell
               topic={asignedImageTopicList[idx]}
               aspect={cell.aspect}
+              rotationDegrees={rotationDegrees[idx]}
+              onRotateClick={handleRotateClick}
               idx={idx}
               onClose={handleCellClose}
               onPlusClick={handlePlusClick}

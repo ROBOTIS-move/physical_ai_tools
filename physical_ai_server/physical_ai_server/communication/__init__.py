@@ -18,7 +18,7 @@
 
 # This file makes the directory a Python package
 
-from physical_ai_server.communication.zenoh_service_client import (
-    ZenohServiceClient,
+from physical_ai_server.communication.inference_service_client import (
+    InferenceServiceClient,
     ServiceResponse,
 )

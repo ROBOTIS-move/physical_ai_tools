@@ -16,14 +16,15 @@
 
 import React, { useCallback, useEffect, useRef } from 'react';
 import clsx from 'clsx';
-import { MdClose } from 'react-icons/md';
+import { MdClose, MdScreenRotation } from 'react-icons/md';
 import { useSelector } from 'react-redux';
 
-const classImageGridCell = (topic) =>
+const classCell = (topic) =>
   clsx(
     'relative',
     'bg-gray-100',
     'rounded-3xl',
+    'overflow-hidden',
     'flex',
     'items-center',
     'justify-center',
@@ -36,141 +37,159 @@ const classImageGridCell = (topic) =>
     }
   );
 
-const classImageGridCellButton = clsx(
-  'absolute',
-  'top-2',
-  'right-2',
-  'w-8',
-  'h-8',
-  'bg-black',
-  'bg-opacity-50',
-  'text-white',
-  'rounded-full',
-  'flex',
-  'items-center',
-  'justify-center',
-  'hover:bg-opacity-70',
-  'z-10'
+const classCloseBtn = clsx(
+  'absolute', 'top-2', 'right-2',
+  'w-8', 'h-8',
+  'bg-black', 'bg-opacity-50', 'text-white',
+  'rounded-full', 'flex', 'items-center', 'justify-center',
+  'hover:bg-opacity-70', 'z-20'
+);
+
+const classRotateBtn = clsx(
+  'absolute', 'top-2', 'left-2',
+  'w-8', 'h-8',
+  'bg-black', 'bg-opacity-50', 'text-white',
+  'rounded-full', 'flex', 'items-center', 'justify-center',
+  'hover:bg-opacity-70', 'z-20'
 );
 
 export default function ImageGridCell({
   topic,
   aspect,
+  rotationDegrees = 0,
+  onRotateClick,
   idx,
   onClose,
   onPlusClick,
   isActive = true,
   style = {},
 }) {
+  const rotate = rotationDegrees !== 0;
   const rosHost = useSelector((state) => state.ros.rosHost);
   const containerRef = useRef(null);
   const currentImgRef = useRef(null);
-  const isCreatingRef = useRef(false); // Track if createImage is in progress
+  const isCreatingRef = useRef(false);
+  const retryTimerRef = useRef(null);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 5;
 
-  // Completely remove img element from DOM
   const destroyImage = useCallback(() => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
     if (currentImgRef.current) {
-      console.log(`Destroying image stream for idx ${idx}`);
-      // First set src to empty
-      currentImgRef.current.src = '';
-      // Remove from DOM completely
-      if (currentImgRef.current.parentNode) {
-        currentImgRef.current.parentNode.removeChild(currentImgRef.current);
-      }
+      const el = currentImgRef.current;
+      const img = el.tagName === 'IMG' ? el : el.querySelector('img');
+      if (img) img.src = '';
+      if (el.parentNode) el.parentNode.removeChild(el);
       currentImgRef.current = null;
     }
-  }, [idx]);
+  }, []);
 
-  // Create new img element and add to DOM with staggered delay
   const createImage = useCallback(async () => {
-    if (!topic || !topic.trim() || !isActive || !containerRef.current) {
-      return;
-    }
-
-    // Prevent multiple createImage calls from running simultaneously
-    if (isCreatingRef.current) {
-      console.log(`CreateImage already in progress for idx ${idx}, skipping`);
-      return;
-    }
+    if (!topic || !topic.trim() || !isActive || !containerRef.current) return;
+    if (isCreatingRef.current) return;
 
     isCreatingRef.current = true;
-    destroyImage(); // Remove any existing image first
+    destroyImage();
 
     try {
-      // Staggered delay - center first, then left and right
-      let staggeredDelay = 0;
-      if (idx === 1) {
-        // Center cell connects immediately
-        staggeredDelay = 0;
-      } else if (idx === 0 || idx === 2) {
-        // Left and right cells connect after 300ms
-        staggeredDelay = 300;
-      }
-
+      const staggeredDelay = (idx === 0 || idx === 2) ? 300 : 0;
       if (staggeredDelay > 0) {
-        console.log(
-          `Staggered delay ${staggeredDelay}ms for image stream idx ${idx}, topic: ${topic}`
-        );
         await new Promise((resolve) => setTimeout(resolve, staggeredDelay));
-      } else {
-        console.log(`Immediate connection for center cell idx ${idx}, topic: ${topic}`);
       }
 
-      // Check again if conditions are still valid after delay and if we should still proceed
-      if (!topic || !topic.trim() || !isActive || !containerRef.current || !isCreatingRef.current) {
-        console.log(
-          `Conditions changed during delay or cancelled, aborting image stream for idx ${idx}`
-        );
-        return;
-      }
-
-      console.log(`Creating new image stream for idx ${idx}, topic: ${topic}`);
+      if (!topic || !topic.trim() || !isActive || !containerRef.current || !isCreatingRef.current) return;
 
       const img = document.createElement('img');
       const timestamp = Date.now();
-      img.src = `http://${rosHost}:8085/stream?quality=50&type=ros_compressed&default_transport=compressed&topic=${topic}&t=${timestamp}`;
+      // web_video_server expects base topic (e.g. .../image_raw); use default_transport=compressed to subscribe to CompressedImage
+      // Do not encode slashes: server rejects %2F and expects literal /
+      const streamTopic = topic.endsWith('/compressed') ? topic.slice(0, -11) : topic;
+      img.src = `http://${rosHost}:8085/stream?quality=50&type=ros_compressed&default_transport=compressed&topic=${streamTopic}&t=${timestamp}`;
       img.alt = topic;
-      img.className = 'w-full h-full object-cover rounded-3xl bg-gray-100';
-      img.onclick = (e) => e.stopPropagation();
 
-      // Error and load handlers
+      img.onclick = (e) => e.stopPropagation();
       img.onerror = () => {
-        console.error(`Image stream error for idx ${idx}, topic: ${topic}`);
+        if (retryCountRef.current >= MAX_RETRIES) {
+          console.error(`Image stream failed after ${MAX_RETRIES} retries for idx ${idx}, topic: ${topic}`);
+          return;
+        }
+        retryCountRef.current += 1;
+        const delay = Math.min(1000 * Math.pow(2, retryCountRef.current - 1), 8000);
+        console.warn(`Image stream error for idx ${idx}, retrying in ${delay}ms (${retryCountRef.current}/${MAX_RETRIES})`);
+        retryTimerRef.current = setTimeout(() => {
+          if (isActive && topic && containerRef.current) {
+            destroyImage();
+            isCreatingRef.current = false;
+            createImage();
+          }
+        }, delay);
+      };
+      img.onload = () => {
+        retryCountRef.current = 0;
       };
 
-      if (containerRef.current && isCreatingRef.current) {
-        containerRef.current.appendChild(img);
-        currentImgRef.current = img;
+      if (rotate) {
+        // Wrapper div handles rotation; img inside handles fitting.
+        // For 3:4 container (W x H where H=4W/3):
+        //   wrapper pre-rotation: width=H, height=W (landscape box)
+        //   after rotate(-90deg): visual bounding box = W x H (matches container)
+        const wrapper = document.createElement('div');
+        wrapper.style.position = 'absolute';
+        wrapper.style.width = '133.33%';   // container height = 4W/3 = 133.33% of W
+        wrapper.style.height = '75%';      // container width  = 3H/4 = 75% of H
+        wrapper.style.top = '50%';
+        wrapper.style.left = '50%';
+        wrapper.style.transform = `translate(-50%, -50%) rotate(${rotationDegrees}deg)`;
+        wrapper.style.transformOrigin = 'center center';
+        wrapper.style.overflow = 'hidden';
+
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        img.style.display = 'block';
+
+        wrapper.appendChild(img);
+
+        if (containerRef.current && isCreatingRef.current) {
+          containerRef.current.appendChild(wrapper);
+          currentImgRef.current = wrapper;
+        }
+      } else {
+        img.className = 'w-full h-full object-cover bg-gray-100';
+
+        if (containerRef.current && isCreatingRef.current) {
+          containerRef.current.appendChild(img);
+          currentImgRef.current = img;
+        }
       }
     } finally {
       isCreatingRef.current = false;
     }
-  }, [topic, isActive, rosHost, idx, destroyImage]);
+  }, [topic, isActive, rosHost, idx, rotate, rotationDegrees, destroyImage]);
 
-  // Create/recreate image when topic, isActive, or rosHost changes
   useEffect(() => {
+    retryCountRef.current = 0;
     if (topic && topic.trim() !== '' && isActive) {
-      // Call async createImage function with error handling
       createImage().catch((error) => {
         console.error(`Error creating image stream for idx ${idx}:`, error);
-        isCreatingRef.current = false; // Reset flag on error
+        isCreatingRef.current = false;
       });
     } else {
       destroyImage();
     }
 
     return () => {
-      // Cancel any ongoing createImage operation
       isCreatingRef.current = false;
+      retryCountRef.current = 0;
       destroyImage();
     };
   }, [topic, isActive, rosHost, idx, createImage, destroyImage]);
 
-  // Force cleanup on unmount
   useEffect(() => {
-    return () => {
-      destroyImage();
-    };
+    return () => { destroyImage(); };
   }, [idx, destroyImage]);
 
   const handleClose = (e) => {
@@ -181,16 +200,26 @@ export default function ImageGridCell({
 
   return (
     <div
-      className={classImageGridCell(topic)}
+      className={classCell(topic)}
       onClick={!topic ? () => onPlusClick(idx) : undefined}
       style={{ cursor: !topic ? 'pointer' : 'default', aspectRatio: aspect, ...style }}
     >
       {topic && topic.trim() !== '' && (
-        <button className={classImageGridCellButton} onClick={handleClose}>
-          <MdClose size={20} />
-        </button>
+        <>
+          <button
+            type="button"
+            className={classRotateBtn}
+            onClick={(e) => { e.stopPropagation(); onRotateClick?.(idx); }}
+            title={rotate ? '가로로 보기' : '세로로 보기'}
+          >
+            <MdScreenRotation size={20} />
+          </button>
+          <button type="button" className={classCloseBtn} onClick={handleClose}>
+            <MdClose size={20} />
+          </button>
+        </>
       )}
-      <div ref={containerRef} className="w-full h-full flex items-center justify-center">
+      <div ref={containerRef} className="w-full h-full relative overflow-hidden rounded-3xl flex items-center justify-center">
         {(!topic || !isActive) && <div className="text-6xl text-gray-400 font-light">+</div>}
       </div>
     </div>

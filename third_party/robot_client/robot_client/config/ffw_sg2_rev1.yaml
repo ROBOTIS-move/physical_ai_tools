@@ -15,10 +15,12 @@ cameras:
   cam_left_wrist:
     topic: "/robot/camera/cam_left_wrist/image_raw/compressed"
     msg_type: "sensor_msgs/msg/CompressedImage"
+    rotation_deg: 270
 
   cam_right_wrist:
     topic: "/robot/camera/cam_right_wrist/image_raw/compressed"
     msg_type: "sensor_msgs/msg/CompressedImage"
+    rotation_deg: 270
 
 joint_groups:
   leader_arm_left:

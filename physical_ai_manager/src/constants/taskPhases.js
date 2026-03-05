@@ -26,6 +26,8 @@ const TaskPhase = {
   STOPPED: 5,
   INFERENCING: 6,
   CONVERTING: 7,
+  LOADING: 8,
+  PAUSED: 9,
   // Alias for backward compatibility
   IDLE: 0,
 };

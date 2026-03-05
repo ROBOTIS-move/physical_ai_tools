@@ -328,17 +328,18 @@ class PhysicalAIServer(Node):
             task_info=task_info
         )
 
+        control_hz = getattr(task_info, 'control_hz', 0) or 10
+        self._control_hz = control_hz
+
         self.timer_manager = TimerManager(node=self)
-        # Use 10 Hz for status publishing (rosbag2-only mode, no data collection needed)
-        # TODO: Consider moving to event-based approach instead of timer
         self.timer_manager.set_timer(
             timer_name=self.operation_mode,
-            timer_frequency=10,
+            timer_frequency=control_hz,
             callback_function=self.timer_callback_dict[self.operation_mode]
         )
         self.timer_manager.start(timer_name=self.operation_mode)
         self.get_logger().info(
-            'Robot control parameters initialized successfully')
+            f'Robot control parameters initialized (control_hz={control_hz})')
 
     def clear_parameters(self):
         if self.communicator is not None:
@@ -440,16 +441,10 @@ class PhysicalAIServer(Node):
 
             # Simplified state transitions
             if current == 'recording' and previous in ('idle', None):
-                # Start recording
-                rosbag_path = self.data_manager.get_save_rosbag_path()
-                self.get_logger().info(
-                    f'Rosbag state: idle->recording, path={rosbag_path}, '
-                    f'episode={self.data_manager._record_episode_count}')
-                if rosbag_path:
-                    self.communicator.start_rosbag(rosbag_uri=rosbag_path)
-                    self.get_logger().info(f'Rosbag recording started: {rosbag_path}')
-                else:
-                    self.get_logger().error('Rosbag path is None - cannot start recording!')
+                # Rosbag is started directly in the service handler
+                # (START_RECORD / START_INFERENCE_RECORD).
+                # No action needed here.
+                pass
 
             elif current == 'idle' and previous == 'recording':
                 # This is handled by stop_recording_and_save or cancel_recording
@@ -568,7 +563,7 @@ class PhysicalAIServer(Node):
 
     def _inference_timer_callback(self):
         """
-        Timer callback for inference mode (10Hz).
+        Timer callback for inference mode (runs at control_hz).
 
         Pops one action from the action buffer and publishes
         joint commands via communicator. Buffer is refilled in
@@ -577,12 +572,38 @@ class PhysicalAIServer(Node):
         if not self.on_inference or self.inference_manager is None:
             return
 
+        current_status = TaskStatus()
+        if hasattr(self, 'robot_type') and self.robot_type:
+            current_status.robot_type = self.robot_type
+
+        # Handle async load error
+        load_error = self.inference_manager.load_error
+        if load_error:
+            self.get_logger().error(f'Inference load failed: {load_error}')
+            current_status.phase = TaskStatus.READY
+            current_status.error = load_error
+            self.communicator.publish_status(status=current_status)
+            self._stop_groot_inference()
+            self.on_inference = False
+            return
+
+        # Still loading policy
+        if self.inference_manager.is_loading:
+            current_status.phase = TaskStatus.LOADING
+            self.communicator.publish_status(status=current_status)
+            return
+
+        # Paused — model loaded but not inferencing
+        if self.inference_manager.is_paused:
+            current_status.phase = TaskStatus.PAUSED
+            self.communicator.publish_status(status=current_status)
+            return
+
+        # Ready — pop action and publish
         joint_msg_datas = self.inference_manager.pop_action()
         if joint_msg_datas is not None:
             self.communicator.publish_action(joint_msg_datas)
 
-        # Status publish
-        current_status = TaskStatus()
         current_status.phase = TaskStatus.INFERENCING
         self.communicator.publish_status(status=current_status)
 
@@ -791,9 +812,14 @@ class PhysicalAIServer(Node):
 
                 self.on_recording = True
 
-                # Start recording (simplified mode)
+                # Start recording and rosbag directly
                 self.get_logger().info('Starting recording')
                 self.data_manager.start_recording()
+                rosbag_path = self.data_manager.get_save_rosbag_path()
+                if rosbag_path:
+                    self.communicator.start_rosbag(
+                        rosbag_uri=rosbag_path
+                    )
                 self.start_recording_time = time.perf_counter()
                 self.communicator.publish_action_event('start')
                 response.success = True
@@ -803,16 +829,15 @@ class PhysicalAIServer(Node):
                 self.operation_mode = 'inference'
                 task_info = request.task_info
 
+                # Clean up existing inference session if any
+                if self.inference_manager is not None:
+                    self._stop_groot_inference()
+
                 self.init_robot_control_parameters_from_user_task(task_info)
                 self.joint_topic_types = self.communicator.get_publisher_msg_types()
 
-                # Build topic maps from robot config
-                camera_topic_map = self._get_camera_topic_map()
-                joint_topic_map = self._get_joint_topic_map()
-
                 # Determine service prefix from policy type
-                # TODO: get policy_type from task_info when UI supports it
-                service_prefix = "/groot"
+                service_prefix = self._determine_service_prefix(task_info)
 
                 # Create and start inference manager
                 self.inference_manager = InferenceManager(
@@ -820,6 +845,7 @@ class PhysicalAIServer(Node):
                     joint_topic_types=self.joint_topic_types,
                     joint_order=self.joint_order,
                     service_prefix=service_prefix,
+                    on_chunk_received=self.communicator.publish_action_chunk,
                 )
 
                 task_instruction = (
@@ -828,27 +854,19 @@ class PhysicalAIServer(Node):
                     else ''
                 )
 
-                try:
-                    self.inference_manager.start(
-                        model_path=task_info.policy_path,
-                        embodiment_tag='new_embodiment',
-                        camera_topic_map=camera_topic_map,
-                        joint_topic_map=joint_topic_map,
-                        task_instruction=task_instruction,
-                    )
-                except RuntimeError as e:
-                    self.inference_manager = None
-                    response.success = False
-                    response.message = str(e)
-                    self.get_logger().error(response.message)
-                    return response
+                self.inference_manager.start(
+                    model_path=task_info.policy_path,
+                    embodiment_tag='new_embodiment',
+                    robot_type=self.robot_type,
+                    task_instruction=task_instruction,
+                )
 
                 if task_info.record_inference_mode:
                     self.on_recording = True
                 self.on_inference = True
                 self.start_recording_time = time.perf_counter()
                 response.success = True
-                response.message = 'GR00T inference started'
+                response.message = f'{service_prefix.strip("/").upper()} inference loading'
 
             elif request.command == SendCommand.Request.CONVERT_MP4:
                 # Handle MP4 conversion command
@@ -990,13 +1008,95 @@ class PhysicalAIServer(Node):
                         response.success = True
                         response.message = 'Recording cancelled'
 
+                    elif request.command == SendCommand.Request.STOP_INFERENCE:
+                        if self.inference_manager is not None:
+                            self.inference_manager.pause()
+                            response.success = True
+                            response.message = 'Inference paused'
+                        else:
+                            response.success = False
+                            response.message = 'No inference session active'
+
+                    elif request.command == SendCommand.Request.RESUME_INFERENCE:
+                        if self.inference_manager is not None:
+                            task_instruction = (
+                                request.task_info.task_instruction[0]
+                                if request.task_info.task_instruction
+                                else ''
+                            )
+                            self.inference_manager.resume(
+                                task_instruction=task_instruction
+                            )
+                            response.success = True
+                            response.message = 'Inference resumed'
+                        else:
+                            response.success = False
+                            response.message = 'No inference session active'
+
+                    elif request.command == SendCommand.Request.START_INFERENCE_RECORD:
+                        self.get_logger().info(
+                            'Starting recording during inference'
+                        )
+                        if self.data_manager is not None:
+                            self.data_manager.start_recording()
+                            rosbag_path = \
+                                self.data_manager.get_save_rosbag_path()
+                            if rosbag_path:
+                                self.communicator.start_rosbag(
+                                    rosbag_uri=rosbag_path
+                                )
+                            self.on_recording = True
+                            self.start_recording_time = time.perf_counter()
+                            self.communicator.publish_action_event('start')
+                            response.success = True
+                            response.message = (
+                                'Recording started during inference'
+                            )
+                        else:
+                            response.success = False
+                            response.message = 'Data manager not initialized'
+
+                    elif request.command == SendCommand.Request.STOP_INFERENCE_RECORD:
+                        self.get_logger().info(
+                            'Stopping and saving recording'
+                        )
+                        if (
+                            self.data_manager
+                            and self.data_manager.is_recording()
+                        ):
+                            self.stop_recording_and_save()
+                            self.on_recording = False
+                            self.communicator.publish_action_event('finish')
+                            response.success = True
+                            response.message = 'Recording saved'
+                        else:
+                            response.success = False
+                            response.message = 'Not currently recording'
+
+                    elif request.command == SendCommand.Request.CANCEL_INFERENCE_RECORD:
+                        self.get_logger().info(
+                            'Cancelling recording during inference'
+                        )
+                        if (
+                            self.data_manager
+                            and self.data_manager.is_recording()
+                        ):
+                            self.cancel_current_recording()
+                            self.on_recording = False
+                            self.communicator.publish_action_event('cancel')
+                            response.success = True
+                            response.message = 'Recording cancelled'
+                        else:
+                            response.success = False
+                            response.message = 'Not currently recording'
+
                     elif request.command == SendCommand.Request.FINISH:
                         # Finish all operations
                         self.get_logger().info('Finishing all operations')
                         if self.data_manager and self.data_manager.is_recording():
                             self.stop_recording_and_save()
-                        self.communicator.publish_action_event('finish')
-                        self.communicator.finish_rosbag()
+                            self.communicator.publish_action_event('finish')
+                            self.communicator.finish_rosbag()
                         self._stop_groot_inference()
                         self.on_recording = False
                         self.on_inference = False
@@ -1504,39 +1604,61 @@ class PhysicalAIServer(Node):
             response.items = []
             return response
 
-    def _get_camera_topic_map(self) -> list:
-        """Get camera topic map from robot config for GR00T inference.
+    # LeRobot policy types (used for service_prefix detection)
+    LEROBOT_POLICIES = {
+        'tdmpc', 'diffusion', 'act', 'vqbet', 'pi0', 'pi0_fast', 'pi05',
+        'smolvla', 'xvla', 'sac',
+    }
 
-        Returns list of "name:topic" strings from camera_topic_list.
-        Camera names (e.g. cam_left_head) match GR00T modality keys directly.
+    def _determine_service_prefix(self, task_info) -> str:
+        """Determine inference service prefix from task_info or policy config.
+
+        1. If task_info has service_type field, use it directly.
+        2. Otherwise, read policy_path/config.json to detect policy type.
+        3. LeRobot policy types -> "/lerobot", default -> "/groot".
         """
-        return list(self.params.get('camera_topic_list', []))
+        # Check for explicit service_type in task_info
+        service_type = getattr(task_info, 'service_type', None)
+        if service_type:
+            prefix = f'/{service_type.strip("/")}'
+            self.get_logger().info(f'Service prefix from task_info: {prefix}')
+            return prefix
 
-    def _get_joint_topic_map(self) -> list:
-        """Get joint topic map from robot config for GR00T inference.
+        # Detect from policy config
+        policy_path = getattr(task_info, 'policy_path', '')
+        if policy_path:
+            config_path = Path(policy_path) / 'config.json'
+            if config_path.exists():
+                try:
+                    with open(config_path) as f:
+                        config = json.load(f)
+                    policy_type = config.get('type', '')
+                    if policy_type in self.LEROBOT_POLICIES:
+                        self.get_logger().info(
+                            f'Detected LeRobot policy type: {policy_type}'
+                        )
+                        return '/lerobot'
+                except Exception as e:
+                    self.get_logger().warning(
+                        f'Failed to read policy config: {e}'
+                    )
 
-        Returns list of "modality_key:topic" strings from follower entries
-        in joint_topic_list. Strips "follower_" prefix to get modality key.
-        e.g. "follower_arm_left:/topic" -> "arm_left:/topic"
-        """
-        joint_topic_map = []
-        for entry in self.params.get('joint_topic_list', []):
-            if ':' not in entry:
-                continue
-            name, topic = entry.split(':', 1)
-            if name.startswith('follower_'):
-                modality_key = name[len('follower_'):]
-                joint_topic_map.append(f'{modality_key}:{topic}')
-        return joint_topic_map
+        # Default to groot for backward compatibility
+        return '/groot'
 
     def _stop_groot_inference(self):
-        """Stop GR00T inference and cleanup."""
+        """Stop GR00T inference and cleanup in background thread."""
         if self.inference_manager is not None:
-            try:
-                self.inference_manager.stop()
-            except Exception as e:
-                self.get_logger().error(f'Error stopping GR00T manager: {e}')
+            manager = self.inference_manager
             self.inference_manager = None
+
+            def _stop_worker():
+                try:
+                    manager.stop()
+                except Exception as e:
+                    self.get_logger().error(f'Error stopping inference: {e}')
+
+            threading.Thread(target=_stop_worker, daemon=True).start()
 
     def handle_joystick_trigger(self, joystick_mode: str):
         """

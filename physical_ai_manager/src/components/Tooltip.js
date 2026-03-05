@@ -17,12 +17,14 @@
 import React, { useState } from 'react';
 import clsx from 'clsx';
 
-const Tooltip = ({ children, content, disabled = false, className }) => {
+const Tooltip = ({ children, content, disabled = false, className, position = 'top' }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   if (disabled) {
     return <div className={className}>{children}</div>;
   }
+
+  const isBottom = position === 'bottom';
 
   return (
     <div
@@ -33,12 +35,21 @@ const Tooltip = ({ children, content, disabled = false, className }) => {
       {children}
       {isVisible && (
         <div
-          className="absolute z-50 px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-lg bottom-full left-1/2 transform -translate-x-1/2 mb-2 transition-opacity duration-200 opacity-100 whitespace-nowrap max-w-xs"
+          className={clsx(
+            'absolute z-50 px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-lg left-1/2 transform -translate-x-1/2 transition-opacity duration-200 opacity-100 whitespace-nowrap max-w-xs',
+            isBottom ? 'top-full mt-2' : 'bottom-full mb-2'
+          )}
           style={{ pointerEvents: 'none' }}
         >
           {content}
-          {/* Arrow */}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" />
+          <div
+            className={clsx(
+              'absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-transparent',
+              isBottom
+                ? 'bottom-full border-b-4 border-b-gray-900'
+                : 'top-full border-t-4 border-t-gray-900'
+            )}
+          />
         </div>
       )}
     </div>

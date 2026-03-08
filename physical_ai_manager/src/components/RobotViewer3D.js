@@ -431,11 +431,10 @@ export default function RobotViewer3D({
         gl={{ antialias: true, alpha: false, powerPreference: 'low-power' }}
         frameloop="demand"
         onCreated={({ gl, invalidate }) => {
-          gl.shadowMap.type = THREE.PCFShadowMap;
           glRef.current = gl;
           setInterval(invalidate, 33);
         }}
-        shadows
+        shadows={{ type: THREE.PCFShadowMap }}
       >
         {mode === 'replay' ? (
           <ReplaySceneContent

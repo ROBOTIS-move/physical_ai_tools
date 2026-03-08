@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
-from rosbag2_py import SequentialReader, StorageOptions, ConverterOptions
+from rosbag2_py import SequentialReader, StorageOptions, ConverterOptions, StorageFilter
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory
@@ -89,7 +89,7 @@ class ReplayDataHandler:
         if metadata and "action_topics" in metadata:
             action_topic_paths = list(metadata["action_topics"].values())
             return topic in action_topic_paths
-        return "action" in topic.lower() or topic.startswith("/leader")
+        return "action" in topic.lower() or "leader" in topic.lower()
 
     def update_task_markers(
         self,
@@ -139,6 +139,10 @@ class ReplayDataHandler:
             "trim_points": None,
             "exclude_regions": [],
             "frame_counts": {},
+            # MCAP direct streaming fields
+            "has_raw_images": False,
+            "raw_image_topics": [],
+            "mcap_file": "",
         }
 
         # Validate bag path
@@ -170,6 +174,9 @@ class ReplayDataHandler:
             result["message"] = f"No bag file found in: {bag_path}"
             return result
 
+        # Store MCAP filename for browser-side direct reading
+        result["mcap_file"] = mcap_files[0].name
+
         try:
             # Read bag file
             reader = SequentialReader()
@@ -185,10 +192,43 @@ class ReplayDataHandler:
             # Get topic information
             topic_types = reader.get_all_topics_and_types()
             topic_type_map = {t.name: t.type for t in topic_types}
+            self._log_info(f"MCAP topics: {topic_type_map}")
+
+            # Detect CompressedImage topics for MCAP direct streaming
+            raw_image_topics = [
+                topic
+                for topic, ttype in topic_type_map.items()
+                if "CompressedImage" in ttype
+            ]
+            if raw_image_topics:
+                result["has_raw_images"] = True
+                result["raw_image_topics"] = [
+                    {
+                        "topic": t,
+                        "camera_name": self._extract_camera_name_from_topic(t),
+                    }
+                    for t in raw_image_topics
+                ]
+
+            # Filter to only read non-image topics (skip CompressedImage/CameraInfo)
+            # This avoids reading hundreds of MB of image data we don't need
+            skip_types = {"CompressedImage", "CameraInfo"}
+            read_topics = [
+                topic
+                for topic, ttype in topic_type_map.items()
+                if not any(s in ttype for s in skip_types)
+            ]
+            if read_topics:
+                storage_filter = StorageFilter(topics=read_topics)
+                reader.set_filter(storage_filter)
 
             # Collect data
             image_metadata_by_topic: Dict[str, List[Tuple[int, float]]] = {}
-            joint_data: List[Tuple[float, List[str], List[float]]] = []
+            # Store state data per topic for proper merging
+            # (multiple JointState topics have different joint counts)
+            state_data_by_topic: Dict[
+                str, List[Tuple[float, List[str], List[float]]]
+            ] = {}
             # Store action data per topic for proper merging
             action_data_by_topic: Dict[
                 str, List[Tuple[float, List[str], List[float]]]
@@ -225,15 +265,16 @@ class ReplayDataHandler:
                 elif topic_type == "sensor_msgs/msg/JointState":
                     try:
                         msg = deserialize_message(data, JointState)
-                        # Check if topic name contains 'action' or 'leader'
-                        if "action" in topic.lower() or topic.startswith("/leader"):
+                        if self._is_action_topic(topic, metadata):
                             if topic not in action_data_by_topic:
                                 action_data_by_topic[topic] = []
                             action_data_by_topic[topic].append(
                                 (timestamp_sec, list(msg.name), list(msg.position))
                             )
                         else:
-                            joint_data.append(
+                            if topic not in state_data_by_topic:
+                                state_data_by_topic[topic] = []
+                            state_data_by_topic[topic].append(
                                 (timestamp_sec, list(msg.name), list(msg.position))
                             )
                     except Exception as e:
@@ -336,15 +377,52 @@ class ReplayDataHandler:
                 else:
                     result["frame_counts"][video_name] = 0
 
-            # Process joint data
-            if joint_data:
-                joint_data.sort(key=lambda x: x[0])
-                joint_names = joint_data[0][1] if joint_data else []
-                result["joint_names"] = joint_names
+            # Process joint (state) data — per-topic merge
+            # Multiple JointState topics have different joint counts,
+            # so we must merge them by timestamp (same logic as action data).
+            if state_data_by_topic:
+                # Auto-detect topic order (sorted for consistency)
+                state_topic_order = sorted(state_data_by_topic.keys())
 
-                for timestamp, names, positions in joint_data:
-                    result["joint_timestamps"].append(timestamp - min_time)
-                    result["joint_positions"].extend(positions)
+                # Collect all joint names in topic order
+                all_joint_names: List[str] = []
+                state_topic_joint_names: Dict[str, List[str]] = {}
+                for topic in state_topic_order:
+                    if state_data_by_topic[topic]:
+                        names = state_data_by_topic[topic][0][1]
+                        state_topic_joint_names[topic] = names
+                        all_joint_names.extend(names)
+
+                result["joint_names"] = all_joint_names
+
+                # Group data by approximate timestamp (within 10ms)
+                state_timestamp_data: Dict[float, Dict] = {}
+                for topic in state_topic_order:
+                    for ts, names, values in state_data_by_topic[topic]:
+                        ts_key = round(ts * 100) / 100
+                        if ts_key not in state_timestamp_data:
+                            state_timestamp_data[ts_key] = {}
+                        state_timestamp_data[ts_key][topic] = (names, values)
+
+                # Build flat array with forward fill for missing topics
+                last_state_values: Dict[str, List[float]] = {}
+                for ts_key in sorted(state_timestamp_data.keys()):
+                    result["joint_timestamps"].append(ts_key - min_time)
+                    for topic in state_topic_order:
+                        if topic in state_timestamp_data[ts_key]:
+                            _, values = state_timestamp_data[ts_key][topic]
+                            result["joint_positions"].extend(values)
+                            last_state_values[topic] = values
+                        elif topic in state_topic_joint_names:
+                            if topic in last_state_values:
+                                result["joint_positions"].extend(
+                                    last_state_values[topic]
+                                )
+                            else:
+                                result["joint_positions"].extend(
+                                    [0.0]
+                                    * len(state_topic_joint_names[topic])
+                                )
 
             # Process action data from all topics
             if action_data_by_topic:
@@ -413,7 +491,10 @@ class ReplayDataHandler:
                 f"Loaded replay data: {len(result['video_files'])} videos, "
                 f"{len(result['frame_timestamps'])} frames, "
                 f"{len(result['joint_timestamps'])} joint samples, "
-                f"{len(result['action_timestamps'])} action samples"
+                f"{len(result['action_timestamps'])} action samples, "
+                f"has_raw_images={result['has_raw_images']}, "
+                f"raw_image_topics={[t['topic'] for t in result['raw_image_topics']]}, "
+                f"mcap_file={result['mcap_file']}"
             )
 
         except Exception as e:

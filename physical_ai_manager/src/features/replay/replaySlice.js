@@ -66,6 +66,11 @@ const initialState = {
   fileSizeBytes: 0,
   taskMarkers: [],
   frameCounts: {},
+
+  // MCAP direct streaming
+  hasRawImages: false,
+  rawImageTopics: [],
+  mcapFile: '',
 };
 
 const replaySlice = createSlice({
@@ -106,6 +111,10 @@ const replaySlice = createSlice({
       state.fileSizeBytes = data.file_size_bytes || 0;
       state.taskMarkers = data.task_markers || [];
       state.frameCounts = data.frame_counts || {};
+      // MCAP direct streaming
+      state.hasRawImages = data.has_raw_images || false;
+      state.rawImageTopics = data.raw_image_topics || [];
+      state.mcapFile = data.mcap_file || '';
       state.isLoaded = true;
       state.isLoading = false;
       state.error = null;

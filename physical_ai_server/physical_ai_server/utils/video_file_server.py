@@ -17,14 +17,38 @@
 """Simple HTTP server for serving video files and replay data."""
 
 import json
+import math
 import mimetypes
 import os
 import re
 import threading
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote, urlparse
+
+
+class _NanSafeEncoder(json.JSONEncoder):
+    """JSON encoder that converts NaN/Infinity to None (null)."""
+
+    def default(self, obj):
+        return super().default(obj)
+
+    def encode(self, o):
+        return super().encode(_sanitize_for_json(o))
+
+
+def _sanitize_for_json(obj):
+    """Recursively replace float NaN/Infinity with None for JSON safety."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(v) for v in obj]
+    return obj
 
 
 class VideoFileHandler(SimpleHTTPRequestHandler):
@@ -121,6 +145,10 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
                     self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
                     self.send_header('Accept-Ranges', 'bytes')
                     self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header(
+                        'Access-Control-Expose-Headers',
+                        'Content-Length, Content-Range, Accept-Ranges'
+                    )
                     self.end_headers()
 
                     # Send the requested range in chunks
@@ -133,6 +161,10 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             self.send_header('Content-Length', str(file_size))
             self.send_header('Accept-Ranges', 'bytes')
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header(
+                'Access-Control-Expose-Headers',
+                'Content-Length, Content-Range, Accept-Ranges'
+            )
             self.end_headers()
 
             self._send_file_chunked(path, 0, file_size)
@@ -196,7 +228,7 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             result = self.replay_data_handler.get_replay_data(bag_path)
 
             # Convert to JSON
-            json_data = json.dumps(result, ensure_ascii=False)
+            json_data = json.dumps(result, ensure_ascii=False, cls=_NanSafeEncoder)
             json_bytes = json_data.encode('utf-8')
 
             # Send response
@@ -251,7 +283,7 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             result = self.replay_data_handler.get_rosbag_list(folder_path)
 
             # Convert to JSON
-            json_data = json.dumps(result, ensure_ascii=False)
+            json_data = json.dumps(result, ensure_ascii=False, cls=_NanSafeEncoder)
             json_bytes = json_data.encode('utf-8')
 
             # Send response
@@ -299,6 +331,10 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Range')
+        self.send_header(
+            'Access-Control-Expose-Headers',
+            'Content-Length, Content-Range, Accept-Ranges'
+        )
         self.end_headers()
 
     def do_OPTIONS(self):
@@ -307,6 +343,10 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, PUT, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Range, Content-Type')
+        self.send_header(
+            'Access-Control-Expose-Headers',
+            'Content-Length, Content-Range, Accept-Ranges'
+        )
         self.end_headers()
 
     def do_PUT(self):
@@ -362,7 +402,7 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             )
 
             # Send response
-            json_data = json.dumps(result, ensure_ascii=False)
+            json_data = json.dumps(result, ensure_ascii=False, cls=_NanSafeEncoder)
             json_bytes = json_data.encode('utf-8')
 
             self.send_response(200 if result['success'] else 500)
@@ -417,7 +457,7 @@ class VideoFileServer:
         VideoFileHandler.replay_data_handler = self.replay_data_handler
 
         try:
-            self.server = HTTPServer(('0.0.0.0', self.port), VideoFileHandler)
+            self.server = ThreadingHTTPServer(('0.0.0.0', self.port), VideoFileHandler)
             self._running = True
 
             self.server_thread = threading.Thread(

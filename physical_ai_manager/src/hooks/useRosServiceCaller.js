@@ -597,12 +597,7 @@ export function useRosServiceCaller() {
   const getReplayData = useCallback(
     async (bagPath) => {
       try {
-        // Extract host from rosbridgeUrl (ws://host:9090 -> host)
-        const urlMatch = rosbridgeUrl.match(/ws:\/\/([^:]+):/);
-        const host = urlMatch ? urlMatch[1] : 'localhost';
-        const videoServerPort = 8082;
-
-        const apiUrl = `http://${host}:${videoServerPort}/replay-data${bagPath}`;
+        const apiUrl = `/api/replay-data${bagPath}`;
         console.log('Fetching replay data from HTTP API:', apiUrl);
 
         const response = await fetch(apiUrl);
@@ -633,7 +628,6 @@ export function useRosServiceCaller() {
           start_time: result.start_time || 0,
           end_time: result.end_time || 0,
           duration: result.duration || 0,
-          video_server_port: videoServerPort,
           bag_path: bagPath,
           // Extended metadata
           robot_type: result.robot_type || '',
@@ -643,24 +637,23 @@ export function useRosServiceCaller() {
           trim_points: result.trim_points || null,
           exclude_regions: result.exclude_regions || [],
           frame_counts: result.frame_counts || {},
+          // MCAP direct streaming
+          has_raw_images: result.has_raw_images || false,
+          raw_image_topics: result.raw_image_topics || [],
+          mcap_file: result.mcap_file || '',
         };
       } catch (error) {
         console.error('Failed to get replay data:', error);
         throw new Error(`${error.message || error}`);
       }
     },
-    [rosbridgeUrl]
+    []
   );
 
   const getRosbagList = useCallback(
     async (folderPath) => {
       try {
-        // Extract host from rosbridgeUrl (ws://host:9090 -> host)
-        const urlMatch = rosbridgeUrl.match(/ws:\/\/([^:]+):/);
-        const host = urlMatch ? urlMatch[1] : 'localhost';
-        const videoServerPort = 8082;
-
-        const apiUrl = `http://${host}:${videoServerPort}/rosbag-list${folderPath}`;
+        const apiUrl = `/api/rosbag-list${folderPath}`;
         console.log('Fetching rosbag list from HTTP API:', apiUrl);
 
         const response = await fetch(apiUrl);
@@ -678,7 +671,7 @@ export function useRosServiceCaller() {
         throw new Error(`${error.message || error}`);
       }
     },
-    [rosbridgeUrl]
+    []
   );
 
   return {

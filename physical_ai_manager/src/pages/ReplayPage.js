@@ -41,6 +41,8 @@ import {
   setIsVideoLoaded,
   setVideoLoadProgress,
 } from '../features/replay/replaySlice';
+import { useMcapFramePlayer } from '../hooks/useMcapFramePlayer';
+import { WebGLVideoPanel } from '../components/replay/WebGLVideoPanel';
 
 const STATE_COLOR = '#dc2626';
 const ACTION_COLOR = '#2563eb';
@@ -48,7 +50,6 @@ const ACTION_COLOR = '#2563eb';
 function ReplayPage({ isActive }) {
   const dispatch = useDispatch();
   const { getReplayData, getRosbagList } = useRosServiceCaller();
-  const rosHost = useSelector((state) => state.ros.rosHost);
 
   // Redux state
   const {
@@ -59,7 +60,6 @@ function ReplayPage({ isActive }) {
     videoFiles,
     videoNames,
     videoFps,
-    videoServerPort,
     bagPath,
     jointTimestamps,
     jointNames,
@@ -79,6 +79,10 @@ function ReplayPage({ isActive }) {
     fileSizeBytes,
     taskMarkers,
     frameCounts,
+    // MCAP direct streaming
+    hasRawImages,
+    rawImageTopics,
+    mcapFile,
   } = useSelector((state) => state.replay);
 
   // Local state
@@ -88,15 +92,39 @@ function ReplayPage({ isActive }) {
   const [downloadProgress, setDownloadProgress] = useState(0); // 0-100
   const [isDownloading, setIsDownloading] = useState(false);
   const [expandedVideoIndex, setExpandedVideoIndex] = useState(null);
-  const [show3DViewer, setShow3DViewer] = useState(false);
+  const [show3DViewer, setShow3DViewer] = useState(true);
   const [rosbagList, setRosbagList] = useState([]); // List of ROSbags in parent folder
   const [currentBagIndex, setCurrentBagIndex] = useState(-1); // Current bag index in list
   const [parentFolderPath, setParentFolderPath] = useState(''); // Parent folder path
   const [playbackSpeed, setPlaybackSpeed] = useState(1); // Playback speed (1x, 1.5x, 2x, 3x)
 
+  // WebGL rendering mode (Phase 5)
+  const [useWebGL, setUseWebGL] = useState(true);
+  const [videoBrightness, setVideoBrightness] = useState(0); // -1 to 1
+  const [videoContrast, setVideoContrast] = useState(1); // 0 to 3
+
   // A-B Loop state
   const [loopStart, setLoopStart] = useState(null); // A point (seconds)
   const [loopEnd, setLoopEnd] = useState(null); // B point (seconds)
+
+  // MCAP direct streaming mode detection
+  const isDirectMcapMode = isLoaded && hasRawImages && videoFiles.length === 0;
+
+  // MCAP frame player hook (Lichtblick-style browser-side MCAP reading)
+  const mcapUrl = isDirectMcapMode && bagPath && mcapFile
+    ? `/files${bagPath}/${mcapFile}`
+    : null;
+
+  const mcapPlayer = useMcapFramePlayer({
+    mcapUrl,
+    duration,
+    currentTime,
+    isPlaying,
+    playbackSpeed,
+    loopStart,
+    loopEnd,
+    isActive: isDirectMcapMode,
+  });
 
   // Task Marker state
   const [showMarkerDialog, setShowMarkerDialog] = useState(false); // Marker add dialog
@@ -149,9 +177,9 @@ function ReplayPage({ isActive }) {
       if (!bagPath || !videoFiles.length) return null;
       const videoFile = videoFiles[index];
       if (!videoFile) return null;
-      return `http://${rosHost}:${videoServerPort}/video/${bagPath}/${videoFile}`;
+      return `/files${bagPath}/${videoFile}`;
     },
-    [bagPath, videoFiles, rosHost, videoServerPort]
+    [bagPath, videoFiles]
   );
 
   // Download all videos as blobs for smooth playback (with caching)
@@ -568,6 +596,12 @@ function ReplayPage({ isActive }) {
 
   // Handle play/pause for all videos (simplified - no buffering needed)
   const togglePlayPause = useCallback(() => {
+    // MCAP direct mode: delegate to mcapPlayer
+    if (isDirectMcapMode) {
+      mcapPlayer.togglePlayPause();
+      return;
+    }
+
     if (isPlaying) {
       videoRefs.current.forEach((video) => {
         if (video) video.pause();
@@ -596,10 +630,16 @@ function ReplayPage({ isActive }) {
       });
       dispatch(setIsPlaying(true));
     }
-  }, [isPlaying, dispatch]);
+  }, [isPlaying, isDirectMcapMode, mcapPlayer, dispatch]);
 
   // Restart playback from beginning
   const restartPlayback = useCallback(() => {
+    // MCAP direct mode: delegate to mcapPlayer
+    if (isDirectMcapMode) {
+      mcapPlayer.restart();
+      return;
+    }
+
     videoRefs.current.forEach((video) => {
       if (video) {
         video.currentTime = 0;
@@ -608,11 +648,17 @@ function ReplayPage({ isActive }) {
     });
     dispatch(setCurrentTime(0));
     dispatch(setIsPlaying(true));
-  }, [dispatch]);
+  }, [isDirectMcapMode, mcapPlayer, dispatch]);
 
   // Step frame forward or backward (for ← / → keys)
   const stepFrame = useCallback(
     (direction) => {
+      // MCAP direct mode: delegate to mcapPlayer
+      if (isDirectMcapMode) {
+        mcapPlayer.stepFrame(direction);
+        return;
+      }
+
       if (!isVideoLoaded) return;
 
       // Pause if playing
@@ -631,12 +677,18 @@ function ReplayPage({ isActive }) {
       });
       dispatch(setCurrentTime(newTime));
     },
-    [isVideoLoaded, isPlaying, videoFps, duration, currentTime, dispatch]
+    [isVideoLoaded, isPlaying, isDirectMcapMode, mcapPlayer, videoFps, duration, currentTime, dispatch]
   );
 
   // Seek relative (for Shift + ← / → keys, ±5 seconds)
   const seekRelative = useCallback(
     (seconds) => {
+      // MCAP direct mode: delegate to mcapPlayer
+      if (isDirectMcapMode) {
+        mcapPlayer.seekRelative(seconds);
+        return;
+      }
+
       if (!isVideoLoaded) return;
 
       const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
@@ -645,7 +697,7 @@ function ReplayPage({ isActive }) {
       });
       dispatch(setCurrentTime(newTime));
     },
-    [isVideoLoaded, duration, currentTime, dispatch]
+    [isVideoLoaded, isDirectMcapMode, mcapPlayer, duration, currentTime, dispatch]
   );
 
   // Toggle A-B loop points (press 'a' to set A, then B, then clear)
@@ -891,7 +943,7 @@ function ReplayPage({ isActive }) {
       }
 
       const response = await fetch(
-        `http://${rosHost}:${videoServerPort}/task-markers/${bagPath}`,
+        `/api/task-markers${bagPath}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -910,7 +962,7 @@ function ReplayPage({ isActive }) {
     } finally {
       setIsSavingMarkers(false);
     }
-  }, [bagPath, rosHost, videoServerPort, taskMarkers, trimStart, trimEnd, excludeRegions]);
+  }, [bagPath, taskMarkers, trimStart, trimEnd, excludeRegions]);
 
   // Save instruction palette to localStorage
   const savePaletteToStorage = useCallback((newPalette) => {
@@ -1051,32 +1103,44 @@ function ReplayPage({ isActive }) {
 
   // Handle seek for all videos
   const handleSeek = useCallback((e) => {
-    if (!isVideoLoaded) return;
+    if (!isVideoLoaded && !isDirectMcapMode) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = x / rect.width;
     const newTime = percentage * duration;
 
+    // MCAP direct mode: delegate to mcapPlayer
+    if (isDirectMcapMode) {
+      mcapPlayer.syncToTime(newTime);
+      return;
+    }
+
     // Sync all videos to the new time
     videoRefs.current.forEach((video) => {
       if (video) video.currentTime = newTime;
     });
     dispatch(setCurrentTime(newTime));
-  }, [isVideoLoaded, duration, dispatch]);
+  }, [isVideoLoaded, isDirectMcapMode, mcapPlayer, duration, dispatch]);
 
   // Handle chart click to seek video to specific time
   const handleChartSeek = useCallback((time) => {
-    if (!isVideoLoaded || typeof time !== 'number') return;
+    if ((!isVideoLoaded && !isDirectMcapMode) || typeof time !== 'number') return;
 
     const clampedTime = Math.max(0, Math.min(duration, time));
+
+    // MCAP direct mode: delegate to mcapPlayer
+    if (isDirectMcapMode) {
+      mcapPlayer.syncToTime(clampedTime);
+      return;
+    }
 
     // Sync all videos to the new time
     videoRefs.current.forEach((video) => {
       if (video) video.currentTime = clampedTime;
     });
     dispatch(setCurrentTime(clampedTime));
-  }, [isVideoLoaded, duration, dispatch]);
+  }, [isVideoLoaded, isDirectMcapMode, mcapPlayer, duration, dispatch]);
 
   // Extract short name from video file path
   const getShortVideoName = (filePath) => {
@@ -1099,6 +1163,13 @@ function ReplayPage({ isActive }) {
       dispatch(setIsPlaying(false));
     }
   }, [isActive, dispatch]);
+
+  // MCAP mode: set isVideoLoaded when MCAP reader is ready
+  useEffect(() => {
+    if (isDirectMcapMode && mcapPlayer.isReady) {
+      dispatch(setIsVideoLoaded(true));
+    }
+  }, [isDirectMcapMode, mcapPlayer.isReady, dispatch]);
 
   // Clean up blob URLs when bag changes
   useEffect(() => {
@@ -1128,6 +1199,50 @@ function ReplayPage({ isActive }) {
               3D View
             </button>
           )}
+          {isDirectMcapMode && (
+            <button
+              onClick={() => setUseWebGL(!useWebGL)}
+              className={clsx(
+                'flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm',
+                useWebGL
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              )}
+              title="Toggle WebGL GPU rendering with brightness/contrast"
+            >
+              WebGL
+            </button>
+          )}
+          {useWebGL && isDirectMcapMode && (
+            <div className="flex items-center gap-3 px-3 py-1 bg-gray-100 rounded-lg">
+              <label className="flex items-center gap-1 text-xs text-gray-600">
+                <span className="w-10">Bright</span>
+                <input
+                  type="range" min="-0.5" max="0.5" step="0.05"
+                  value={videoBrightness}
+                  onChange={(e) => setVideoBrightness(parseFloat(e.target.value))}
+                  className="w-16 h-1"
+                />
+                <span className="w-8 text-right">{videoBrightness.toFixed(2)}</span>
+              </label>
+              <label className="flex items-center gap-1 text-xs text-gray-600">
+                <span className="w-12">Contrast</span>
+                <input
+                  type="range" min="0.5" max="2" step="0.05"
+                  value={videoContrast}
+                  onChange={(e) => setVideoContrast(parseFloat(e.target.value))}
+                  className="w-16 h-1"
+                />
+                <span className="w-8 text-right">{videoContrast.toFixed(2)}</span>
+              </label>
+              <button
+                onClick={() => { setVideoBrightness(0); setVideoContrast(1); }}
+                className="text-xs text-blue-600 hover:text-blue-800"
+              >
+                Reset
+              </button>
+            </div>
+          )}
           <button
             onClick={() => setShowFileBrowser(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -1144,14 +1259,91 @@ function ReplayPage({ isActive }) {
         <div className="flex-1 flex flex-col gap-4 min-h-0">
           {/* Video panel */}
           <div className="flex-1 flex flex-col bg-white rounded-xl shadow-sm overflow-hidden min-h-0">
-            {isLoaded && videoFiles.length > 0 ? (
+            {isLoaded && (videoFiles.length > 0 || isDirectMcapMode) ? (
               <>
                 {/* Video container - grid layout for multiple videos */}
                 <div className={clsx(
                   "flex-1 bg-gray-100 flex items-center justify-center min-h-0 relative",
                   expandedVideoIndex !== null ? "p-2" : "p-4"
                 )}>
-                  {expandedVideoIndex !== null ? (
+                  {/* MCAP Direct Streaming Mode — Canvas-based rendering */}
+                  {isDirectMcapMode ? (
+                    <div className="w-full h-full">
+                      {mcapPlayer.isLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center z-20 bg-gray-100 bg-opacity-80">
+                          <div className="text-center">
+                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                            <p className="text-gray-600 text-sm">Indexing MCAP...</p>
+                          </div>
+                        </div>
+                      )}
+                      {mcapPlayer.mcapError && (
+                        <div className="absolute inset-0 flex items-center justify-center z-20">
+                          <div className="text-center text-red-600">
+                            <p className="font-medium">Failed to load MCAP</p>
+                            <p className="text-sm mt-1">{mcapPlayer.mcapError}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div
+                        className={clsx(
+                          'grid gap-4 w-full h-full p-4',
+                          {
+                            'grid-cols-1': !show3DViewer && mcapPlayer.imageTopics.length === 1,
+                            'grid-cols-2': !show3DViewer ? mcapPlayer.imageTopics.length === 2 : mcapPlayer.imageTopics.length <= 1,
+                            'grid-cols-2 lg:grid-cols-3': !show3DViewer ? mcapPlayer.imageTopics.length >= 3 : mcapPlayer.imageTopics.length >= 2,
+                          }
+                        )}
+                      >
+                        {mcapPlayer.imageTopics.map((topicInfo, index) => (
+                          <div
+                            key={topicInfo.topic}
+                            className="relative bg-white rounded-lg overflow-hidden shadow flex flex-col"
+                          >
+                            <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-black bg-opacity-60 text-white text-xs rounded font-medium">
+                              {topicInfo.cameraName}
+                            </div>
+                            {useWebGL ? (
+                              <WebGLVideoPanel
+                                ref={(handle) => mcapPlayer.setWebGLPanelRef(index, handle)}
+                                brightness={videoBrightness}
+                                contrast={videoContrast}
+                                className="w-full h-full object-contain bg-gray-900"
+                              />
+                            ) : (
+                              <canvas
+                                ref={(el) => mcapPlayer.setCanvasRef(index, el)}
+                                className="w-full h-full object-contain bg-gray-900"
+                                style={{ imageRendering: 'auto' }}
+                              />
+                            )}
+                          </div>
+                        ))}
+                        {show3DViewer && (
+                          <div className="relative bg-gray-900 rounded-lg overflow-hidden shadow flex flex-col">
+                            <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-black bg-opacity-60 text-white text-xs rounded font-medium">
+                              3D Robot View
+                            </div>
+                            <RobotViewer3D
+                              mode="replay"
+                              jointData={{
+                                timestamps: jointTimestamps,
+                                names: jointNames,
+                                positions: jointPositions,
+                              }}
+                              actionData={{
+                                timestamps: actionTimestamps,
+                                names: actionNames,
+                                values: actionValues,
+                              }}
+                              currentTime={currentTime}
+                              className="w-full h-full"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : expandedVideoIndex !== null ? (
                     /* Expanded single video view */
                     <div
                       className="relative bg-white rounded-lg overflow-hidden shadow cursor-pointer flex items-center justify-center"
@@ -1552,23 +1744,26 @@ function ReplayPage({ isActive }) {
                     </button>
                     {/* Playback speed selector */}
                     <div className="flex items-center gap-1 ml-auto">
-                      {PLAYBACK_SPEEDS.map((speed) => (
-                        <button
-                          key={speed}
-                          onClick={() => changePlaybackSpeed(speed)}
-                          disabled={!isVideoLoaded}
-                          className={clsx(
-                            'px-2 py-1 text-xs rounded transition-colors',
-                            playbackSpeed === speed
-                              ? 'bg-blue-600 text-white'
-                              : isVideoLoaded
-                                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          )}
-                        >
-                          {speed}x
-                        </button>
-                      ))}
+                      {PLAYBACK_SPEEDS.map((speed) => {
+                        const speedEnabled = isVideoLoaded || (isDirectMcapMode && mcapPlayer.isReady);
+                        return (
+                          <button
+                            key={speed}
+                            onClick={() => changePlaybackSpeed(speed)}
+                            disabled={!speedEnabled}
+                            className={clsx(
+                              'px-2 py-1 text-xs rounded transition-colors',
+                              playbackSpeed === speed
+                                ? 'bg-blue-600 text-white'
+                                : speedEnabled
+                                  ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            )}
+                          >
+                            {speed}x
+                          </button>
+                        );
+                      })}
                       {/* Help button */}
                       <button
                         onClick={() => setShowHelpModal(true)}

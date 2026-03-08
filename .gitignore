@@ -733,8 +733,11 @@ doc/
 *.ar
 
 
-# Claude Code agents (managed separately)
+# Claude Code agents and skills (managed separately)
 .claude/
+.agent/
+.agents/
+skills-lock.json
 
 
 ##############################

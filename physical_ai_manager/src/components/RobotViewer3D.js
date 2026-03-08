@@ -121,28 +121,50 @@ const CameraController = forwardRef(function CameraController({ robot }, ref) {
   const initialized = useRef(false);
 
   useEffect(() => {
-    if (!robot || initialized.current) return;
+    if (!robot) return;
+    initialized.current = false;
 
-    const computeAndApply = () => {
+    // URDF meshes load asynchronously — poll until bounding box stabilizes
+    let prevMaxDim = 0;
+    let stableCount = 0;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 30; // ~6 seconds max
+
+    const poll = setInterval(() => {
+      attempts++;
       robot.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(robot);
-      const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, size.z);
 
-      if (maxDim < 0.01) return false;
+      if (maxDim < 0.01) {
+        if (attempts >= MAX_ATTEMPTS) clearInterval(poll);
+        return;
+      }
 
-      centerRef.current.copy(center);
-      baseDist.current = maxDim;
-      initialized.current = true;
-      applyPreset('perspective', false);
-      return true;
-    };
+      // Check if size stabilized (< 1% change from previous)
+      const changed = Math.abs(maxDim - prevMaxDim) / maxDim;
+      if (changed < 0.01 && prevMaxDim > 0.01) {
+        stableCount++;
+      } else {
+        stableCount = 0;
+      }
+      prevMaxDim = maxDim;
 
-    if (!computeAndApply()) {
-      const timer = setTimeout(computeAndApply, 500);
-      return () => clearTimeout(timer);
-    }
+      // Apply camera once stable for 2 consecutive checks, or on last attempt
+      if (stableCount >= 2 || attempts >= MAX_ATTEMPTS) {
+        clearInterval(poll);
+        const center = box.getCenter(new THREE.Vector3());
+        // Shift focus upward to robot body center (60% height instead of 50%)
+        center.y = box.min.y + size.y * 0.6;
+        centerRef.current.copy(center);
+        baseDist.current = maxDim;
+        initialized.current = true;
+        applyPreset('perspective', false);
+      }
+    }, 200);
+
+    return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [robot]);
 

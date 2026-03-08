@@ -104,6 +104,11 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             self._handle_rosbag_list_request(parsed_path)
             return
 
+        # Handle panel layout requests
+        if parsed_path == '/panel-layout':
+            self._handle_get_panel_layout()
+            return
+
         # Handle video file requests
         path = self.translate_path(self.path)
 
@@ -359,6 +364,11 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             self._handle_task_markers_update(parsed_path)
             return
 
+        # Handle panel layout update
+        if parsed_path == '/panel-layout':
+            self._handle_put_panel_layout()
+            return
+
         self._send_json_error(404, "Unknown PUT endpoint")
 
     def _handle_task_markers_update(self, parsed_path):
@@ -417,6 +427,60 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             self._send_json_error(400, f"Invalid JSON: {str(e)}")
         except Exception as e:
             self._send_json_error(500, f"Error updating task markers: {str(e)}")
+
+    # Panel layout file path
+    _PANEL_LAYOUT_PATH = '/workspace/.physical_ai/panel_layout.json'
+
+    def _handle_get_panel_layout(self):
+        """Handle GET /panel-layout — read saved panel layout."""
+        try:
+            layout_path = self._PANEL_LAYOUT_PATH
+            if os.path.isfile(layout_path):
+                with open(layout_path, 'r') as f:
+                    data = json.load(f)
+                json_data = json.dumps(data, ensure_ascii=False)
+            else:
+                json_data = json.dumps({'panels': None})
+
+            json_bytes = json_data.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(json_bytes)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-cache')
+            self.end_headers()
+            self.wfile.write(json_bytes)
+        except Exception as e:
+            self._send_json_error(500, f"Error reading panel layout: {str(e)}")
+
+    def _handle_put_panel_layout(self):
+        """Handle PUT /panel-layout — save panel layout."""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length == 0:
+                self._send_json_error(400, "Empty request body")
+                return
+
+            body = self.rfile.read(content_length)
+            data = json.loads(body.decode('utf-8'))
+
+            layout_path = self._PANEL_LAYOUT_PATH
+            os.makedirs(os.path.dirname(layout_path), exist_ok=True)
+
+            with open(layout_path, 'w') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+            result = json.dumps({'success': True}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(result)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(result)
+        except json.JSONDecodeError as e:
+            self._send_json_error(400, f"Invalid JSON: {str(e)}")
+        except Exception as e:
+            self._send_json_error(500, f"Error saving panel layout: {str(e)}")
 
     def log_message(self, format, *args):
         """Suppress default logging."""

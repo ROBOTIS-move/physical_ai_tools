@@ -28,15 +28,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
  * @param {Object} params - Hook parameters
  * @param {string} params.bagPath - Current bag path
  * @param {Array<string>} params.videoFiles - List of video file names
- * @param {string} params.rosHost - ROS host address
- * @param {number} params.videoServerPort - Video server port
  * @param {boolean} params.isLoaded - Whether replay data is loaded
  */
 export function useHybridVideoLoader({
     bagPath,
     videoFiles,
-    rosHost,
-    videoServerPort,
     isLoaded,
 }) {
     // State
@@ -59,9 +55,9 @@ export function useHybridVideoLoader({
     const getStreamingUrl = useCallback(
         (videoFile) => {
             if (!bagPath || !videoFile) return null;
-            return `http://${rosHost}:${videoServerPort}/video/${bagPath}/${videoFile}`;
+            return `/files${bagPath}/${videoFile}`;
         },
-        [bagPath, rosHost, videoServerPort]
+        [bagPath]
     );
 
     /**

@@ -17,14 +17,38 @@
 """Simple HTTP server for serving video files and replay data."""
 
 import json
+import math
 import mimetypes
 import os
 import re
 import threading
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote, urlparse
+
+
+class _NanSafeEncoder(json.JSONEncoder):
+    """JSON encoder that converts NaN/Infinity to None (null)."""
+
+    def default(self, obj):
+        return super().default(obj)
+
+    def encode(self, o):
+        return super().encode(_sanitize_for_json(o))
+
+
+def _sanitize_for_json(obj):
+    """Recursively replace float NaN/Infinity with None for JSON safety."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(v) for v in obj]
+    return obj
 
 
 class VideoFileHandler(SimpleHTTPRequestHandler):
@@ -80,6 +104,11 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             self._handle_rosbag_list_request(parsed_path)
             return
 
+        # Handle panel layout requests
+        if parsed_path == '/panel-layout':
+            self._handle_get_panel_layout()
+            return
+
         # Handle video file requests
         path = self.translate_path(self.path)
 
@@ -121,6 +150,10 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
                     self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
                     self.send_header('Accept-Ranges', 'bytes')
                     self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header(
+                        'Access-Control-Expose-Headers',
+                        'Content-Length, Content-Range, Accept-Ranges'
+                    )
                     self.end_headers()
 
                     # Send the requested range in chunks
@@ -133,6 +166,10 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             self.send_header('Content-Length', str(file_size))
             self.send_header('Accept-Ranges', 'bytes')
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header(
+                'Access-Control-Expose-Headers',
+                'Content-Length, Content-Range, Accept-Ranges'
+            )
             self.end_headers()
 
             self._send_file_chunked(path, 0, file_size)
@@ -196,7 +233,7 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             result = self.replay_data_handler.get_replay_data(bag_path)
 
             # Convert to JSON
-            json_data = json.dumps(result, ensure_ascii=False)
+            json_data = json.dumps(result, ensure_ascii=False, cls=_NanSafeEncoder)
             json_bytes = json_data.encode('utf-8')
 
             # Send response
@@ -251,7 +288,7 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             result = self.replay_data_handler.get_rosbag_list(folder_path)
 
             # Convert to JSON
-            json_data = json.dumps(result, ensure_ascii=False)
+            json_data = json.dumps(result, ensure_ascii=False, cls=_NanSafeEncoder)
             json_bytes = json_data.encode('utf-8')
 
             # Send response
@@ -299,6 +336,10 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Range')
+        self.send_header(
+            'Access-Control-Expose-Headers',
+            'Content-Length, Content-Range, Accept-Ranges'
+        )
         self.end_headers()
 
     def do_OPTIONS(self):
@@ -307,6 +348,10 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, PUT, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Range, Content-Type')
+        self.send_header(
+            'Access-Control-Expose-Headers',
+            'Content-Length, Content-Range, Accept-Ranges'
+        )
         self.end_headers()
 
     def do_PUT(self):
@@ -317,6 +362,11 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
         # Handle task markers update
         if parsed_path.startswith('/task-markers/'):
             self._handle_task_markers_update(parsed_path)
+            return
+
+        # Handle panel layout update
+        if parsed_path == '/panel-layout':
+            self._handle_put_panel_layout()
             return
 
         self._send_json_error(404, "Unknown PUT endpoint")
@@ -362,7 +412,7 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             )
 
             # Send response
-            json_data = json.dumps(result, ensure_ascii=False)
+            json_data = json.dumps(result, ensure_ascii=False, cls=_NanSafeEncoder)
             json_bytes = json_data.encode('utf-8')
 
             self.send_response(200 if result['success'] else 500)
@@ -377,6 +427,60 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
             self._send_json_error(400, f"Invalid JSON: {str(e)}")
         except Exception as e:
             self._send_json_error(500, f"Error updating task markers: {str(e)}")
+
+    # Panel layout file path
+    _PANEL_LAYOUT_PATH = '/workspace/.physical_ai/panel_layout.json'
+
+    def _handle_get_panel_layout(self):
+        """Handle GET /panel-layout — read saved panel layout."""
+        try:
+            layout_path = self._PANEL_LAYOUT_PATH
+            if os.path.isfile(layout_path):
+                with open(layout_path, 'r') as f:
+                    data = json.load(f)
+                json_data = json.dumps(data, ensure_ascii=False)
+            else:
+                json_data = json.dumps({'panels': None})
+
+            json_bytes = json_data.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(json_bytes)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-cache')
+            self.end_headers()
+            self.wfile.write(json_bytes)
+        except Exception as e:
+            self._send_json_error(500, f"Error reading panel layout: {str(e)}")
+
+    def _handle_put_panel_layout(self):
+        """Handle PUT /panel-layout — save panel layout."""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length == 0:
+                self._send_json_error(400, "Empty request body")
+                return
+
+            body = self.rfile.read(content_length)
+            data = json.loads(body.decode('utf-8'))
+
+            layout_path = self._PANEL_LAYOUT_PATH
+            os.makedirs(os.path.dirname(layout_path), exist_ok=True)
+
+            with open(layout_path, 'w') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+            result = json.dumps({'success': True}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(result)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(result)
+        except json.JSONDecodeError as e:
+            self._send_json_error(400, f"Invalid JSON: {str(e)}")
+        except Exception as e:
+            self._send_json_error(500, f"Error saving panel layout: {str(e)}")
 
     def log_message(self, format, *args):
         """Suppress default logging."""
@@ -417,7 +521,7 @@ class VideoFileServer:
         VideoFileHandler.replay_data_handler = self.replay_data_handler
 
         try:
-            self.server = HTTPServer(('0.0.0.0', self.port), VideoFileHandler)
+            self.server = ThreadingHTTPServer(('0.0.0.0', self.port), VideoFileHandler)
             self._running = True
 
             self.server_thread = threading.Thread(

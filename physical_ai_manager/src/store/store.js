@@ -23,6 +23,7 @@ import rosSlice from '../features/ros/rosSlice';
 import trainingSlice from '../features/training/trainingSlice';
 import editDatasetSlice from '../features/editDataset/editDatasetSlice';
 import replaySlice from '../features/replay/replaySlice';
+import layoutSlice from '../features/layout/layoutSlice';
 import btmanagerSlice from '../features/btmanager/btmanagerSlice';
 
 export const store = configureStore({
@@ -33,7 +34,6 @@ export const store = configureStore({
     training: trainingSlice,
     editDataset: editDatasetSlice,
     replay: replaySlice,
-    btmanager: btmanagerSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

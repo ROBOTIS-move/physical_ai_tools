@@ -18,7 +18,7 @@
 
 # This file makes the directory a Python package
 
-from physical_ai_server.communication.inference_service_client import (
-    InferenceServiceClient,
+from physical_ai_server.communication.container_service_client import (
+    ContainerServiceClient,
     ServiceResponse,
 )

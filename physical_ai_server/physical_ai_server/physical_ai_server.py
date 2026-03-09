@@ -331,6 +331,10 @@ class PhysicalAIServer(Node):
         control_hz = getattr(task_info, 'control_hz', 0) or 10
         self._control_hz = control_hz
 
+        # Stop previous timer before creating a new one
+        if hasattr(self, 'timer_manager') and self.timer_manager is not None:
+            self.timer_manager.stop_all()
+
         self.timer_manager = TimerManager(node=self)
         self.timer_manager.set_timer(
             timer_name=self.operation_mode,
@@ -846,6 +850,7 @@ class PhysicalAIServer(Node):
                     joint_order=self.joint_order,
                     service_prefix=service_prefix,
                     on_chunk_received=self.communicator.publish_action_chunk,
+                    control_hz=self._control_hz,
                 )
 
                 task_instruction = (
@@ -1038,6 +1043,12 @@ class PhysicalAIServer(Node):
                             'Starting recording during inference'
                         )
                         if self.data_manager is not None:
+                            # Prepare rosbag subscriptions before starting
+                            rosbag_topics = \
+                                self.communicator.get_all_topics()
+                            self.communicator.prepare_rosbag(
+                                topics=rosbag_topics
+                            )
                             self.data_manager.start_recording()
                             rosbag_path = \
                                 self.data_manager.get_save_rosbag_path()
@@ -1647,18 +1658,14 @@ class PhysicalAIServer(Node):
         return '/groot'
 
     def _stop_groot_inference(self):
-        """Stop GR00T inference and cleanup in background thread."""
+        """Stop GR00T inference and cleanup (blocking)."""
         if self.inference_manager is not None:
             manager = self.inference_manager
             self.inference_manager = None
-
-            def _stop_worker():
-                try:
-                    manager.stop()
-                except Exception as e:
-                    self.get_logger().error(f'Error stopping inference: {e}')
-
-            threading.Thread(target=_stop_worker, daemon=True).start()
+            try:
+                manager.stop()
+            except Exception as e:
+                self.get_logger().error(f'Error stopping inference: {e}')
 
     def handle_joystick_trigger(self, joystick_mode: str):
         """

@@ -156,6 +156,17 @@ COPY Isaac-GR00T/ ./
 # Patch pyproject.toml to relax Python version requirement
 RUN sed -i 's/requires-python = "==3.10.*"/requires-python = ">=3.10"/' pyproject.toml
 
+# TensorRT DiT acceleration (1.73x speedup on Orin)
+# System TRT libs (10.3.0) are at /usr/lib/python3.10/dist-packages/ but not
+# visible inside the venv. Symlink them in instead of pip-installing a mismatched version.
+RUN for pkg in tensorrt tensorrt-10.3.0.dist-info \
+               tensorrt_dispatch tensorrt_dispatch-10.3.0.dist-info \
+               tensorrt_lean tensorrt_lean-10.3.0.dist-info; do \
+        ln -sf /usr/lib/python3.10/dist-packages/$pkg \
+               /gr00t/.venv/lib/python3.10/site-packages/$pkg; \
+    done \
+    && uv pip install --no-cache "onnx>=1.20.0" onnxscript
+
 # Install GR00T package in editable mode (without strict dependencies)
 RUN uv pip install -e . --no-deps
 

@@ -18,16 +18,134 @@
 
 """GR00T N1.6 inference engine."""
 import logging
+import os
+import time
 from typing import Optional
 
 import cv2
 import numpy as np
 import torch
 
+import sys
+
 import gr00t.model  # noqa: F401 - register custom models
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.policy.gr00t_policy import Gr00tPolicy
 from robot_client import RobotClient
+
+# Add GR00T root to path for deployment script imports
+_GROOT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if os.path.isdir(os.path.join(_GROOT_ROOT, "scripts", "deployment")):
+    _groot_path = _GROOT_ROOT
+elif os.path.isdir("/gr00t/scripts/deployment"):
+    _groot_path = "/gr00t"
+else:
+    _groot_path = None
+
+if _groot_path and _groot_path not in sys.path:
+    sys.path.insert(0, _groot_path)
+
+# TensorRT DiT acceleration - reuse existing GR00T deployment code
+from scripts.deployment.standalone_inference_script import (  # noqa: E402
+    replace_dit_with_tensorrt,
+)
+from scripts.deployment.export_onnx_n1d6 import DiTInputCapture, export_dit_to_onnx  # noqa: E402
+
+
+def build_trt_engine(policy: Gr00tPolicy, observation: dict, engine_path: str):
+    """Export DiT to ONNX and build TensorRT engine automatically.
+
+    Uses DiTInputCapture and export_dit_to_onnx from GR00T deployment scripts,
+    then builds the TRT engine via build_tensorrt_engine.build_engine().
+    Takes ~3-5 min on Orin.
+    """
+    from scripts.deployment.build_tensorrt_engine import build_engine
+
+    logger = logging.getLogger("groot_inference")
+    onnx_path = engine_path.replace(".trt", ".onnx")
+
+    # Step 1: Capture DiT input shapes via hook
+    logger.info("Capturing DiT input shapes...")
+    capture = DiTInputCapture()
+    hook = policy.model.action_head.model.register_forward_pre_hook(
+        capture.hook_fn, with_kwargs=True
+    )
+    with torch.inference_mode():
+        policy.get_action(observation)
+    hook.remove()
+
+    if not capture.captured:
+        raise RuntimeError("Failed to capture DiT inputs")
+
+    # Step 2: Export DiT to ONNX
+    # Patch torch.onnx.export to force dynamo=False (avoids torch.export failures
+    # with DiT's dynamic shapes, without modifying the upstream GR00T code)
+    _orig_export = torch.onnx.export
+    def _patched_export(*args, **kwargs):
+        kwargs.setdefault("dynamo", False)
+        return _orig_export(*args, **kwargs)
+    torch.onnx.export = _patched_export
+    try:
+        export_dit_to_onnx(
+            policy=policy,
+            captured_inputs=capture,
+            output_path=onnx_path,
+            use_bf16=True,
+        )
+    finally:
+        torch.onnx.export = _orig_export
+
+    logger.info("ONNX exported: %s", onnx_path)
+
+    # Step 3: Build TensorRT engine
+    min_shapes = {
+        "sa_embs": (1, 1, 1536),
+        "vl_embs": (1, 1, 2048),
+        "timestep": (1,),
+        "image_mask": (1, 1),
+        "backbone_attention_mask": (1, 1),
+    }
+    opt_shapes = {
+        "sa_embs": (1, 51, 1536),
+        "vl_embs": (1, 122, 2048),
+        "timestep": (1,),
+        "image_mask": (1, 122),
+        "backbone_attention_mask": (1, 122),
+    }
+    max_shapes = {
+        "sa_embs": (1, 256, 1536),
+        "vl_embs": (1, 512, 2048),
+        "timestep": (1,),
+        "image_mask": (1, 512),
+        "backbone_attention_mask": (1, 512),
+    }
+
+    build_engine(
+        onnx_path=onnx_path,
+        engine_path=engine_path,
+        precision="bf16",
+        workspace_mb=8192,
+        min_shapes=min_shapes,
+        opt_shapes=opt_shapes,
+        max_shapes=max_shapes,
+    )
+
+    # Clean up ONNX and external data files (no longer needed after TRT build)
+    onnx_dir = os.path.dirname(onnx_path)
+    onnx_basename = os.path.splitext(os.path.basename(onnx_path))[0]
+    keep_exts = (".trt", ".json", ".safetensors", ".py", ".txt", ".model", ".md", ".bin")
+    for f in os.listdir(onnx_dir):
+        fpath = os.path.join(onnx_dir, f)
+        if not os.path.isfile(fpath):
+            continue
+        # Remove the ONNX file itself
+        if f.endswith(".onnx"):
+            os.remove(fpath)
+            continue
+        # Remove external data files (created by ONNX export, no standard extension)
+        if not f.endswith(keep_exts):
+            os.remove(fpath)
+    logger.info("Cleaned up ONNX export files from: %s", onnx_dir)
 
 
 class GR00TInference:
@@ -74,9 +192,27 @@ class GR00TInference:
                 model_path=model_path,
                 device="cuda",
             )
+
             self.init_policy_info()
             self.init_robot_info(robot_type)
             self.robot.wait_for_ready(timeout=10.0)
+
+            # TensorRT acceleration for DiT (Action Head).
+            # Engine is model-specific (weights baked in) and GPU-specific,
+            # so it lives next to the checkpoint. Auto-build on first use.
+            trt_path = os.path.join(model_path, "dit_model_bf16.trt")
+            try:
+                if not os.path.exists(trt_path):
+                    self.logger.info("No TRT engine found, building automatically...")
+                    dummy_obs = self._build_dummy_observation(request.task_instruction)
+                    build_trt_engine(self.policy, dummy_obs, trt_path)
+
+                replace_dit_with_tensorrt(self.policy, trt_path)
+                self.logger.info("DiT accelerated with TensorRT: %s", trt_path)
+            except Exception as e:
+                self.logger.warning(
+                    "TensorRT acceleration unavailable, using PyTorch Eager: %s", e
+                )
 
             return {
                 "success": True,
@@ -86,6 +222,13 @@ class GR00TInference:
         except Exception as e:
             self.logger.error("Failed to start inference: %s", e, exc_info=True)
             return self.fail(str(e))
+
+    def _build_dummy_observation(self, task_instruction: str = "") -> dict:
+        """Build a real observation from robot sensors for TRT engine building."""
+        images = self.robot.get_images(format="rgb")
+        joints = self.robot.get_joint_positions()
+        task = task_instruction or "dummy task"
+        return self.preprocess(images, joints, task)
 
     def init_policy_info(self) -> None:
         """Read video/state/action/language keys from the loaded policy."""
@@ -137,7 +280,7 @@ class GR00TInference:
             return self.fail("Not in inference mode")
 
         try:
-            images = self.robot.get_images(resize=self.IMAGE_SIZE, format="rgb")
+            images = self.robot.get_images(format="rgb")
             joints = self.robot.get_joint_positions()
             task = request.task_instruction
 

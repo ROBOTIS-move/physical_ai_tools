@@ -39,9 +39,6 @@ logging.basicConfig(
 
 server = RobotServiceServer(
     name="groot",
-    router_ip=os.environ.get("ZENOH_ROUTER_IP", "127.0.0.1"),
-    router_port=int(os.environ.get("ZENOH_ROUTER_PORT", "7447")),
-    domain_id=int(os.environ.get("ROS_DOMAIN_ID", "30")),
     node_name="groot_executor",
 )
 

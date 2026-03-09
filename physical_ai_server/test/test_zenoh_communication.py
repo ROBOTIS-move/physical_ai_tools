@@ -26,8 +26,8 @@ import unittest
 import sys
 
 
-class TestInferenceServiceClient(unittest.TestCase):
-    """Test InferenceServiceClient for container communication."""
+class TestContainerServiceClient(unittest.TestCase):
+    """Test ContainerServiceClient for container communication (inference + training)."""
 
     def test_01_import_ros2_interfaces(self):
         """Test that ROS2 interfaces can be imported."""
@@ -45,17 +45,17 @@ class TestInferenceServiceClient(unittest.TestCase):
         except ImportError as e:
             self.fail(f"Failed to import ROS2 interfaces: {e}")
 
-    def test_02_import_inference_service_client(self):
-        """Test that InferenceServiceClient can be imported."""
+    def test_02_import_container_service_client(self):
+        """Test that ContainerServiceClient can be imported."""
         try:
-            from physical_ai_server.communication.inference_service_client import (
-                InferenceServiceClient,
+            from physical_ai_server.communication.container_service_client import (
+                ContainerServiceClient,
                 ServiceResponse,
             )
             self.assertTrue(True)
-            print("PASS: InferenceServiceClient imported successfully")
+            print("PASS: ContainerServiceClient imported successfully")
         except ImportError as e:
-            self.fail(f"Failed to import InferenceServiceClient: {e}")
+            self.fail(f"Failed to import ContainerServiceClient: {e}")
 
     def test_03_import_training_manager(self):
         """Test that ZenohTrainingManager can be imported."""
@@ -80,39 +80,39 @@ class TestInferenceServiceClient(unittest.TestCase):
             self.fail(f"Failed to import InferenceManager: {e}")
 
     def test_05_create_client_default(self):
-        """Test creating InferenceServiceClient with default parameters."""
-        from physical_ai_server.communication.inference_service_client import (
-            InferenceServiceClient,
+        """Test creating ContainerServiceClient with default parameters."""
+        from physical_ai_server.communication.container_service_client import (
+            ContainerServiceClient,
         )
 
-        client = InferenceServiceClient(node=None, service_prefix="/groot")
+        client = ContainerServiceClient(node=None, service_prefix="/groot")
         self.assertIsNotNone(client)
         self.assertEqual(client.timeout_sec, 30.0)
         self.assertFalse(client._connected)
-        print("PASS: InferenceServiceClient created with default parameters")
+        print("PASS: ContainerServiceClient created with default parameters")
 
     def test_06_create_client_custom_params(self):
-        """Test creating InferenceServiceClient with custom parameters."""
-        from physical_ai_server.communication.inference_service_client import (
-            InferenceServiceClient,
+        """Test creating ContainerServiceClient with custom parameters."""
+        from physical_ai_server.communication.container_service_client import (
+            ContainerServiceClient,
         )
 
-        client = InferenceServiceClient(
+        client = ContainerServiceClient(
             node=None,
             service_prefix="/lerobot",
             timeout_sec=10.0,
         )
         self.assertIsNotNone(client)
         self.assertEqual(client.timeout_sec, 10.0)
-        print("PASS: InferenceServiceClient created with custom parameters")
+        print("PASS: ContainerServiceClient created with custom parameters")
 
     def test_07_connect_requires_node(self):
         """Test that connect() requires a ROS2 node."""
-        from physical_ai_server.communication.inference_service_client import (
-            InferenceServiceClient,
+        from physical_ai_server.communication.container_service_client import (
+            ContainerServiceClient,
         )
 
-        client = InferenceServiceClient(node=None, service_prefix="/groot")
+        client = ContainerServiceClient(node=None, service_prefix="/groot")
         result = client.connect()
 
         self.assertFalse(result)
@@ -121,11 +121,11 @@ class TestInferenceServiceClient(unittest.TestCase):
 
     def test_08_service_names_with_prefix(self):
         """Test that service names use the configured prefix."""
-        from physical_ai_server.communication.inference_service_client import (
-            InferenceServiceClient,
+        from physical_ai_server.communication.container_service_client import (
+            ContainerServiceClient,
         )
 
-        groot_client = InferenceServiceClient(node=None, service_prefix="/groot")
+        groot_client = ContainerServiceClient(node=None, service_prefix="/groot")
         self.assertEqual(groot_client.service_infer, '/groot/infer')
         self.assertEqual(groot_client.service_stop, '/groot/stop')
         self.assertEqual(groot_client.service_train, '/groot/train')
@@ -134,7 +134,7 @@ class TestInferenceServiceClient(unittest.TestCase):
             groot_client.service_get_action_chunk, '/groot/get_action_chunk'
         )
 
-        lerobot_client = InferenceServiceClient(node=None, service_prefix="/lerobot")
+        lerobot_client = ContainerServiceClient(node=None, service_prefix="/lerobot")
         self.assertEqual(lerobot_client.service_infer, '/lerobot/infer')
         self.assertEqual(lerobot_client.service_stop, '/lerobot/stop')
         self.assertEqual(lerobot_client.service_train, '/lerobot/train')
@@ -144,14 +144,14 @@ class TestInferenceServiceClient(unittest.TestCase):
 
     def test_09_topic_names_with_prefix(self):
         """Test that topic names use the configured prefix."""
-        from physical_ai_server.communication.inference_service_client import (
-            InferenceServiceClient,
+        from physical_ai_server.communication.container_service_client import (
+            ContainerServiceClient,
         )
 
-        client = InferenceServiceClient(node=None, service_prefix="/lerobot")
+        client = ContainerServiceClient(node=None, service_prefix="/lerobot")
         self.assertEqual(client.topic_progress, '/lerobot/progress')
 
-        client2 = InferenceServiceClient(node=None, service_prefix="/groot")
+        client2 = ContainerServiceClient(node=None, service_prefix="/groot")
         self.assertEqual(client2.topic_progress, '/groot/progress')
 
         print("PASS: Topic names correctly use configured prefix")
@@ -163,7 +163,7 @@ class TestServiceResponse(unittest.TestCase):
 
     def test_create_response(self):
         """Test creating ServiceResponse."""
-        from physical_ai_server.communication.inference_service_client import (
+        from physical_ai_server.communication.container_service_client import (
             ServiceResponse,
         )
 
@@ -182,7 +182,7 @@ class TestServiceResponse(unittest.TestCase):
 
     def test_from_service_response_none(self):
         """Test from_service_response with None."""
-        from physical_ai_server.communication.inference_service_client import (
+        from physical_ai_server.communication.container_service_client import (
             ServiceResponse,
         )
 
@@ -195,7 +195,7 @@ class TestServiceResponse(unittest.TestCase):
 
     def test_extract_data_with_attributes(self):
         """Test _extract_data extracts various attributes."""
-        from physical_ai_server.communication.inference_service_client import (
+        from physical_ai_server.communication.container_service_client import (
             ServiceResponse,
         )
 
@@ -230,7 +230,7 @@ def main():
 
     # Add tests in order
     suite.addTests(loader.loadTestsFromTestCase(TestServiceResponse))
-    suite.addTests(loader.loadTestsFromTestCase(TestInferenceServiceClient))
+    suite.addTests(loader.loadTestsFromTestCase(TestContainerServiceClient))
 
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)

@@ -90,11 +90,6 @@ class RobotClient:
         self._sync_threshold_ms = sync_threshold_ms
         self._router_ip = router_ip
         self._router_port = router_port
-        # Resolve domain_id: explicit arg > ROS_DOMAIN_ID env > default 30
-        if domain_id is not None:
-            self._domain_id = domain_id
-        else:
-            self._domain_id = int(os.environ.get("ROS_DOMAIN_ID", "30"))
 
         # Thread-safe data stores
         self._lock = threading.Lock()
@@ -133,9 +128,9 @@ class RobotClient:
                 topic=cam_cfg["topic"],
                 msg_type=cam_cfg["msg_type"],
                 callback=lambda msg, name=cam_name: self._update_image(name, msg),
-                router_ip=self._router_ip,
-                router_port=self._router_port,
-                domain_id=self._domain_id,
+                # router_ip=self._router_ip,
+                # router_port=self._router_port,
+                # domain_id=self._domain_id,
             )
             self._subscribers.append(sub)
             logger.debug(f"Subscribed camera: {cam_name} -> {cam_cfg['topic']}")
@@ -146,9 +141,9 @@ class RobotClient:
                 topic=group_cfg["topic"],
                 msg_type=group_cfg["msg_type"],
                 callback=lambda msg, name=group_name: self._update_joint(name, msg),
-                router_ip=self._router_ip,
-                router_port=self._router_port,
-                domain_id=self._domain_id,
+                # router_ip=self._router_ip,
+                # router_port=self._router_port,
+                # domain_id=self._domain_id,
             )
             self._subscribers.append(sub)
             logger.debug(f"Subscribed joint: {group_name} -> {group_cfg['topic']}")
@@ -159,9 +154,9 @@ class RobotClient:
                 topic=sensor_cfg["topic"],
                 msg_type=sensor_cfg["msg_type"],
                 callback=lambda msg, name=sensor_name: self._update_sensor(name, msg),
-                router_ip=self._router_ip,
-                router_port=self._router_port,
-                domain_id=self._domain_id,
+                # router_ip=self._router_ip,
+                # router_port=self._router_port,
+                # domain_id=self._domain_id,
             )
             self._subscribers.append(sub)
             logger.debug(f"Subscribed sensor: {sensor_name} -> {sensor_cfg['topic']}")
@@ -173,9 +168,9 @@ class RobotClient:
                 self._publishers[group_name] = ROS2Publisher(
                     topic=group_cfg["topic"],
                     msg_type="sensor_msgs/msg/JointState",
-                    router_ip=self._router_ip,
-                    router_port=self._router_port,
-                    domain_id=self._domain_id,
+                    # router_ip=self._router_ip,
+                    # router_port=self._router_port,
+                    # domain_id=self._domain_id,
                 )
                 logger.debug(f"Publisher created: {group_name} -> {group_cfg['topic']}")
 
@@ -185,9 +180,9 @@ class RobotClient:
             self._publishers["cmd_vel"] = ROS2Publisher(
                 topic=sensors["cmd_vel"]["topic"],
                 msg_type="geometry_msgs/msg/Twist",
-                router_ip=self._router_ip,
-                router_port=self._router_port,
-                domain_id=self._domain_id,
+                # router_ip=self._router_ip,
+                # router_port=self._router_port,
+                # domain_id=self._domain_id,
             )
 
     # ------------------------------------------------------------------ #

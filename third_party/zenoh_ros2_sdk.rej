@@ -1,0 +1,5 @@
+--- third_party/zenoh_ros2_sdk
++++ third_party/zenoh_ros2_sdk
+@@ -1 +1 @@
+-Subproject commit 202da9e7e0018b99a534bda603785d612d7ece3e
++Subproject commit 1234373f7c1a1c5fba41680c53e9d306cf910990

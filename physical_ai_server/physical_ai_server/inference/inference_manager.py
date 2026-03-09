@@ -22,17 +22,18 @@ InferenceManager - Action chunk based async inference manager.
 Generic manager that works with any inference container (GR00T, LeRobot, etc.)
 by parameterizing the service prefix.
 
-Manages action buffer, background chunk requests via InferenceServiceClient,
+Manages action buffer, background chunk requests via ContainerServiceClient,
 L2-based chunk alignment, and action-to-JointTrajectory conversion.
 
 Architecture:
-    10Hz timer (physical_ai_server)
+    100Hz timer (physical_ai_server)
         -> pop_action() from buffer
         -> convert to JointTrajectory messages
         -> communicator.publish_action()
 
     Background thread:
-        -> /{prefix}/get_action_chunk service call
+        -> /{prefix}/get_action_chunk service call (15Hz waypoints)
+        -> linear interpolation to 100Hz
         -> align & enqueue into buffer
 """
 
@@ -45,7 +46,7 @@ import numpy as np
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-from physical_ai_server.communication.inference_service_client import InferenceServiceClient
+from physical_ai_server.communication.container_service_client import ContainerServiceClient
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,9 @@ class InferenceManager:
     via the service_prefix parameter.
     """
 
-    BUFFER_REFILL_THRESHOLD = 1  # Request new chunk when buffer < this
+    INFERENCE_HZ = 15.0   # Model output rate
+    BLEND_DURATION_S = 0.27  # Blend duration in seconds at chunk boundaries
+    REFILL_DURATION_S = 0.3  # Request new chunk when buffer < this duration
 
     def __init__(
         self,
@@ -66,6 +69,7 @@ class InferenceManager:
         joint_order: dict,
         service_prefix: str = "/groot",
         on_chunk_received: callable = None,
+        control_hz: float = 15.0,
     ):
         """
         Args:
@@ -77,6 +81,7 @@ class InferenceManager:
                 (e.g., "/groot", "/lerobot").
             on_chunk_received: Optional callback(chunk_msg: JointTrajectory)
                 called when a new action chunk arrives, for visualization.
+            control_hz: Robot command rate from UI (used for interpolation).
         """
         self._node = node
         self._joint_topic_types = joint_topic_types
@@ -85,11 +90,16 @@ class InferenceManager:
         self._on_chunk_received = on_chunk_received
         self._action_joint_map: dict = {}
 
+        # Interpolation and buffer parameters derived from control_hz
+        self.CONTROL_HZ = float(control_hz)
+        self.BLEND_STEPS = max(1, int(self.BLEND_DURATION_S * self.CONTROL_HZ))
+        self.BUFFER_REFILL_THRESHOLD = max(1, int(self.REFILL_DURATION_S * self.CONTROL_HZ))
+
         # Action buffer (deque of 1D np arrays, each length = total action DOF)
         self._action_buffer: collections.deque = collections.deque()
         self._buffer_lock = threading.Lock()
 
-        self._client: Optional[InferenceServiceClient] = None
+        self._client: Optional[ContainerServiceClient] = None
 
         # Background threads
         self._inference_thread: Optional[threading.Thread] = None
@@ -142,7 +152,7 @@ class InferenceManager:
         self._loading = True
         self._load_error = None
 
-        self._client = InferenceServiceClient(
+        self._client = ContainerServiceClient(
             node=self._node,
             service_prefix=self._service_prefix,
         )
@@ -198,8 +208,10 @@ class InferenceManager:
     def pop_action(self) -> Optional[dict]:
         """Pop one action from buffer and convert to joint messages.
 
-        Called by 10Hz timer in physical_ai_server.
+        Called by 100Hz timer in physical_ai_server.
         Returns dict of {group_name: JointTrajectory msg} or None if buffer empty.
+        When buffer is empty, holds the last commanded action to maintain
+        consistent 100Hz publish rate.
         """
         if self._paused:
             return None
@@ -208,6 +220,9 @@ class InferenceManager:
                 # Buffer empty — request new chunk if not already requesting
                 if not self._requesting:
                     self._request_chunk_async()
+                # Hold last action to maintain 100Hz rate
+                if self._last_action is not None:
+                    return self._action_to_joint_msgs(self._last_action)
                 return None
             action = self._action_buffer.popleft()
             remaining = len(self._action_buffer)
@@ -284,19 +299,54 @@ class InferenceManager:
         finally:
             self._requesting = False
 
-    def _align_and_enqueue(self, chunk: np.ndarray):
-        """L2 distance based chunk alignment, then add to buffer.
+    def _interpolate_chunk(self, chunk: np.ndarray) -> np.ndarray:
+        """Linear interpolation from INFERENCE_HZ to CONTROL_HZ.
 
-        When transitioning between chunks, finds the closest timestep
-        in the new chunk to the last executed action, and starts from
-        the next timestep to avoid discontinuities.
+        Args:
+            chunk: shape (T, D), T waypoints at INFERENCE_HZ
+        Returns:
+            shape (T_interp, D), interpolated waypoints at CONTROL_HZ
+        """
+        T, D = chunk.shape
+        if T < 2:
+            return chunk
+
+        t_original = np.arange(T) / self.INFERENCE_HZ
+        duration = (T - 1) / self.INFERENCE_HZ
+        n_interp = int(round(duration * self.CONTROL_HZ)) + 1
+        t_interp = np.linspace(0, duration, n_interp)
+
+        # Per-joint linear interpolation using np.interp
+        interpolated = np.empty((n_interp, D))
+        for d in range(D):
+            interpolated[:, d] = np.interp(t_interp, t_original, chunk[:, d])
+
+        return interpolated
+
+    def _align_and_enqueue(self, chunk: np.ndarray):
+        """L2 alignment, linear interpolation, and blending.
+
+        1. L2 alignment on raw 15Hz waypoints
+        2. Linear interpolation to 100Hz
+        3. Linear blend at chunk boundary
         """
         with self._buffer_lock:
+            # L2 alignment on raw 15Hz waypoints
             if self._last_action is not None and len(chunk) > 1:
                 distances = np.linalg.norm(chunk - self._last_action, axis=1)
                 start_idx = int(np.argmin(distances)) + 1
                 if start_idx < len(chunk):
                     chunk = chunk[start_idx:]
+
+            # Interpolate 15Hz -> 100Hz
+            chunk = self._interpolate_chunk(chunk)
+
+            # Linear blend at chunk boundary to avoid position jumps
+            if self._last_action is not None and len(chunk) > 0:
+                n_blend = min(self.BLEND_STEPS, len(chunk))
+                for i in range(n_blend):
+                    alpha = (i + 1) / (n_blend + 1)
+                    chunk[i] = (1 - alpha) * self._last_action + alpha * chunk[i]
 
             for action in chunk:
                 self._action_buffer.append(action)
@@ -379,13 +429,17 @@ class InferenceManager:
         return joint_msg_datas
 
     def stop(self):
-        """Stop inference and cleanup."""
+        """Stop inference and cleanup all state."""
         self._running = False
         self._loading = False
         self._paused = False
+        self._requesting = False
 
+        # Wait for background threads to finish
         if self._load_thread and self._load_thread.is_alive():
             self._load_thread.join(timeout=5.0)
+        if self._inference_thread and self._inference_thread.is_alive():
+            self._inference_thread.join(timeout=5.0)
 
         if self._client:
             try:

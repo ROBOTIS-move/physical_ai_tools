@@ -18,6 +18,7 @@
 
 """Control nodes for Behavior Tree."""
 
+from physical_ai_bt.controls.loop import Loop
 from physical_ai_bt.controls.sequence import Sequence
 
-__all__ = ['Sequence']
+__all__ = ['Loop', 'Sequence']

@@ -24,6 +24,8 @@ from ament_index_python.packages import get_package_share_directory
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from std_msgs.msg import String
+from std_srvs.srv import SetBool
 
 from physical_ai_bt.blackboard import Blackboard  # noqa: I100
 from physical_ai_bt.bt_core import NodeStatus  # noqa: I100
@@ -78,7 +80,7 @@ class BehaviorTreeNode(Node):
             if os.path.exists(self.main_tree_path):
                 tree_file = self.main_tree_path
                 self.root = self.tree_loader.load_tree_from_file(tree_file)
-                self.tree_execution_mode = 'running'
+                self.tree_execution_mode = 'stopped'
                 self.get_logger().info(
                     f'Main tree loaded successfully: {self.root.name}'
                 )
@@ -94,11 +96,22 @@ class BehaviorTreeNode(Node):
 
         self.timer = self.create_timer(1.0 / tick_rate, self.tick_callback)
 
+        # Service: start/stop BT execution
+        self.set_running_srv = self.create_service(
+            SetBool, '/bt/set_running', self._set_running_callback
+        )
+
+        # Publisher: BT execution status
+        self._status_pub = self.create_publisher(String, '/bt/status', 10)
+        self._status_timer = self.create_timer(1.0, self._publish_status)
+
         self.get_logger().info('Behavior Tree Node initialized')
         self.get_logger().info(f'Robot type: {robot_type}')
         self.get_logger().info(f'Main tree XML: {tree_xml}')
         if self.root:
-            self.get_logger().info('Tree auto-loaded and executing')
+            self.get_logger().info(
+                'Tree loaded, waiting for start command'
+            )
         else:
             self.get_logger().error('Tree failed to load')
         self.get_logger().info(f'Tick rate: {tick_rate} Hz')
@@ -197,17 +210,42 @@ class BehaviorTreeNode(Node):
             )
             self._handle_tree_completion(status)
 
+    def _set_running_callback(self, request, response):
+        """Handle /bt/set_running service call."""
+        if request.data:
+            if self.root is None:
+                response.success = False
+                response.message = 'No tree loaded'
+                return response
+            self.tree_execution_mode = 'running'
+            response.success = True
+            response.message = 'BT started'
+            self.get_logger().info('BT execution started via service')
+        else:
+            if self.tree_execution_mode == 'running':
+                self.tree_execution_mode = 'stopped'
+                if self.root is not None:
+                    self.root.reset()
+                self.get_logger().info('BT execution stopped via service')
+            response.success = True
+            response.message = 'BT stopped'
+        self._publish_status()
+        return response
+
+    def _publish_status(self):
+        """Publish current BT execution status."""
+        msg = String()
+        msg.data = self.tree_execution_mode
+        self._status_pub.publish(msg)
+
     def _handle_tree_completion(self, status: NodeStatus):
         """Handle the completion of a behavior tree execution."""
         if self.root is not None:
             self.root.reset()
 
         self.tree_execution_mode = 'stopped'
+        self._publish_status()
         self.get_logger().info('Behavior tree completed')
-
-        # Shutdown the node after tree completion
-        self.get_logger().info('Shutting down BT node...')
-        rclpy.shutdown()
 
 
 def main(args=None):

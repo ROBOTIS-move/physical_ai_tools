@@ -27,8 +27,10 @@ from physical_ai_bt.actions import MoveArms
 from physical_ai_bt.actions import MoveHead
 from physical_ai_bt.actions import MoveLift
 from physical_ai_bt.actions import Rotate
+from physical_ai_bt.actions import SendCommandAction
 from physical_ai_bt.actions.base_action import BaseAction
 from physical_ai_bt.bt_core import BTNode
+from physical_ai_bt.controls import Loop
 from physical_ai_bt.controls import Sequence
 from physical_ai_bt.controls.base_control import BaseControl
 
@@ -49,6 +51,7 @@ class TreeLoader:
 
         self.control_types: Dict[str, Type[BaseControl]] = {
             'Sequence': Sequence,
+            'Loop': Loop,
         }
 
         self.action_types: Dict[str, Type[BaseAction]] = {
@@ -56,6 +59,7 @@ class TreeLoader:
             'MoveHead': MoveHead,
             'MoveArms': MoveArms,
             'MoveLift': MoveLift,
+            'SendCommand': SendCommandAction,
         }
 
     def load_tree_from_file(
@@ -194,6 +198,16 @@ class TreeLoader:
                 lift_joint_name=lift_joint_name,
                 position_threshold=params.get('position_threshold', 0.01),
                 duration=params.get('duration', 5.0)
+            )
+
+        elif action_class == SendCommandAction:
+            return action_class(
+                node=self.node,
+                command=params.get('command', 'STOP_INFERENCE'),
+                policy_path=params.get('policy_path', ''),
+                task_instruction=params.get('task_instruction', ''),
+                task_name=params.get('task_name', ''),
+                wait_until_ready=params.get('wait_until_ready', False),
             )
 
         else:

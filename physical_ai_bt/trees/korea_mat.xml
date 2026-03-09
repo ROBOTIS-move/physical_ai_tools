@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="3" main_tree_to_execute="InferenceLoopExample">
+  <BehaviorTree ID="InferenceLoopExample">
+    <Sequence name="Main">
+
+      <!-- Phase 1: Load model and immediately pause (runs once) -->
+      <SendCommand name="LoadModel"
+        command="START_INFERENCE"
+        policy_path="/workspace/model"
+        task_instruction="pick up the cup"
+        wait_until_ready="true"/>
+      <SendCommand name="PauseAfterLoad"
+        command="STOP_INFERENCE"/>
+
+      <!-- Phase 2: Infinite loop -->
+      <Loop name="InfiniteLoop">
+        <Sequence name="OneIteration">
+
+          <!-- Move to ready pose -->
+          <MoveArms name="ReadyPose"
+            left_positions="0.75,0.0,0.0,-2.3,0.0,0.0,0.0,0.0"
+            right_positions="0.75,0.0,0.0,-2.3,0.0,0.0,0.0,0.0"
+            duration="2.0"/>
+          <MoveHead name="LookForward"
+            head_positions="0.0,0.0"
+            duration="2.0"/>
+
+          <!-- Resume inference -->
+          <SendCommand name="ResumeInference"
+            command="RESUME_INFERENCE"
+            task_instruction="pick up the cup"/>
+
+          <!-- Pause inference -->
+          <SendCommand name="PauseInference"
+            command="STOP_INFERENCE"/>
+
+          <!-- Rule-based repositioning -->
+          <Rotate name="TurnLeft"
+            angle_deg="-90.0"/>
+
+        </Sequence>
+      </Loop>
+
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="SendCommand">
+      <input_port name="command" default="STOP_INFERENCE">
+        Command to send (START_INFERENCE, STOP_INFERENCE, RESUME_INFERENCE, etc.)
+      </input_port>
+      <input_port name="policy_path" default="">
+        Path to the policy model (for START_INFERENCE).
+      </input_port>
+      <input_port name="task_instruction" default="">
+        Task instruction for language-conditioned policies.
+      </input_port>
+      <input_port name="task_name" default="">
+        Task name identifier.
+      </input_port>
+      <input_port name="wait_until_ready" default="false">
+        If true, wait for model loading to complete before returning SUCCESS.
+      </input_port>
+    </Action>
+    <Action ID="Rotate">
+      <input_port name="angle_deg" default="90.0">
+        Desired rotation angle in degrees.
+        Positive for CCW, negative for CW.
+      </input_port>
+    </Action>
+    <Action ID="MoveHead">
+      <input_port name="head_positions" default="0.0,0.0">
+        Target positions for head joints (comma-separated).
+      </input_port>
+      <input_port name="position_threshold" default="0.01">
+        Position tolerance for completion.
+      </input_port>
+      <input_port name="duration" default="5.0">
+        Trajectory duration in seconds.
+      </input_port>
+    </Action>
+    <Action ID="MoveArms">
+      <input_port name="left_positions" default="0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0">
+        Target positions for left arm joints (comma-separated).
+      </input_port>
+      <input_port name="right_positions" default="0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0">
+        Target positions for right arm joints (comma-separated).
+      </input_port>
+      <input_port name="position_threshold" default="0.01">
+        Position tolerance for completion.
+      </input_port>
+      <input_port name="duration" default="2.0">
+        Trajectory duration in seconds.
+      </input_port>
+    </Action>
+    <Action ID="MoveLift">
+      <input_port name="lift_position" default="0.0">
+        Target position for lift joint.
+      </input_port>
+      <input_port name="position_threshold" default="0.01">
+        Position tolerance for completion.
+      </input_port>
+      <input_port name="duration" default="5.0">
+        Trajectory duration in seconds.
+      </input_port>
+    </Action>
+    <Control ID="Loop">
+      Repeats its single child forever. Returns RUNNING on child SUCCESS,
+      propagates FAILURE.
+    </Control>
+  </TreeNodesModel>
+
+</root>

@@ -36,6 +36,7 @@ export const DEFAULT_PATHS = {
   POLICY_MODEL_PATH: `${LEROBOT_OUTPUTS_PATH}/train/`,
   DATASET_PATH: `${DOT_CACHE_PATH}/huggingface/lerobot/`,
   ROSBAG2_PATH: '/workspace/rosbag2/',
+  BT_TREES_PATH: `${BASE_WORKSPACE_PATH}/physical_ai_bt/trees/`,
 };
 
 /**

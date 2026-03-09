@@ -24,6 +24,7 @@ import trainingSlice from '../features/training/trainingSlice';
 import editDatasetSlice from '../features/editDataset/editDatasetSlice';
 import replaySlice from '../features/replay/replaySlice';
 import layoutSlice from '../features/layout/layoutSlice';
+import btmanagerSlice from '../features/btmanager/btmanagerSlice';
 
 export const store = configureStore({
   reducer: {
@@ -33,7 +34,6 @@ export const store = configureStore({
     training: trainingSlice,
     editDataset: editDatasetSlice,
     replay: replaySlice,
-    layout: layoutSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

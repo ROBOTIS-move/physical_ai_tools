@@ -476,9 +476,16 @@ class InferenceManager:
         )
 
     def resume(self, task_instruction: str = ""):
-        """Resume inference loop and start requesting chunks again."""
+        """Resume inference loop and start requesting chunks again.
+
+        Clears buffer and last_action to discard any stale chunks
+        that arrived during pause (based on pre-pause observations).
+        """
         if task_instruction:
             self._task_instruction = task_instruction
+        with self._buffer_lock:
+            self._action_buffer.clear()
+        self._last_action = None
         self._paused = False
         self._request_chunk_async()
         logger.info(

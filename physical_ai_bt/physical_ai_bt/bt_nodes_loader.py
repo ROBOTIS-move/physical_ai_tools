@@ -28,6 +28,7 @@ from physical_ai_bt.actions import MoveHead
 from physical_ai_bt.actions import MoveLift
 from physical_ai_bt.actions import Rotate
 from physical_ai_bt.actions import SendCommandAction
+from physical_ai_bt.actions import Wait
 from physical_ai_bt.actions.base_action import BaseAction
 from physical_ai_bt.bt_core import BTNode
 from physical_ai_bt.controls import Loop
@@ -60,6 +61,7 @@ class TreeLoader:
             'MoveArms': MoveArms,
             'MoveLift': MoveLift,
             'SendCommand': SendCommandAction,
+            'Wait': Wait,
         }
 
     def load_tree_from_file(
@@ -201,13 +203,23 @@ class TreeLoader:
             )
 
         elif action_class == SendCommandAction:
+            task_instruction = params.get('task_instruction', '')
+            if isinstance(task_instruction, list):
+                task_instruction = ', '.join(task_instruction)
             return action_class(
                 node=self.node,
                 command=params.get('command', 'STOP_INFERENCE'),
                 policy_path=params.get('policy_path', ''),
-                task_instruction=params.get('task_instruction', ''),
+                task_instruction=task_instruction,
                 task_name=params.get('task_name', ''),
+                control_hz=params.get('control_hz', 0),
                 wait_until_ready=params.get('wait_until_ready', False),
+            )
+
+        elif action_class == Wait:
+            return action_class(
+                node=self.node,
+                duration=params.get('duration', 5.0),
             )
 
         else:

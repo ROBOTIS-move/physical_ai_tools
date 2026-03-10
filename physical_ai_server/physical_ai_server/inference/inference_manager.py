@@ -253,18 +253,36 @@ class InferenceManager:
         MAX_RETRIES = 10
         RETRY_DELAY = 1.0  # seconds
 
+        thread_id = threading.current_thread().name
+        logger.info(f"[{thread_id}] Fetch chunk started")
+
         try:
             if self._client is None:
                 return
 
             for attempt in range(MAX_RETRIES):
-                if not self._running:
+                if not self._running or self._paused:
+                    logger.info(
+                        "[%s] Fetch chunk aborted (running=%s, paused=%s)",
+                        thread_id, self._running, self._paused,
+                    )
                     return
 
+                t_start = time.monotonic()
                 response = self._client.get_action_chunk(
                     task_instruction=self._task_instruction
                 )
+                elapsed = time.monotonic() - t_start
+                logger.info(
+                    "[%s] get_action_chunk returned in %.1fs: success=%s, msg=%s",
+                    thread_id, elapsed, response.success, response.message,
+                )
                 if response.success:
+                    # Double-check we weren't paused during the service call
+                    if self._paused:
+                        logger.info("Chunk arrived but paused, discarding")
+                        return
+
                     chunk_data = response.data.get("action_chunk", [])
                     chunk_size = response.data.get("chunk_size", 0)
                     action_dim = response.data.get("action_dim", 0)
@@ -284,13 +302,13 @@ class InferenceManager:
                 else:
                     # Retry on transient failures (missing observations, etc.)
                     if attempt < MAX_RETRIES - 1:
-                        logger.debug(
-                            f"Chunk request failed (attempt {attempt + 1}): "
+                        logger.warning(
+                            f"Chunk request failed (attempt {attempt + 1}/{MAX_RETRIES}): "
                             f"{response.message}, retrying in {RETRY_DELAY}s..."
                         )
                         time.sleep(RETRY_DELAY)
                     else:
-                        logger.warning(
+                        logger.error(
                             f"Chunk request failed after {MAX_RETRIES} attempts: "
                             f"{response.message}"
                         )
@@ -483,12 +501,24 @@ class InferenceManager:
         """
         if task_instruction:
             self._task_instruction = task_instruction
+
+        # Wait for any in-flight fetch thread to notice _paused and exit
+        # (skip if called from the fetch thread itself, e.g. via executor callback)
+        if (
+            self._inference_thread
+            and self._inference_thread.is_alive()
+            and self._inference_thread is not threading.current_thread()
+        ):
+            self._inference_thread.join(timeout=2.0)
+
         with self._buffer_lock:
             self._action_buffer.clear()
         self._last_action = None
+        self._requesting = False
         self._paused = False
         self._request_chunk_async()
         logger.info(
-            "InferenceManager resumed (%s)", self._service_prefix
+            "InferenceManager resumed (%s), running=%s, requesting=%s",
+            self._service_prefix, self._running, self._requesting,
         )
 

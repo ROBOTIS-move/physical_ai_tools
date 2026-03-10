@@ -483,8 +483,10 @@ class DataManager:
 
     def _init_task_limits(self):
         if not self._single_task:
-            self._task_info.num_episodes = 1_000_000
-            self._task_info.episode_time_s = 1_000_000
+            if hasattr(self._task_info, 'num_episodes'):
+                self._task_info.num_episodes = 1_000_000
+            if hasattr(self._task_info, 'episode_time_s'):
+                self._task_info.episode_time_s = 1_000_000
 
     @staticmethod
     def get_robot_type_from_info_json(info_json_path):

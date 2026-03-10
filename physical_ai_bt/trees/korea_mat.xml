@@ -6,7 +6,7 @@
       <!-- Phase 1: Load model and immediately pause (runs once) -->
       <SendCommand name="LoadModel"
         command="START_INFERENCE"
-        policy_path="/workspace/model"
+        policy_path="/workspace/checkpoints/ROBOTIS/ffw_sg2_korea_mat_70k"
         task_instruction="pick up the cup"
         wait_until_ready="true"/>
       <SendCommand name="PauseAfterLoad"
@@ -24,19 +24,25 @@
           <MoveHead name="LookForward"
             head_positions="0.0,0.0"
             duration="2.0"/>
-
+          <MoveHead name="LookForward"
+            head_positions="0.6,0.0"
+            duration="2.0"/>
           <!-- Resume inference -->
           <SendCommand name="ResumeInference"
             command="RESUME_INFERENCE"
             task_instruction="pick up the cup"/>
+
+          <!-- Let inference run for 10 seconds -->
+          <Wait name="InferenceRunTime"
+            duration="10.0"/>
 
           <!-- Pause inference -->
           <SendCommand name="PauseInference"
             command="STOP_INFERENCE"/>
 
           <!-- Rule-based repositioning -->
-          <Rotate name="TurnLeft"
-            angle_deg="-90.0"/>
+          <!-- <Rotate name="TurnLeft"
+            angle_deg="-90.0"/> -->
 
         </Sequence>
       </Loop>
@@ -103,6 +109,11 @@
       </input_port>
       <input_port name="duration" default="5.0">
         Trajectory duration in seconds.
+      </input_port>
+    </Action>
+    <Action ID="Wait">
+      <input_port name="duration" default="5.0">
+        Duration to wait in seconds.
       </input_port>
     </Action>
     <Control ID="Loop">

@@ -607,6 +607,17 @@ class PhysicalAIServer(Node):
         joint_msg_datas = self.inference_manager.pop_action()
         if joint_msg_datas is not None:
             self.communicator.publish_action(joint_msg_datas)
+        else:
+            if not hasattr(self, '_pop_none_count'):
+                self._pop_none_count = 0
+            self._pop_none_count += 1
+            if self._pop_none_count <= 5 or self._pop_none_count % 100 == 0:
+                self.get_logger().warning(
+                    f'pop_action() returned None '
+                    f'(count={self._pop_none_count}, '
+                    f'buffer={len(self.inference_manager._action_buffer)}, '
+                    f'requesting={self.inference_manager._requesting})'
+                )
 
         current_status.phase = TaskStatus.INFERENCING
         self.communicator.publish_status(status=current_status)
@@ -833,45 +844,62 @@ class PhysicalAIServer(Node):
                 self.operation_mode = 'inference'
                 task_info = request.task_info
 
-                # Clean up existing inference session if any
-                if self.inference_manager is not None:
-                    self._stop_groot_inference()
-
-                self.init_robot_control_parameters_from_user_task(task_info)
-                self.joint_topic_types = self.communicator.get_publisher_msg_types()
-
-                # Determine service prefix from policy type
-                service_prefix = self._determine_service_prefix(task_info)
-
-                # Create and start inference manager
-                self.inference_manager = InferenceManager(
-                    node=self,
-                    joint_topic_types=self.joint_topic_types,
-                    joint_order=self.joint_order,
-                    service_prefix=service_prefix,
-                    on_chunk_received=self.communicator.publish_action_chunk,
-                    control_hz=self._control_hz,
-                )
-
                 task_instruction = (
                     task_info.task_instruction[0]
                     if task_info.task_instruction
                     else ''
                 )
 
-                self.inference_manager.start(
-                    model_path=task_info.policy_path,
-                    embodiment_tag='new_embodiment',
-                    robot_type=self.robot_type,
-                    task_instruction=task_instruction,
-                )
+                # If model already loaded and paused, just resume
+                if (
+                    self.inference_manager is not None
+                    and self.inference_manager.is_paused
+                ):
+                    self.get_logger().info(
+                        'Model already loaded, resuming inference'
+                    )
+                    self.inference_manager.resume(task_instruction)
+                    self.on_inference = True
+                    response.success = True
+                    response.message = 'Inference resumed (model already loaded)'
+                else:
+                    # Clean up existing inference session if any
+                    if self.inference_manager is not None:
+                        self._stop_groot_inference()
 
-                if task_info.record_inference_mode:
-                    self.on_recording = True
+                    self.init_robot_control_parameters_from_user_task(task_info)
+                    self.joint_topic_types = self.communicator.get_publisher_msg_types()
+
+                    # Determine service prefix from policy type
+                    service_prefix = self._determine_service_prefix(task_info)
+
+                    # Create and start inference manager
+                    self.inference_manager = InferenceManager(
+                        node=self,
+                        joint_topic_types=self.joint_topic_types,
+                        joint_order=self.joint_order,
+                        service_prefix=service_prefix,
+                        on_chunk_received=self.communicator.publish_action_chunk,
+                        control_hz=self._control_hz,
+                    )
+
+                    self.inference_manager.start(
+                        model_path=task_info.policy_path,
+                        embodiment_tag='new_embodiment',
+                        robot_type=self.robot_type,
+                        task_instruction=task_instruction,
+                    )
+
+                    if task_info.record_inference_mode:
+                        self.on_recording = True
+
+                    response.success = True
+                    response.message = (
+                        f'{service_prefix.strip("/").upper()} inference loading'
+                    )
+
                 self.on_inference = True
                 self.start_recording_time = time.perf_counter()
-                response.success = True
-                response.message = f'{service_prefix.strip("/").upper()} inference loading'
 
             elif request.command == SendCommand.Request.CONVERT_MP4:
                 # Handle MP4 conversion command
@@ -1029,6 +1057,7 @@ class PhysicalAIServer(Node):
                                 if request.task_info.task_instruction
                                 else ''
                             )
+                            self._pop_none_count = 0
                             self.inference_manager.resume(
                                 task_instruction=task_instruction
                             )

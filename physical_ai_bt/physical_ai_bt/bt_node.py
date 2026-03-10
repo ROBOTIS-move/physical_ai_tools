@@ -24,6 +24,7 @@ from ament_index_python.packages import get_package_share_directory
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from physical_ai_interfaces.srv import SendCommand
 from std_msgs.msg import String
 from std_srvs.srv import SetBool
 
@@ -99,6 +100,11 @@ class BehaviorTreeNode(Node):
         # Service: start/stop BT execution
         self.set_running_srv = self.create_service(
             SetBool, '/bt/set_running', self._set_running_callback
+        )
+
+        # Service client: cleanup inference on BT stop
+        self._cleanup_client = self.create_client(
+            SendCommand, '/task/command'
         )
 
         # Publisher: BT execution status
@@ -226,6 +232,7 @@ class BehaviorTreeNode(Node):
                 self.tree_execution_mode = 'stopped'
                 if self.root is not None:
                     self.root.reset()
+                self._send_cleanup_command()
                 self.get_logger().info('BT execution stopped via service')
             response.success = True
             response.message = 'BT stopped'
@@ -237,6 +244,34 @@ class BehaviorTreeNode(Node):
         msg = String()
         msg.data = self.tree_execution_mode
         self._status_pub.publish(msg)
+
+    def _send_cleanup_command(self):
+        """Send STOP_INFERENCE to pause inference (model stays loaded)."""
+        try:
+            if not self._cleanup_client.service_is_ready():
+                self.get_logger().warn(
+                    'Cleanup: /task/command service not available, skipping'
+                )
+                return
+            req = SendCommand.Request()
+            req.command = SendCommand.Request.STOP_INFERENCE
+            future = self._cleanup_client.call_async(req)
+            future.add_done_callback(self._cleanup_done_callback)
+            self.get_logger().info('Cleanup: STOP_INFERENCE sent to server')
+        except Exception as e:
+            self.get_logger().error(f'Cleanup command failed: {e}')
+
+    def _cleanup_done_callback(self, future):
+        """Handle cleanup service response."""
+        try:
+            response = future.result()
+            if response and response.success:
+                self.get_logger().info('Cleanup: server confirmed stop')
+            else:
+                msg = response.message if response else 'No response'
+                self.get_logger().warn(f'Cleanup: server response: {msg}')
+        except Exception as e:
+            self.get_logger().error(f'Cleanup response error: {e}')
 
     def _handle_tree_completion(self, status: NodeStatus):
         """Handle the completion of a behavior tree execution."""

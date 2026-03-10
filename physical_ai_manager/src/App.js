@@ -297,6 +297,18 @@ function App() {
             <span className="mt-1 text-sm">Inference</span>
           </button>
 
+          {/* BT Manager page button */}
+          <button
+            className={clsx(classPageButton, {
+              'hover:bg-gray-200 active:bg-gray-400': page !== PageType.BT_MANAGER,
+              'bg-gray-300': page === PageType.BT_MANAGER,
+            })}
+            onClick={handleBTManagerPageNavigation}
+          >
+            <MdAccountTree size={28} className="mb-2" />
+            <span className="mt-1 text-sm whitespace-nowrap">BT Manager</span>
+          </button>
+
           {/* Divider line */}
           <div className="w-24 h-1 border-t-2 rounded-full border-gray-200 mt-3"></div>
 
@@ -324,17 +336,6 @@ function App() {
             <span className="mt-1 text-sm whitespace-nowrap">Replay</span>
           </button>
 
-          {/* BT Manager page button */}
-          <button
-            className={clsx(classPageButton, {
-              'hover:bg-gray-200 active:bg-gray-400': page !== PageType.BT_MANAGER,
-              'bg-gray-300': page === PageType.BT_MANAGER,
-            })}
-            onClick={handleBTManagerPageNavigation}
-          >
-            <MdAccountTree size={28} className="mb-2" />
-            <span className="mt-1 text-sm whitespace-nowrap">BT Manager</span>
-          </button>
         </div>
       </aside>
       <main className="flex-1 flex flex-col h-screen">

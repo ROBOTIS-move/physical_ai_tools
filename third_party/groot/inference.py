@@ -163,6 +163,7 @@ class GR00TInference:
     def __init__(self):
         self.policy: Optional[Gr00tPolicy] = None
         self.robot: Optional[RobotClient] = None
+        self._loaded_model_path: Optional[str] = None  # track cached policy path
         self.policy_info: dict = {
             "video": [],       # e.g. ["cam_left_head", "cam_left_wrist", ...]
             "state": [],       # e.g. ["arm_left", "arm_right"]
@@ -185,6 +186,22 @@ class GR00TInference:
         robot_type = request.robot_type
 
         try:
+            # Reuse cached policy if the same model is already loaded.
+            # Only reload robot client (subscribers) on restart.
+            if self.policy is not None and self._loaded_model_path == model_path:
+                self.logger.info("Reusing cached policy: %s", model_path)
+                if self.robot is not None:
+                    self.robot.close()
+                    self.robot = None
+                self.init_policy_info()
+                self.init_robot_info(robot_type)
+                self.robot.wait_for_ready(timeout=10.0)
+                return {
+                    "success": True,
+                    "message": "GR00T inference restarted (policy cached)",
+                    "action_keys": list(self.policy_info["action"]),
+                }
+
             self.logger.info("Loading GR00T policy from: %s", model_path)
 
             self.policy = Gr00tPolicy(
@@ -192,6 +209,7 @@ class GR00TInference:
                 model_path=model_path,
                 device="cuda",
             )
+            self._loaded_model_path = model_path
 
             self.init_policy_info()
             self.init_robot_info(robot_type)
@@ -345,16 +363,10 @@ class GR00TInference:
         }
 
     def cleanup(self) -> None:
-        """Release all resources."""
+        """Release robot resources. Policy is kept cached for fast restart."""
         if self.robot is not None:
             self.robot.close()
             self.robot = None
-
-        if self.policy is not None:
-            del self.policy
-            self.policy = None
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
 
         self.policy_info = {k: [] for k in self.policy_info}
         self.robot_info = {

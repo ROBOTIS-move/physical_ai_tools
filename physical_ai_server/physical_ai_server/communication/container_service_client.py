@@ -32,6 +32,8 @@ Supports both inference and training services:
 
 from dataclasses import dataclass
 import logging
+import threading
+import time
 from typing import Any, Callable, Dict, Optional
 
 from physical_ai_interfaces.msg import TrainingProgress
@@ -42,7 +44,7 @@ from physical_ai_interfaces.srv import (
     TrainingStatus,
     TrainModel,
 )
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.callback_groups import CallbackGroup, ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 
@@ -105,12 +107,14 @@ class ContainerServiceClient:
         node: Node,
         service_prefix: str = "/groot",
         timeout_sec: float = 180.0,
+        callback_group: Optional[CallbackGroup] = None,
     ):
         self._node = node
         self._service_prefix = service_prefix
         self.timeout_sec = timeout_sec
         self._connected = False
-        self._callback_group: Optional[MutuallyExclusiveCallbackGroup] = None
+        self._cancelled = threading.Event()
+        self._callback_group = callback_group
 
         # Service clients
         self._infer_client = None
@@ -160,7 +164,8 @@ class ContainerServiceClient:
             return False
 
         try:
-            self._callback_group = MutuallyExclusiveCallbackGroup()
+            if self._callback_group is None:
+                self._callback_group = ReentrantCallbackGroup()
 
             self._infer_client = self._node.create_client(
                 StartInference,
@@ -264,10 +269,22 @@ class ContainerServiceClient:
             logger.debug(f"Calling service {service_name}")
             future = client.call_async(request)
 
-            import rclpy
-            rclpy.spin_until_future_complete(
-                self._node, future, timeout_sec=timeout
-            )
+            # Wait for the executor to resolve the future.
+            # MultiThreadedExecutor + dedicated client callback group ensures
+            # the response is processed on a separate thread, so this never
+            # deadlocks even when called from a service callback.
+            done_event = threading.Event()
+            future.add_done_callback(lambda _: done_event.set())
+
+            # Wait in short intervals so we can also check _cancelled.
+            deadline = time.perf_counter() + timeout
+            while not done_event.is_set():
+                if self._cancelled.is_set():
+                    break
+                remaining = deadline - time.perf_counter()
+                if remaining <= 0:
+                    break
+                done_event.wait(timeout=min(remaining, 1.0))
 
             if future.done():
                 response = future.result()
@@ -281,9 +298,11 @@ class ContainerServiceClient:
                         request_id="",
                     )
             else:
+                future.cancel()
+                reason = "cancelled" if self._cancelled.is_set() else "timed out"
                 return ServiceResponse(
                     success=False,
-                    message=f"Service call timed out: {service_name}",
+                    message=f"Service call {reason}: {service_name}",
                     data={},
                     request_id="",
                 )

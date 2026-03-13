@@ -59,8 +59,9 @@ class InferenceManager:
     """
 
     INFERENCE_HZ = 15.0   # Model output rate
-    BLEND_DURATION_S = 0.27  # Blend duration in seconds at chunk boundaries
-    REFILL_DURATION_S = 0.3  # Request new chunk when buffer < this duration
+    BLEND_DURATION_S = 0.2  # Blend duration in seconds at chunk boundaries
+    REFILL_MARGIN_S = 0.1  # Fixed time margin added to adaptive refill threshold
+    EMA_ALPHA = 0.3        # EMA smoothing factor for chunk fetch time
 
     def __init__(
         self,
@@ -69,7 +70,8 @@ class InferenceManager:
         joint_order: dict,
         service_prefix: str = "/groot",
         on_chunk_received: callable = None,
-        control_hz: float = 15.0,
+        control_hz: float = 100.0,
+        client_cb_group=None,
     ):
         """
         Args:
@@ -82,6 +84,9 @@ class InferenceManager:
             on_chunk_received: Optional callback(chunk_msg: JointTrajectory)
                 called when a new action chunk arrives, for visualization.
             control_hz: Robot command rate from UI (used for interpolation).
+            client_cb_group: Callback group for service clients. Must differ
+                from the service server callback group to avoid deadlock
+                with MultiThreadedExecutor.
         """
         self._node = node
         self._joint_topic_types = joint_topic_types
@@ -89,11 +94,15 @@ class InferenceManager:
         self._service_prefix = service_prefix
         self._on_chunk_received = on_chunk_received
         self._action_joint_map: dict = {}
+        self._client_cb_group = client_cb_group
 
         # Interpolation and buffer parameters derived from control_hz
-        self.CONTROL_HZ = float(control_hz)
-        self.BLEND_STEPS = max(1, int(self.BLEND_DURATION_S * self.CONTROL_HZ))
-        self.BUFFER_REFILL_THRESHOLD = max(1, int(self.REFILL_DURATION_S * self.CONTROL_HZ))
+        self._control_hz = float(control_hz)
+        self._blend_steps = max(1, int(self.BLEND_DURATION_S * self._control_hz))
+
+        # Adaptive refill: threshold updated based on measured chunk fetch time
+        self._chunk_fetch_ema: Optional[float] = None  # EMA of chunk fetch duration
+        self._buffer_refill_threshold = max(1, int(self.REFILL_MARGIN_S * self._control_hz))
 
         # Action buffer (deque of 1D np arrays, each length = total action DOF)
         self._action_buffer: collections.deque = collections.deque()
@@ -155,6 +164,7 @@ class InferenceManager:
         self._client = ContainerServiceClient(
             node=self._node,
             service_prefix=self._service_prefix,
+            callback_group=self._client_cb_group,
         )
         self._client.connect()
 
@@ -228,7 +238,7 @@ class InferenceManager:
             remaining = len(self._action_buffer)
 
         # Request new chunk if buffer running low
-        if remaining < self.BUFFER_REFILL_THRESHOLD and not self._requesting:
+        if remaining < self._buffer_refill_threshold and not self._requesting:
             self._request_chunk_async()
 
         return self._action_to_joint_msgs(action)
@@ -243,6 +253,18 @@ class InferenceManager:
         )
         self._inference_thread.start()
 
+    def _update_refill_threshold(self, fetch_duration: float):
+        """Update adaptive refill threshold based on measured chunk fetch time."""
+        if self._chunk_fetch_ema is None:
+            self._chunk_fetch_ema = fetch_duration
+        else:
+            self._chunk_fetch_ema = (
+                self.EMA_ALPHA * fetch_duration
+                + (1 - self.EMA_ALPHA) * self._chunk_fetch_ema
+            )
+        refill_s = self._chunk_fetch_ema + self.REFILL_MARGIN_S
+        self._buffer_refill_threshold = max(1, int(refill_s * self._control_hz))
+
     def _fetch_chunk(self):
         """Blocking service call to get action chunk, then enqueue.
 
@@ -253,34 +275,24 @@ class InferenceManager:
         MAX_RETRIES = 10
         RETRY_DELAY = 1.0  # seconds
 
-        thread_id = threading.current_thread().name
-        logger.info(f"[{thread_id}] Fetch chunk started")
-
         try:
             if self._client is None:
                 return
 
             for attempt in range(MAX_RETRIES):
                 if not self._running or self._paused:
-                    logger.info(
-                        "[%s] Fetch chunk aborted (running=%s, paused=%s)",
-                        thread_id, self._running, self._paused,
-                    )
                     return
 
-                t_start = time.monotonic()
+                t0 = time.perf_counter()
                 response = self._client.get_action_chunk(
                     task_instruction=self._task_instruction
                 )
-                elapsed = time.monotonic() - t_start
-                logger.info(
-                    "[%s] get_action_chunk returned in %.1fs: success=%s, msg=%s",
-                    thread_id, elapsed, response.success, response.message,
-                )
+                fetch_duration = time.perf_counter() - t0
+
                 if response.success:
                     # Double-check we weren't paused during the service call
                     if self._paused:
-                        logger.info("Chunk arrived but paused, discarding")
+                        logger.debug("Chunk arrived but paused, discarding")
                         return
 
                     chunk_data = response.data.get("action_chunk", [])
@@ -288,12 +300,19 @@ class InferenceManager:
                     action_dim = response.data.get("action_dim", 0)
 
                     if chunk_size > 0 and action_dim > 0 and len(chunk_data) > 0:
+                        self._update_refill_threshold(fetch_duration)
                         chunk = np.array(chunk_data).reshape(chunk_size, action_dim)
+                        # Discard chunk if paused — it's based on pre-pause
+                        # observations and would cause sudden movement on resume.
+                        if self._paused:
+                            return
                         self._align_and_enqueue(chunk)
                         self._publish_chunk_preview(chunk)
                         logger.info(
                             f"Chunk received: T={chunk_size}, D={action_dim}, "
-                            f"buffer={len(self._action_buffer)}"
+                            f"buffer={len(self._action_buffer)}, "
+                            f"fetch={fetch_duration:.3f}s, "
+                            f"refill_th={self._buffer_refill_threshold}"
                         )
                         return  # Success
                     else:
@@ -331,7 +350,7 @@ class InferenceManager:
 
         t_original = np.arange(T) / self.INFERENCE_HZ
         duration = (T - 1) / self.INFERENCE_HZ
-        n_interp = int(round(duration * self.CONTROL_HZ)) + 1
+        n_interp = int(round(duration * self._control_hz)) + 1
         t_interp = np.linspace(0, duration, n_interp)
 
         # Per-joint linear interpolation using np.interp
@@ -344,9 +363,9 @@ class InferenceManager:
     def _align_and_enqueue(self, chunk: np.ndarray):
         """L2 alignment, linear interpolation, and blending.
 
-        1. L2 alignment on raw 15Hz waypoints
-        2. Linear interpolation to 100Hz
-        3. Linear blend at chunk boundary
+        1. L2 alignment: find closest raw waypoint to last_action, skip past ones
+        2. Interpolate remaining raw waypoints to CONTROL_HZ
+        3. Linear blend at chunk boundary from last_action
         """
         with self._buffer_lock:
             # L2 alignment on raw 15Hz waypoints
@@ -356,12 +375,15 @@ class InferenceManager:
                 if start_idx < len(chunk):
                     chunk = chunk[start_idx:]
 
+            if len(chunk) == 0:
+                return
+
             # Interpolate 15Hz -> 100Hz
             chunk = self._interpolate_chunk(chunk)
 
-            # Linear blend at chunk boundary to avoid position jumps
+            # Linear blend at chunk boundary
             if self._last_action is not None and len(chunk) > 0:
-                n_blend = min(self.BLEND_STEPS, len(chunk))
+                n_blend = min(self._blend_steps, len(chunk))
                 for i in range(n_blend):
                     alpha = (i + 1) / (n_blend + 1)
                     chunk[i] = (1 - alpha) * self._last_action + alpha * chunk[i]
@@ -453,17 +475,27 @@ class InferenceManager:
         self._paused = False
         self._requesting = False
 
-        # Wait for background threads to finish
+        # Send stop to the container FIRST, before cancelling in-flight calls.
+        # This ensures the stop request is sent while the client/middleware is
+        # in a clean state, not blocked by cancelled futures.
+        if self._client:
+            try:
+                self._client.stop_inference()
+            except Exception as e:
+                logger.error(f"Error stopping inference: {e}")
+
+        # Signal in-progress service calls to abort via Event
+        if self._client:
+            self._client._cancelled.set()
+
+        # Wait for background threads to exit
         if self._load_thread and self._load_thread.is_alive():
             self._load_thread.join(timeout=5.0)
         if self._inference_thread and self._inference_thread.is_alive():
             self._inference_thread.join(timeout=5.0)
 
         if self._client:
-            try:
-                self._client.stop_inference()
-            except Exception as e:
-                logger.error(f"Error stopping inference: {e}")
+            self._client._cancelled.clear()
             try:
                 self._client.disconnect()
             except Exception as e:
@@ -475,6 +507,7 @@ class InferenceManager:
 
         self._last_action = None
         self._action_joint_map = {}
+        self._chunk_fetch_ema = None
         self._load_error = None
         logger.info(f"InferenceManager stopped ({self._service_prefix})")
 
@@ -514,11 +547,10 @@ class InferenceManager:
         with self._buffer_lock:
             self._action_buffer.clear()
         self._last_action = None
-        self._requesting = False
+        self._requesting = False  # Reset flag so resume always starts a fresh request
         self._paused = False
         self._request_chunk_async()
         logger.info(
-            "InferenceManager resumed (%s), running=%s, requesting=%s",
-            self._service_prefix, self._running, self._requesting,
+            "InferenceManager resumed (%s)", self._service_prefix
         )
 

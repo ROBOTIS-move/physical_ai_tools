@@ -56,13 +56,15 @@ class ZenohTrainingManager:
     _cached_policies: Optional[list] = None
     _cached_policy_details: Optional[list] = None
 
-    def __init__(self, node: Node = None, service_prefix: str = "/lerobot"):
+    def __init__(self, node: Node = None, service_prefix: str = "/lerobot",
+                 client_cb_group=None):
         # ROS2 node required for creating service clients
         self._node = node
         self._service_prefix = service_prefix
         self.training_info = TrainingInfo()
         self.client = ContainerServiceClient(
-            node=node, service_prefix=service_prefix
+            node=node, service_prefix=service_prefix,
+            callback_group=client_cb_group,
         )
         self._connected = False
         self._status_callback: Optional[Callable] = None

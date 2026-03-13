@@ -68,6 +68,8 @@ from physical_ai_server.utils.parameter_utils import (
 from physical_ai_server.utils.video_file_server import VideoFileServer
 
 import rclpy
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
 
@@ -88,6 +90,13 @@ class PhysicalAIServer(Node):
     def __init__(self):
         super().__init__('physical_ai_server')
         self.get_logger().info('Start Physical AI Server')
+
+        # Callback groups for MultiThreadedExecutor.
+        # Separating service servers from service clients prevents deadlock
+        # when a service callback needs to call another service (e.g., FINISH
+        # calling /groot/stop).
+        self._service_cb_group = MutuallyExclusiveCallbackGroup()
+        self._client_cb_group = ReentrantCallbackGroup()
 
         self.params = None
         self.total_joint_order = None
@@ -203,7 +212,10 @@ class PhysicalAIServer(Node):
         ]
 
         for service_name, service_type, callback in service_definitions:
-            self.create_service(service_type, service_name, callback)
+            self.create_service(
+                service_type, service_name, callback,
+                callback_group=self._service_cb_group,
+            )
 
         self.get_logger().info('ROS services initialized successfully')
 
@@ -631,7 +643,9 @@ class PhysicalAIServer(Node):
         try:
             if request.command == SendTrainingCommand.Request.START:
                 # Initialize training components (ROS2 services with rmw_zenoh)
-                self.training_manager = ZenohTrainingManager(node=self)
+                self.training_manager = ZenohTrainingManager(
+                    node=self, client_cb_group=self._client_cb_group,
+                )
                 self.training_timer = TimerManager(node=self)
                 self._setup_training_status_timer()
 
@@ -881,6 +895,7 @@ class PhysicalAIServer(Node):
                         service_prefix=service_prefix,
                         on_chunk_received=self.communicator.publish_action_chunk,
                         control_hz=self._control_hz,
+                        client_cb_group=self._client_cb_group,
                     )
 
                     self.inference_manager.start(
@@ -1687,14 +1702,23 @@ class PhysicalAIServer(Node):
         return '/groot'
 
     def _stop_groot_inference(self):
-        """Stop GR00T inference and cleanup (blocking)."""
+        """Stop GR00T inference and cleanup (non-blocking).
+
+        Clears the inference_manager reference immediately so no new
+        actions are dispatched, then runs the blocking cleanup (thread
+        join + container stop service call) in a background thread.
+        """
         if self.inference_manager is not None:
             manager = self.inference_manager
             self.inference_manager = None
-            try:
-                manager.stop()
-            except Exception as e:
-                self.get_logger().error(f'Error stopping inference: {e}')
+
+            def _cleanup():
+                try:
+                    manager.stop()
+                except Exception as e:
+                    self.get_logger().error(f'Error stopping inference: {e}')
+
+            threading.Thread(target=_cleanup, daemon=True).start()
 
     def handle_joystick_trigger(self, joystick_mode: str):
         """
@@ -1989,14 +2013,17 @@ def main(args=None):
     rclpy.init(args=args)
 
     node = PhysicalAIServer()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
         # Cleanup workers before destroying node
         node._cleanup_hf_api_worker()
         node._cleanup_mp4_conversion_worker()
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 

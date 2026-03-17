@@ -20,10 +20,9 @@ target_include_directories(service_bag_recorder PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
 target_compile_features(service_bag_recorder PUBLIC c_std_99 cxx_std_17)
-ament_target_dependencies(
-  service_bag_recorder
-  "rclcpp"
-  "rosbag2_cpp"
+target_link_libraries(service_bag_recorder
+  rclcpp::rclcpp
+  rosbag2_cpp::rosbag2_cpp
 )
 
 # Link against the generated interfaces using the modern approach

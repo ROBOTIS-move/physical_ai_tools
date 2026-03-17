@@ -21,6 +21,8 @@ import math
 import mimetypes
 import os
 import re
+import signal
+import subprocess
 import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -58,6 +60,9 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
     allowed_base_paths = []
     # Replay data handler instance (set by server)
     replay_data_handler = None
+    # BT node subprocess management
+    _bt_process = None
+    _bt_lock = threading.Lock()
 
     def __init__(self, *args, **kwargs):
         # Don't call super().__init__ here, let it be called by HTTPServer
@@ -102,6 +107,11 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
         # Handle rosbag list requests
         if parsed_path.startswith('/rosbag-list/'):
             self._handle_rosbag_list_request(parsed_path)
+            return
+
+        # Handle BT node status
+        if parsed_path == '/bt/node-status':
+            self._handle_bt_node_status()
             return
 
         # Handle panel layout requests
@@ -342,11 +352,159 @@ class VideoFileHandler(SimpleHTTPRequestHandler):
         )
         self.end_headers()
 
+    def do_POST(self):
+        """Handle POST requests."""
+        parsed_path = urlparse(self.path).path
+        parsed_path = unquote(parsed_path)
+
+        if parsed_path == '/bt/launch':
+            self._handle_bt_launch()
+            return
+
+        if parsed_path == '/bt/shutdown':
+            self._handle_bt_shutdown()
+            return
+
+        self._send_json_error(404, "Unknown POST endpoint")
+
+    def _handle_bt_node_status(self):
+        """Handle GET /bt/node-status — check if BT node process is alive."""
+        with self._bt_lock:
+            is_running = (
+                self._bt_process is not None
+                and self._bt_process.poll() is None
+            )
+
+        result = json.dumps({'running': is_running}).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(result)))
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Cache-Control', 'no-cache')
+        self.end_headers()
+        self.wfile.write(result)
+
+    def _handle_bt_launch(self):
+        """Handle POST /bt/launch — launch the BT node process."""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            robot_type = 'ffw_sg2_rev1'
+            if content_length > 0:
+                body = self.rfile.read(content_length)
+                data = json.loads(body.decode('utf-8'))
+                robot_type = data.get('robot_type', robot_type)
+
+            with self._bt_lock:
+                # Check if already running
+                if (
+                    self._bt_process is not None
+                    and self._bt_process.poll() is None
+                ):
+                    result = json.dumps({
+                        'success': True,
+                        'message': 'BT node already running'
+                    }).encode('utf-8')
+                    self.send_response(200)
+                    self.send_header(
+                        'Content-Type',
+                        'application/json; charset=utf-8'
+                    )
+                    self.send_header('Content-Length', str(len(result)))
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(result)
+                    return
+
+                # Launch BT node
+                cmd = [
+                    'ros2', 'launch', 'physical_ai_bt',
+                    'bt_node.launch.py',
+                    f'robot_type:={robot_type}',
+                ]
+                VideoFileHandler._bt_process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    preexec_fn=os.setsid,
+                )
+
+            result = json.dumps({
+                'success': True,
+                'message': f'BT node launched (PID: {self._bt_process.pid})'
+            }).encode('utf-8')
+            self.send_response(200)
+            self.send_header(
+                'Content-Type', 'application/json; charset=utf-8'
+            )
+            self.send_header('Content-Length', str(len(result)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(result)
+
+        except Exception as e:
+            self._send_json_error(500, f"Failed to launch BT node: {str(e)}")
+
+    def _handle_bt_shutdown(self):
+        """Handle POST /bt/shutdown — shutdown the BT node process."""
+        try:
+            with self._bt_lock:
+                if (
+                    self._bt_process is None
+                    or self._bt_process.poll() is not None
+                ):
+                    VideoFileHandler._bt_process = None
+                    result = json.dumps({
+                        'success': True,
+                        'message': 'BT node not running'
+                    }).encode('utf-8')
+                    self.send_response(200)
+                    self.send_header(
+                        'Content-Type',
+                        'application/json; charset=utf-8'
+                    )
+                    self.send_header('Content-Length', str(len(result)))
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(result)
+                    return
+
+                # Kill the process group (includes ros2 launch children)
+                os.killpg(
+                    os.getpgid(self._bt_process.pid), signal.SIGTERM
+                )
+                try:
+                    self._bt_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    os.killpg(
+                        os.getpgid(self._bt_process.pid), signal.SIGKILL
+                    )
+                    self._bt_process.wait(timeout=3)
+
+                VideoFileHandler._bt_process = None
+
+            result = json.dumps({
+                'success': True,
+                'message': 'BT node shutdown'
+            }).encode('utf-8')
+            self.send_response(200)
+            self.send_header(
+                'Content-Type', 'application/json; charset=utf-8'
+            )
+            self.send_header('Content-Length', str(len(result)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(result)
+
+        except Exception as e:
+            self._send_json_error(
+                500, f"Failed to shutdown BT node: {str(e)}"
+            )
+
     def do_OPTIONS(self):
         """Handle CORS preflight requests."""
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, PUT, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, PUT, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Range, Content-Type')
         self.send_header(
             'Access-Control-Expose-Headers',

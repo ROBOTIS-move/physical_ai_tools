@@ -61,6 +61,8 @@ class Rotate(BaseAction):
         if not isinstance(self.topic_config, dict):
             self.topic_config = {}
         self.angular_velocity = ROTATION_ANGULAR_VELOCITY  # noqa: F405
+        self.kp = ROTATION_KP  # noqa: F405
+        self.min_angular_velocity = ROTATION_MIN_ANGULAR_VELOCITY  # noqa: F405
 
         qos_profile = QoSProfile(
             depth=QOS_QUEUE_DEPTH,  # noqa: F405
@@ -149,10 +151,12 @@ class Rotate(BaseAction):
                     self._result = True
                 return
 
-            if error > 0:
-                angular_z = self.angular_velocity
-            else:
-                angular_z = -self.angular_velocity
+            angular_z = self.kp * error
+            angular_z = max(-self.angular_velocity,
+                            min(self.angular_velocity, angular_z))
+            if 0 < abs(angular_z) < self.min_angular_velocity:
+                angular_z = (self.min_angular_velocity if angular_z > 0
+                             else -self.min_angular_velocity)
 
             if 'leader_mobile' in self.publishers:
                 twist_msg = Twist()

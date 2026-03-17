@@ -14,7 +14,7 @@
 //
 // Author: Seongwoo Kim
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   ReactFlow,
@@ -30,9 +30,10 @@ import { MdPlayArrow, MdStop, MdUploadFile } from 'react-icons/md';
 
 import BTControlNode from '../components/bt/BTControlNode';
 import BTActionNode from '../components/bt/BTActionNode';
+import BTParamPanel from '../components/bt/BTParamPanel';
 import FileBrowserModal from '../components/FileBrowserModal';
 import { parseBTXml } from '../utils/btTreeParser';
-import { setTreeXml, setTreeFileName, setBtStatus } from '../features/btmanager/btmanagerSlice';
+import { setTreeXml, setTreeFileName, setBtStatus, setActiveNodeNames, setSelectedNodeId } from '../features/btmanager/btmanagerSlice';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import { DEFAULT_PATHS } from '../constants/paths';
 
@@ -49,6 +50,8 @@ export default function BTManagerPage({ isActive = true }) {
   const treeXml = useSelector((state) => state.btmanager.treeXml);
   const treeFileName = useSelector((state) => state.btmanager.treeFileName);
   const btStatus = useSelector((state) => state.btmanager.btStatus);
+  const activeNodeNames = useSelector((state) => state.btmanager.activeNodeNames);
+  const selectedNodeId = useSelector((state) => state.btmanager.selectedNodeId);
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -104,35 +107,88 @@ export default function BTManagerPage({ isActive = true }) {
     }
   }, [rosbridgeUrl, dispatch]);
 
-  // BT Start
+  // Node click handler for param editing
+  const handleNodeClick = useCallback((event, node) => {
+    dispatch(setSelectedNodeId(node.id));
+  }, [dispatch]);
+
+  // Helper: get HTTP server base URL from rosbridgeUrl
+  const getHttpBaseUrl = useCallback(() => {
+    const urlMatch = rosbridgeUrl.match(/ws:\/\/([^:]+):/);
+    const host = urlMatch ? urlMatch[1] : 'localhost';
+    return `http://${host}:8082`;
+  }, [rosbridgeUrl]);
+
+  // BT Start - launch node, load XML, and run
   const handleStart = useCallback(async () => {
+    if (!treeXml) {
+      toast.error('No tree loaded');
+      return;
+    }
     try {
-      await callService(
-        '/bt/set_running',
-        'std_srvs/srv/SetBool',
-        { data: true }
+      // 1. Launch BT node if not running
+      const baseUrl = getHttpBaseUrl();
+      const launchRes = await fetch(`${baseUrl}/bt/launch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const launchData = await launchRes.json();
+      if (!launchData.success) {
+        toast.error(`Failed to launch BT node: ${launchData.message}`);
+        return;
+      }
+
+      // 2. Wait for BT node to fully initialize
+      const isAlreadyRunning = launchData.message.includes('already running');
+      if (!isAlreadyRunning) {
+        await new Promise((resolve) => setTimeout(resolve, 8000));
+      }
+
+      // 3. Load XML and start execution
+      const result = await callService(
+        '/bt/load_and_run',
+        'physical_ai_interfaces/srv/LoadAndRunTree',
+        { tree_xml: treeXml },
+        30000
       );
-      dispatch(setBtStatus('running'));
-      toast.success('BT started');
+      if (result.success) {
+        dispatch(setBtStatus('running'));
+        dispatch(setSelectedNodeId(null));
+        toast.success('BT started');
+      } else {
+        toast.error(`Failed: ${result.message}`);
+      }
     } catch (err) {
       toast.error(`Failed to start BT: ${err.message}`);
     }
-  }, [callService, dispatch]);
+  }, [callService, dispatch, treeXml, getHttpBaseUrl]);
 
-  // BT Stop
+  // BT Stop - stop tree and shutdown node
   const handleStop = useCallback(async () => {
     try {
-      await callService(
-        '/bt/set_running',
-        'std_srvs/srv/SetBool',
-        { data: false }
-      );
+      // 1. Stop BT execution
+      try {
+        await callService(
+          '/bt/set_running',
+          'std_srvs/srv/SetBool',
+          { data: false }
+        );
+      } catch {
+        // BT node may already be gone, continue to shutdown
+      }
+
+      // 2. Shutdown BT node process
+      const baseUrl = getHttpBaseUrl();
+      await fetch(`${baseUrl}/bt/shutdown`, { method: 'POST' });
+
       dispatch(setBtStatus('stopped'));
+      dispatch(setActiveNodeNames([]));
       toast.success('BT stopped');
     } catch (err) {
       toast.error(`Failed to stop BT: ${err.message}`);
     }
-  }, [callService, dispatch]);
+  }, [callService, dispatch, getHttpBaseUrl]);
 
   // Subscribe to BT status topic
   useEffect(() => {
@@ -140,6 +196,7 @@ export default function BTManagerPage({ isActive = true }) {
 
     let ros = null;
     let statusTopic = null;
+    let activeNodesTopic = null;
 
     const setupSubscription = async () => {
       try {
@@ -155,6 +212,20 @@ export default function BTManagerPage({ isActive = true }) {
 
         statusTopic.subscribe((msg) => {
           dispatch(setBtStatus(msg.data));
+          if (msg.data !== 'running') {
+            dispatch(setActiveNodeNames([]));
+          }
+        });
+
+        activeNodesTopic = new ROSLIB.Topic({
+          ros,
+          name: '/bt/active_nodes',
+          messageType: 'std_msgs/msg/String',
+        });
+
+        activeNodesTopic.subscribe((msg) => {
+          const names = msg.data ? msg.data.split(',') : [];
+          dispatch(setActiveNodeNames(names));
         });
       } catch (err) {
         console.debug('BT status subscription not available:', err.message);
@@ -164,11 +235,23 @@ export default function BTManagerPage({ isActive = true }) {
     setupSubscription();
 
     return () => {
-      if (statusTopic) {
-        statusTopic.unsubscribe();
-      }
+      if (statusTopic) statusTopic.unsubscribe();
+      if (activeNodesTopic) activeNodesTopic.unsubscribe();
     };
   }, [rosbridgeUrl, isActive, dispatch]);
+
+  // Annotate nodes with isActive flag based on active node IDs
+  const annotatedNodes = useMemo(() => {
+    const activeSet = new Set(activeNodeNames);
+    return nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        isActive: activeSet.has(node.id),
+        isSelected: node.id === selectedNodeId,
+      },
+    }));
+  }, [nodes, activeNodeNames, selectedNodeId]);
 
   const statusColor = btStatus === 'running' ? 'bg-green-500' : 'bg-gray-400';
   const statusLabel = btStatus === 'running' ? 'Running' : 'Stopped';
@@ -197,7 +280,8 @@ export default function BTManagerPage({ isActive = true }) {
       </div>
 
       {/* React Flow Canvas */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative flex">
+        <div className="flex-1 relative">
         {parseError ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-red-500 text-center">
@@ -214,7 +298,7 @@ export default function BTManagerPage({ isActive = true }) {
           </div>
         ) : (
           <ReactFlow
-            nodes={nodes}
+            nodes={annotatedNodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -223,13 +307,25 @@ export default function BTManagerPage({ isActive = true }) {
             fitViewOptions={{ padding: 0.2 }}
             nodesDraggable={false}
             nodesConnectable={false}
-            elementsSelectable={false}
+            elementsSelectable={true}
+            onNodeClick={handleNodeClick}
             minZoom={0.3}
             maxZoom={2}
+            zoomOnScroll={false}
+            panOnScroll={true}
+            zoomOnPinch={true}
+            zoomActivationKeyCode="Control"
           >
             <Controls showInteractive={false} />
             <Background color="#e5e7eb" gap={16} />
           </ReactFlow>
+        )}
+        </div>
+        {selectedNodeId && (
+          <BTParamPanel
+            nodes={annotatedNodes}
+            selectedNodeId={selectedNodeId}
+          />
         )}
       </div>
 
@@ -238,10 +334,10 @@ export default function BTManagerPage({ isActive = true }) {
         <div className="flex items-center gap-3">
           <button
             onClick={handleStart}
-            disabled={btStatus === 'running'}
+            disabled={btStatus === 'running' || !treeXml}
             className={clsx(
               'flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-colors',
-              btStatus === 'running'
+              (btStatus === 'running' || !treeXml)
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 : 'bg-green-600 hover:bg-green-700 text-white'
             )}

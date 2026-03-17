@@ -40,6 +40,7 @@ class BTNode:
         """Initialize a behavior tree node."""
         self.node = node
         self.name = name
+        self.uid = ''
         self.status = NodeStatus.RUNNING
 
     def tick(self) -> NodeStatus:
@@ -49,6 +50,10 @@ class BTNode:
     def reset(self):
         """Reset the node to its initial state."""
         self.status = NodeStatus.RUNNING
+
+    def get_active_node_ids(self):
+        """Return UIDs of currently active nodes (leaf default)."""
+        return [self.uid]
 
     def log_info(self, message: str):
         """Log an info message with the node name prefix."""

@@ -24,6 +24,7 @@ from ament_index_python.packages import get_package_share_directory
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from physical_ai_interfaces.srv import LoadAndRunTree
 from physical_ai_interfaces.srv import SendCommand
 from std_msgs.msg import String
 from std_srvs.srv import SetBool
@@ -102,6 +103,11 @@ class BehaviorTreeNode(Node):
             SetBool, '/bt/set_running', self._set_running_callback
         )
 
+        # Service: load tree from XML string and start execution
+        self.load_and_run_srv = self.create_service(
+            LoadAndRunTree, '/bt/load_and_run', self._load_and_run_callback
+        )
+
         # Service client: cleanup inference on BT stop
         self._cleanup_client = self.create_client(
             SendCommand, '/task/command'
@@ -110,6 +116,11 @@ class BehaviorTreeNode(Node):
         # Publisher: BT execution status
         self._status_pub = self.create_publisher(String, '/bt/status', 10)
         self._status_timer = self.create_timer(1.0, self._publish_status)
+
+        # Publisher: currently active node names
+        self._active_nodes_pub = self.create_publisher(
+            String, '/bt/active_nodes', 10
+        )
 
         self.get_logger().info('Behavior Tree Node initialized')
         self.get_logger().info(f'Robot type: {robot_type}')
@@ -206,6 +217,17 @@ class BehaviorTreeNode(Node):
 
         status = self.root.tick()
 
+        # Publish active node IDs
+        if status == NodeStatus.RUNNING:
+            active_names = self.root.get_active_node_ids()
+            msg = String()
+            msg.data = ','.join(active_names)
+            self._active_nodes_pub.publish(msg)
+        else:
+            msg = String()
+            msg.data = ''
+            self._active_nodes_pub.publish(msg)
+
         if status in [NodeStatus.SUCCESS, NodeStatus.FAILURE]:
             if status == NodeStatus.SUCCESS:
                 status_name = 'successfully'
@@ -237,6 +259,37 @@ class BehaviorTreeNode(Node):
             response.success = True
             response.message = 'BT stopped'
         self._publish_status()
+        return response
+
+    def _load_and_run_callback(self, request, response):
+        """Handle /bt/load_and_run: load XML tree and start execution."""
+        try:
+            # Stop current tree if running
+            if self.tree_execution_mode == 'running':
+                self.tree_execution_mode = 'stopped'
+                if self.root is not None:
+                    self.root.reset()
+                self._send_cleanup_command()
+
+            # Load new tree from XML string
+            self.root = self.tree_loader.load_tree_from_string(
+                request.tree_xml
+            )
+
+            # Start execution
+            self.tree_execution_mode = 'running'
+            self._publish_status()
+
+            response.success = True
+            response.message = f'Tree loaded and started: {self.root.name}'
+            self.get_logger().info(response.message)
+        except Exception as e:
+            response.success = False
+            response.message = f'Failed to load tree: {str(e)}'
+            self.get_logger().error(response.message)
+            self.root = None
+            self.tree_execution_mode = 'stopped'
+            self._publish_status()
         return response
 
     def _publish_status(self):

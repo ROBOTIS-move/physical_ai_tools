@@ -55,6 +55,12 @@ class Sequence(BaseControl):
         self.log_info('All children succeeded')
         return NodeStatus.SUCCESS
 
+    def get_active_node_ids(self):
+        """Return the currently active leaf node UID."""
+        if self.current_child_index < len(self.children):
+            return self.children[self.current_child_index].get_active_node_ids()
+        return []
+
     def reset(self):
         """Reset the sequence to start from the first child."""
         super().reset()

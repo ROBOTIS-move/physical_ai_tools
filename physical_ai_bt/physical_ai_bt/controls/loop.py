@@ -34,6 +34,12 @@ class Loop(BaseControl):
         """Initialize the Loop control node."""
         super().__init__(node, name)
 
+    def get_active_node_ids(self):
+        """Return the currently active leaf node UID."""
+        if self.children:
+            return self.children[0].get_active_node_ids()
+        return []
+
     def tick(self) -> NodeStatus:
         """Tick the child; reset and repeat on SUCCESS, propagate FAILURE."""
         if not self.children:

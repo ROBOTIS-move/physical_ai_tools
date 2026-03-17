@@ -23,6 +23,10 @@ from typing import Dict  # noqa: I100
 from typing import TYPE_CHECKING  # noqa: I100
 from typing import Type  # noqa: I100
 
+from physical_ai_bt.actions import InferenceUntilGripperClose
+from physical_ai_bt.actions import InferenceUntilGripperOpen
+from physical_ai_bt.actions import InferenceUntilPositionWithGripper
+from physical_ai_bt.actions import InferenceUntilStatic
 from physical_ai_bt.actions import MoveArms
 from physical_ai_bt.actions import MoveHead
 from physical_ai_bt.actions import MoveLift
@@ -30,6 +34,8 @@ from physical_ai_bt.actions import Rotate
 from physical_ai_bt.actions import SendCommandAction
 from physical_ai_bt.actions import Wait
 from physical_ai_bt.actions.base_action import BaseAction
+from physical_ai_bt.constants import GRIPPER_CLOSED_THRESHOLD
+from physical_ai_bt.constants import GRIPPER_OPEN_THRESHOLD
 from physical_ai_bt.bt_core import BTNode
 from physical_ai_bt.controls import Loop
 from physical_ai_bt.controls import Sequence
@@ -50,6 +56,8 @@ class TreeLoader:
         self.joint_names = joint_names or []
         self.topic_config = topic_config or {}
 
+        self._node_counter = 0
+
         self.control_types: Dict[str, Type[BaseControl]] = {
             'Sequence': Sequence,
             'Loop': Loop,
@@ -62,15 +70,33 @@ class TreeLoader:
             'MoveLift': MoveLift,
             'SendCommand': SendCommandAction,
             'Wait': Wait,
+            'InferenceUntilGripperClose': InferenceUntilGripperClose,
+            'InferenceUntilGripperOpen': InferenceUntilGripperOpen,
+            'InferenceUntilPositionWithGripper': InferenceUntilPositionWithGripper,
+            'InferenceUntilStatic': InferenceUntilStatic,
         }
+
+    def load_tree_from_string(
+        self, xml_string: str, main_tree_id: str = None
+    ) -> BTNode:
+        """Load a behavior tree from an XML string."""
+        self._node_counter = 0
+        root = ET.fromstring(xml_string)
+        return self._load_tree_from_root(root, main_tree_id)
 
     def load_tree_from_file(
         self, xml_path: str, main_tree_id: str = None
     ) -> BTNode:
         """Load a behavior tree from an XML file."""
+        self._node_counter = 0
         tree = ET.parse(xml_path)
         root = tree.getroot()
+        return self._load_tree_from_root(root, main_tree_id)
 
+    def _load_tree_from_root(
+        self, root: ET.Element, main_tree_id: str = None
+    ) -> BTNode:
+        """Load a behavior tree from a parsed XML root element."""
         if main_tree_id is None:
             main_tree_id = root.get('main_tree_to_execute')
             if not main_tree_id:
@@ -92,9 +118,13 @@ class TreeLoader:
         node_id = xml_node.get('ID', node_type)
         node_name = xml_node.get('name', node_id)
 
+        uid = f'bt_{self._node_counter}'
+        self._node_counter += 1
+
         if node_type in self.control_types:
             control_class = self.control_types[node_type]
             control_node = control_class(self.node, name=node_name)
+            control_node.uid = uid
 
             for child_xml in xml_node:
                 child_node = self._load_node(child_xml)
@@ -105,7 +135,9 @@ class TreeLoader:
         elif node_id in self.action_types:
             action_class = self.action_types[node_id]
             params = self._parse_node_params(xml_node)
-            return self._create_action(action_class, node_name, params)
+            action = self._create_action(action_class, node_name, params)
+            action.uid = uid
+            return action
 
         else:
             raise ValueError(
@@ -156,29 +188,33 @@ class TreeLoader:
     ) -> BaseAction:
         """Create an action node instance with the given parameters."""
         if action_class == Rotate:
-            return action_class(
+            action = action_class(
                 node=self.node,
                 angle_deg=params.get('angle_deg', 90.0),
                 topic_config=self.topic_config
             )
+            action.name = name
+            return action
 
         elif action_class == MoveHead:
             head_joints = self._get_joint_names_for_group('leader_head')
 
-            return action_class(
+            action = action_class(
                 node=self.node,
                 head_positions=params.get('head_positions', [0.0, 0.0]),
                 head_joint_names=head_joints if head_joints else None,
                 position_threshold=params.get('position_threshold', 0.01),
                 duration=params.get('duration', 5.0)
             )
+            action.name = name
+            return action
 
         elif action_class == MoveArms:
             default_positions = [0.0] * 8
             left_joints = self._get_joint_names_for_group('leader_left')
             right_joints = self._get_joint_names_for_group('leader_right')
 
-            return action_class(
+            action = action_class(
                 node=self.node,
                 left_positions=params.get('left_positions', default_positions),
                 right_positions=params.get(
@@ -189,24 +225,28 @@ class TreeLoader:
                 position_threshold=params.get('position_threshold', 0.01),
                 duration=params.get('duration', 2.0)
             )
+            action.name = name
+            return action
 
         elif action_class == MoveLift:
             lift_joints = self._get_joint_names_for_group('leader_lift')
             lift_joint_name = lift_joints[0] if lift_joints else None
 
-            return action_class(
+            action = action_class(
                 node=self.node,
                 lift_position=params.get('lift_position', 0.0),
                 lift_joint_name=lift_joint_name,
                 position_threshold=params.get('position_threshold', 0.01),
                 duration=params.get('duration', 5.0)
             )
+            action.name = name
+            return action
 
         elif action_class == SendCommandAction:
             task_instruction = params.get('task_instruction', '')
             if isinstance(task_instruction, list):
                 task_instruction = ', '.join(task_instruction)
-            return action_class(
+            action = action_class(
                 node=self.node,
                 command=params.get('command', 'STOP_INFERENCE'),
                 policy_path=params.get('policy_path', ''),
@@ -215,12 +255,74 @@ class TreeLoader:
                 control_hz=params.get('control_hz', 0),
                 wait_until_ready=params.get('wait_until_ready', False),
             )
+            action.name = name
+            return action
+
+        elif action_class in (
+            InferenceUntilGripperClose, InferenceUntilGripperOpen
+        ):
+            action = action_class(
+                node=self.node,
+                position_change_threshold=params.get(
+                    'position_change_threshold', 0.05
+                ),
+                static_duration=params.get('static_duration', 3.0),
+                history_window=params.get('history_window', 1.0),
+                gripper_closed_threshold=params.get(
+                    'gripper_closed_threshold',
+                    GRIPPER_CLOSED_THRESHOLD,
+                ),
+                gripper_open_threshold=params.get(
+                    'gripper_open_threshold',
+                    GRIPPER_OPEN_THRESHOLD,
+                ),
+            )
+            action.name = name
+            return action
+
+        elif action_class == InferenceUntilStatic:
+            action = action_class(
+                node=self.node,
+                position_change_threshold=params.get(
+                    'position_change_threshold', 0.05
+                ),
+                static_duration=params.get('static_duration', 3.0),
+                history_window=params.get('history_window', 1.0),
+            )
+            action.name = name
+            return action
+
+        elif action_class == InferenceUntilPositionWithGripper:
+            default_positions = [0.0] * 8
+            action = action_class(
+                node=self.node,
+                left_positions=params.get(
+                    'left_positions', default_positions
+                ),
+                right_positions=params.get(
+                    'right_positions', default_positions
+                ),
+                tolerance=params.get('tolerance', 0.1),
+                gripper_closed_threshold=params.get(
+                    'gripper_closed_threshold',
+                    GRIPPER_CLOSED_THRESHOLD,
+                ),
+                gripper_open_threshold=params.get(
+                    'gripper_open_threshold',
+                    GRIPPER_OPEN_THRESHOLD,
+                ),
+                check_delay=params.get('check_delay', 5.0),
+            )
+            action.name = name
+            return action
 
         elif action_class == Wait:
-            return action_class(
+            action = action_class(
                 node=self.node,
                 duration=params.get('duration', 5.0),
             )
+            action.name = name
+            return action
 
         else:
             raise ValueError(f'Unknown action class: {action_class}')

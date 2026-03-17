@@ -27,6 +27,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetSavedPolicyList.srv"
   "srv/GetTrainingInfo.srv"
   "srv/GetUserList.srv"
+  "srv/LoadAndRunTree.srv"
   "srv/SendCommand.srv"
   "srv/SendTrainingCommand.srv"
   "srv/SetHFUser.srv"

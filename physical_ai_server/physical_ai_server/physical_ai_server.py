@@ -839,16 +839,23 @@ class PhysicalAIServer(Node):
                     if self.timer_manager:
                         self.timer_manager.start(timer_name=self.operation_mode)
 
-                self.on_recording = True
-
-                # Start recording and rosbag directly
+                # Start rosbag first (synchronous), then recording on success
                 self.get_logger().info('Starting recording')
+                rosbag_path = self.data_manager.get_save_rosbag_path(allow_idle=True)
+                if not rosbag_path:
+                    response.success = False
+                    response.message = 'Failed to resolve rosbag path'
+                    return response
+
+                try:
+                    self.communicator.start_rosbag(rosbag_uri=rosbag_path)
+                except Exception as e:
+                    response.success = False
+                    response.message = f'Failed to start rosbag: {str(e)}'
+                    return response
+
                 self.data_manager.start_recording()
-                rosbag_path = self.data_manager.get_save_rosbag_path()
-                if rosbag_path:
-                    self.communicator.start_rosbag(
-                        rosbag_uri=rosbag_path
-                    )
+                self.on_recording = True
                 self.start_recording_time = time.perf_counter()
                 self.communicator.publish_action_event('start')
                 response.success = True
@@ -1093,13 +1100,26 @@ class PhysicalAIServer(Node):
                             self.communicator.prepare_rosbag(
                                 topics=rosbag_topics
                             )
-                            self.data_manager.start_recording()
                             rosbag_path = \
-                                self.data_manager.get_save_rosbag_path()
-                            if rosbag_path:
+                                self.data_manager.get_save_rosbag_path(
+                                    allow_idle=True)
+                            if not rosbag_path:
+                                response.success = False
+                                response.message = \
+                                    'Failed to resolve rosbag path'
+                                return response
+
+                            try:
                                 self.communicator.start_rosbag(
                                     rosbag_uri=rosbag_path
                                 )
+                            except Exception as e:
+                                response.success = False
+                                response.message = \
+                                    f'Failed to start rosbag: {str(e)}'
+                                return response
+
+                            self.data_manager.start_recording()
                             self.on_recording = True
                             self.start_recording_time = time.perf_counter()
                             self.communicator.publish_action_event('start')

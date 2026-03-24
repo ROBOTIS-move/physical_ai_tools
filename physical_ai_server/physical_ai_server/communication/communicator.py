@@ -17,6 +17,7 @@
 # Author: Dongyun Kim, Seongwoo Kim, Kiwoong Park
 
 from typing import Any, Callable, Dict, List, Optional
+import threading
 
 from geometry_msgs.msg import Twist
 from physical_ai_interfaces.msg import (
@@ -36,6 +37,7 @@ from physical_ai_server.utils.parameter_utils import (
     parse_topic_list,
     parse_topic_list_with_names,
 )
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import (
     DurabilityPolicy,
@@ -221,7 +223,8 @@ class Communicator:
 
         self._rosbag_send_command_client = self.node.create_client(
             SendCommand,
-            'rosbag_recorder/send_command')
+            'rosbag_recorder/send_command',
+            callback_group=ReentrantCallbackGroup())
 
         if self._check_rosbag_services_available():
             self.rosbag_service_available = True
@@ -244,7 +247,9 @@ class Communicator:
     def start_rosbag(self, rosbag_uri: str):
         self._send_rosbag_command(
             command=SendCommand.Request.START,
-            uri=rosbag_uri
+            uri=rosbag_uri,
+            wait_for_response=True,
+            timeout_sec=5.0,
         )
 
     def stop_rosbag(self):
@@ -265,7 +270,9 @@ class Communicator:
     def _send_rosbag_command(self,
                              command: int,
                              topics: List[str] = None,
-                             uri: str = None):
+                             uri: str = None,
+                             wait_for_response: bool = False,
+                             timeout_sec: float = 5.0):
 
         if not self.rosbag_service_available:
             self.node.get_logger().error('Rosbag service is not available')
@@ -276,8 +283,28 @@ class Communicator:
         req.topics = topics if topics is not None else []
         req.uri = uri if uri is not None else ''
 
-        # Asynchronous service call - fire and forget
         future = self._rosbag_send_command_client.call_async(req)
+
+        if wait_for_response:
+            done_event = threading.Event()
+            future.add_done_callback(lambda _: done_event.set())
+
+            if not done_event.wait(timeout=timeout_sec):
+                raise TimeoutError(
+                    f'Rosbag command timeout: command={command}, timeout={timeout_sec}s')
+
+            result = future.result()
+            if result is None:
+                raise RuntimeError(f'Rosbag command returned no response: command={command}')
+            if not result.success:
+                raise RuntimeError(
+                    f'Rosbag command failed: command={command}, message={result.message}')
+
+            self.node.get_logger().info(
+                f'Rosbag command completed: command={command}, message={result.message}')
+            return
+
+        # Asynchronous service call - fire and forget
         future.add_done_callback(
             lambda f: self.node.get_logger().info(
                 f'Sent rosbag record command: {command} {f.result().message}'

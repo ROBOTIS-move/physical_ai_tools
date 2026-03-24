@@ -146,10 +146,11 @@ class DataManager:
 
     # ========== End Simplified Recording Methods ==========
 
-    def get_save_rosbag_path(self):
+    def get_save_rosbag_path(self, allow_idle: bool = False):
         """Get rosbag save path for current episode."""
-        # For simplified mode, return path when recording
-        if self._status == 'idle':
+        # For simplified mode, return path when recording.
+        # `allow_idle` is used during START pre-check before status flips to recording.
+        if self._status == 'idle' and not allow_idle:
             return None  # Not recording
         if self._status == 'warmup':
             return None  # Legacy: Not ready yet

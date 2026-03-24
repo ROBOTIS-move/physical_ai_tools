@@ -120,53 +120,20 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
     throw std::runtime_error("Topics are required");
   }
 
-  try {
-    topics_to_record_ = topics;
+  topics_to_record_ = topics;
+  type_for_topic_.clear();
+  camera_topics_.clear();
+  joint_topics_.clear();
+  generic_subscriptions_.clear();
 
-    auto names_and_types = this->get_topic_names_and_types();
+  // Reset statistics
+  messages_received_ = 0;
+  messages_written_ = 0;
 
-    // Categorize topics for callback group assignment
-    camera_topics_.clear();
-    joint_topics_.clear();
-
-    for (const auto & topic : topics_to_record_) {
-      auto it = names_and_types.find(topic);
-      if (it != names_and_types.end() && !it->second.empty()) {
-        const std::string & type = it->second.front();
-        type_for_topic_[topic] = type;
-
-        // Categorize by topic name
-        if (topic.find("image") != std::string::npos ||
-          topic.find("camera") != std::string::npos)
-        {
-          camera_topics_.insert(topic);
-        } else if (topic.find("joint") != std::string::npos ||
-          topic.find("arm") != std::string::npos ||
-          topic.find("head") != std::string::npos ||
-          topic.find("lift") != std::string::npos)
-        {
-          joint_topics_.insert(topic);
-        }
-      }
-    }
-
-    // Create subscriptions early to start receiving data
-    create_subscriptions();
-
-    // Reset statistics
-    messages_received_ = 0;
-    messages_written_ = 0;
-
-    RCLCPP_INFO(
-      this->get_logger(),
-      "Recording prepared: total=%zu, camera=%zu, joint=%zu",
-      topics_to_record_.size(),
-      camera_topics_.size(),
-      joint_topics_.size());
-  } catch (const std::exception & e) {
-    writer_.reset();
-    throw std::runtime_error(std::string("Failed to prepare recording: ") + e.what());
-  }
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Recording prepared: total=%zu topics stored",
+    topics_to_record_.size());
 }
 
 void ServiceBagRecorder::handle_start(const std::string & uri)
@@ -191,10 +158,52 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
   try {
     current_bag_uri_ = uri;
 
-    // Check if a bag already exists at the specified path and delete it
+    // Resolve topic types before opening the bag writer so that
+    // a missing-topic failure leaves no partial bag directory behind.
+    auto names_and_types = this->get_topic_names_and_types();
+    RCLCPP_INFO(this->get_logger(), "Found %zu active topics in system", names_and_types.size());
+
+    auto missing_topics = get_missing_topics(names_and_types);
+    if (!missing_topics.empty()) {
+      std::ostringstream oss;
+      oss << "Types not found for topics:";
+      for (const auto & t : missing_topics) {
+        oss << " " << t;
+      }
+      throw std::runtime_error(oss.str());
+    }
+
+    // Categorize and create subscriptions
+    type_for_topic_.clear();
+    camera_topics_.clear();
+    joint_topics_.clear();
+    generic_subscriptions_.clear();
+
+    for (const auto & topic : topics_to_record_) {
+      auto it = names_and_types.find(topic);
+      if (it != names_and_types.end() && !it->second.empty()) {
+        const std::string & type = it->second.front();
+        type_for_topic_[topic] = type;
+
+        if (topic.find("image") != std::string::npos ||
+          topic.find("camera") != std::string::npos)
+        {
+          camera_topics_.insert(topic);
+        } else if (topic.find("joint") != std::string::npos ||
+          topic.find("arm") != std::string::npos ||
+          topic.find("head") != std::string::npos ||
+          topic.find("lift") != std::string::npos)
+        {
+          joint_topics_.insert(topic);
+        }
+      }
+    }
+
+    create_subscriptions();
+
+    // Now open the bag writer
     delete_bag_directory(current_bag_uri_);
 
-    // Configure storage options for MCAP with optimized settings
     rosbag2_storage::StorageOptions storage_options;
     storage_options.uri = current_bag_uri_;
     storage_options.storage_id = STORAGE_ID;  // "mcap"
@@ -203,34 +212,6 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
 
     writer_ = std::make_unique<rosbag2_cpp::Writer>();
     writer_->open(storage_options);
-
-    auto names_and_types = this->get_topic_names_and_types();
-    RCLCPP_INFO(this->get_logger(), "Found %zu active topics in system", names_and_types.size());
-
-    auto missing_topics = get_missing_topics(names_and_types);
-
-    if (!missing_topics.empty()) {
-      writer_.reset();
-      type_for_topic_.clear();
-
-      // Delete the bag folder since we can't record the requested topics
-      RCLCPP_INFO(
-        this->get_logger(),
-        "Deleting bag directory due to missing topic types: %s",
-        current_bag_uri_.c_str());
-      delete_bag_directory(current_bag_uri_);
-      current_bag_uri_.clear();
-
-      std::ostringstream oss;
-      oss << "Types not found for topics:";
-      for (const auto & t : missing_topics) {
-        oss << " " << t;
-      }
-
-      RCLCPP_INFO(this->get_logger(), "Failed to start recording: %s", oss.str().c_str());
-
-      throw std::runtime_error(oss.str());
-    }
 
     create_topics_in_bag(names_and_types);
   } catch (const std::exception & e) {
@@ -354,6 +335,9 @@ void ServiceBagRecorder::create_topics_in_bag(
 
   for (const auto & topic : topics_to_record_) {
     auto it = names_and_types.find(topic);
+    if (it == names_and_types.end() || it->second.empty()) {
+      throw std::runtime_error("Type not found while creating bag topic: " + topic);
+    }
     const std::string & type = it->second.front();
 
     type_for_topic_[topic] = type;

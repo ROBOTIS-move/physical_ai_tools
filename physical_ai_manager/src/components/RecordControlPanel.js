@@ -94,12 +94,48 @@ export default function RecordControlPanel() {
     return { isValid: missingFields.length === 0, missingFields };
   }, [taskInfo]);
 
+  const showStartWarningToast = useCallback((message) => {
+    toast.custom(
+      (t) => (
+        <div
+          className={clsx(
+            'w-full max-w-[520px] rounded-md border border-red-300 bg-red-500 px-3 py-2 text-white shadow-lg pointer-events-auto',
+            'flex items-start gap-2'
+          )}
+        >
+          <div className="text-sm leading-5 break-words">{message}</div>
+          <button
+            type="button"
+            className="shrink-0 cursor-pointer rounded p-2 text-white/90 hover:bg-red-600 hover:text-white"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toast.dismiss(t.id);
+            }}
+            aria-label="Dismiss warning"
+          >
+            <MdClose style={{ fontSize: '1.25rem' }} />
+          </button>
+        </div>
+      ),
+      {
+        id: 'start-warning-toast',
+        duration: 3000,
+      }
+    );
+  }, []);
+
   const executeCommand = useCallback(
     async (commandName, commandString) => {
       try {
         const result = await sendRecordCommand(commandString);
         if (result && result.success === false) {
-          toast.error(`Command failed: ${result.message || 'Unknown error'}`);
+          const message = `Command failed: ${result.message || 'Unknown error'}`;
+          if (commandString === 'start_record') {
+            showStartWarningToast(message);
+          } else {
+            toast.error(message);
+          }
         } else if (result && result.success === true) {
           toast.success(`${commandName} executed successfully`);
         } else {
@@ -112,16 +148,31 @@ export default function RecordControlPanel() {
           errorMessage.includes('ROS connection failed') ||
           errorMessage.includes('WebSocket')
         ) {
-          toast.error(`ROS connection failed: rosbridge server is not running (${rosHost})`);
+          const message = `ROS connection failed: rosbridge server is not running (${rosHost})`;
+          if (commandString === 'start_record') {
+            showStartWarningToast(message);
+          } else {
+            toast.error(message);
+          }
         } else if (errorMessage.includes('timeout')) {
-          toast.error(`Command timeout [${commandName}]: Server did not respond`);
+          const message = `Command timeout [${commandName}]: Server did not respond`;
+          if (commandString === 'start_record') {
+            showStartWarningToast(message);
+          } else {
+            toast.error(message);
+          }
         } else {
-          toast.error(`Command failed [${commandName}]: ${errorMessage}`);
+          const message = `Command failed [${commandName}]: ${errorMessage}`;
+          if (commandString === 'start_record') {
+            showStartWarningToast(message);
+          } else {
+            toast.error(message);
+          }
         }
         return null;
       }
     },
-    [sendRecordCommand, rosHost]
+    [sendRecordCommand, rosHost, showStartWarningToast]
   );
 
   const handleStart = useCallback(async () => {

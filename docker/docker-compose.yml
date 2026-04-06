@@ -8,6 +8,7 @@ services:
     build:
       context: ../physical_ai_manager
       dockerfile: Dockerfile
+      network: host
     network_mode: host
     restart: unless-stopped
     volumes:

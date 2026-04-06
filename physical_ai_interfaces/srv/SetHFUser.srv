@@ -1,3 +1,5 @@
+string endpoint
+string label
 string token
 ---
 string[] user_id_list

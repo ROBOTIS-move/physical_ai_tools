@@ -22,7 +22,6 @@ from pathlib import Path
 import queue
 import shutil
 import socket
-import subprocess
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -33,10 +32,7 @@ from huggingface_hub import (
     HfApi,
     ModelCard,
     ModelCardData,
-    snapshot_download,
-    upload_large_folder
 )
-from huggingface_hub.errors import LocalTokenNotFoundError
 from physical_ai_interfaces.msg import TaskStatus
 from physical_ai_server.data_processing.data_converter import DataConverter
 from physical_ai_server.data_processing.progress_tracker import (
@@ -496,117 +492,83 @@ class DataManager:
         return info.get('robot_type', '')
 
     @staticmethod
-    def get_huggingface_user_id():
-        def api_call():
-            api = HfApi()
-            try:
-                user_info = api.whoami()
-                user_ids = [user_info['name']]
-                for org_info in user_info['orgs']:
-                    user_ids.append(org_info['name'])
-                return user_ids
-            except LocalTokenNotFoundError as e:
-                print(f'No registered HuggingFace token found: {e}')
-                raise Exception('No registered HuggingFace token found')
-            except Exception as e:
-                print(f'Token validation failed: {e}')
-                raise
+    def whoami_huggingface(endpoint, token, timeout_s=5.0):
+        """Validate ``token`` against ``endpoint`` and return the user's
+        identifier list (primary user + every org they belong to).
 
-        # Use queue to get result from thread
+        Returns ``None`` on timeout, raises on invalid token / network error.
+        Both ``endpoint`` and ``token`` are required — there is no global
+        fallback.
+        """
+        if not endpoint:
+            raise ValueError('endpoint is required')
+        if not token:
+            raise ValueError('token is required')
+
+        def api_call():
+            api = HfApi(endpoint=endpoint, token=token)
+            user_info = api.whoami()
+            user_ids = [user_info['name']]
+            for org_info in user_info.get('orgs', []) or []:
+                org_name = org_info.get('name')
+                if org_name:
+                    user_ids.append(org_name)
+            return user_ids
+
         result_queue = queue.Queue()
 
         def worker():
             try:
-                result = api_call()
-                result_queue.put(('success', result))
+                result_queue.put(('success', api_call()))
             except Exception as e:
                 result_queue.put(('error', e))
 
-        # Start thread and wait with timeout
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
 
         try:
-            # Wait for result with 1.5 second timeout
-            status, data = result_queue.get(timeout=1.5)
-            if status == 'success':
-                if data:
-                    print(data)
-                return data
-            else:
-                raise data
+            status, data = result_queue.get(timeout=timeout_s)
         except queue.Empty:
-            print('Token validation timed out after 1.5 seconds')
+            print(f'Token validation timed out after {timeout_s}s '
+                  f'for endpoint {endpoint}')
             return None
 
-    @staticmethod
-    def register_huggingface_token(hf_token):
-        def validate_token():
-            api = HfApi(token=hf_token)
-            try:
-                user_info = api.whoami()
-                user_name = user_info['name']
-                print(f'Successfully validated HuggingFace token for user: {user_name}')
-                return True
-            except Exception as e:
-                print(f'Token is invalid, please check hf token: {e}')
-                return False
+        if status == 'success':
+            return data
+        raise data
 
-        # Use queue to get result from thread
-        result_queue = queue.Queue()
-
-        def worker():
-            result = validate_token()
-            result_queue.put(result)
-
-        # Start thread and wait with timeout
-        thread = threading.Thread(target=worker, daemon=True)
-        thread.start()
-
-        try:
-            # Wait for result with 1.5 second timeout
-            is_valid = result_queue.get(timeout=1.5)
-            if not is_valid:
-                return False
-        except queue.Empty:
-            print('Token validation timed out after 1.5 seconds')
-            return False
-
-        try:
-            result = subprocess.run([
-                'huggingface-cli', 'login', '--token', hf_token
-            ], capture_output=True, text=True, check=True)
-
-            print('Successfully logged in to HuggingFace Hub')
-            return result
-
-        except subprocess.CalledProcessError as e:
-            print(f'Failed to login with huggingface-cli: {e}')
-            print(f'Error output: {e.stderr}')
-            return False
-        except FileNotFoundError:
-            print('huggingface-cli not found. Please install package.')
-            return False
+    # Default download roots used when the caller does not pass an explicit
+    # ``local_dir``. The previous LeRobot defaults are kept as a fallback for
+    # back-compat, but new flows should always pass the destination from the
+    # UI so the user can pick where downloads land.
+    DEFAULT_DOWNLOAD_PATHS = {
+        'dataset': Path('/workspace/rosbag2'),
+        'model': Path(
+            '/root/ros2_ws/src/physical_ai_tools/third_party/groot/workspace/checkpoints'
+        ),
+    }
 
     @staticmethod
     def download_huggingface_repo(
         repo_id,
-        repo_type='dataset'
+        repo_type='dataset',
+        local_dir=None,
+        endpoint=None,
+        token=None,
     ):
-        download_path = {
-            'dataset': Path.home() / '.cache/huggingface/lerobot',
-            'model': Path.home() / 'ros2_ws/src/physical_ai_tools/lerobot/outputs/train/'
-        }
-
-        save_path = download_path.get(repo_type)
-
-        if save_path is None:
-            raise ValueError(f'Invalid repo type: {repo_type}')
-
-        save_dir = save_path / repo_id
+        if local_dir:
+            save_dir = Path(local_dir) / repo_id
+        else:
+            base = DataManager.DEFAULT_DOWNLOAD_PATHS.get(repo_type)
+            if base is None:
+                raise ValueError(f'Invalid repo type: {repo_type}')
+            save_dir = base / repo_id
 
         try:
-            print(f'Starting download of {repo_id} ({repo_type})...')
+            print(
+                f'Starting download of {repo_id} ({repo_type}) from '
+                f'{endpoint or "<default endpoint>"}...'
+            )
 
             # Create a wrapper class that includes the progress_queue
             class ProgressTqdmWrapper(HuggingFaceProgressTqdm):
@@ -615,11 +577,12 @@ class DataManager:
                     kwargs['progress_queue'] = DataManager._progress_queue
                     super().__init__(*args, **kwargs)
 
-            result = snapshot_download(
+            api = HfApi(endpoint=endpoint, token=token)
+            result = api.snapshot_download(
                 repo_id=repo_id,
                 repo_type=repo_type,
                 local_dir=save_dir,
-                tqdm_class=ProgressTqdmWrapper
+                tqdm_class=ProgressTqdmWrapper,
             )
 
             print(f'Download completed: {repo_id}')
@@ -803,17 +766,25 @@ class DataManager:
         repo_id,
         repo_type,
         local_dir,
+        endpoint=None,
+        token=None,
     ):
         try:
-            api = HfApi()
+            api = HfApi(endpoint=endpoint, token=token)
 
             # Verify authentication first
             try:
                 user_info = api.whoami()
-                print(f'Authenticated as: {user_info["name"]}')
+                print(
+                    f'Authenticated as: {user_info["name"]} '
+                    f'({endpoint or "<default endpoint>"})'
+                )
             except Exception as auth_e:
                 print(f'Authentication failed: {auth_e}')
-                print('Please make sure you are authenticated with HuggingFace')
+                print(
+                    'Please make sure a valid token is registered for this '
+                    f'endpoint: {endpoint or "<default>"}'
+                )
                 return False
 
             # Create repository
@@ -844,8 +815,9 @@ class DataManager:
             log_capture = HuggingFaceLogCapture(progress_queue=DataManager._progress_queue)
 
             with redirect_stdout(log_capture):
-                # Upload folder contents
-                upload_large_folder(
+                # Upload folder contents via the HfApi instance so it picks up
+                # the per-call endpoint+token without touching env vars.
+                api.upload_large_folder(
                     repo_id=repo_id,
                     folder_path=local_dir,
                     repo_type=repo_type,
@@ -882,10 +854,12 @@ class DataManager:
     def delete_huggingface_repo(
         repo_id,
         repo_type='dataset',
+        endpoint=None,
+        token=None,
     ):
         try:
-            result = HfApi().delete_repo(repo_id, repo_type=repo_type)
-            return result
+            api = HfApi(endpoint=endpoint, token=token)
+            return api.delete_repo(repo_id, repo_type=repo_type)
         except Exception as e:
             print(f'Error deleting HuggingFace repo: {e}')
             return False
@@ -893,27 +867,26 @@ class DataManager:
     @staticmethod
     def get_huggingface_repo_list(
         author,
-        data_type='dataset'
+        data_type='dataset',
+        endpoint=None,
+        token=None,
     ):
+        api = HfApi(endpoint=endpoint, token=token)
         repo_id_list = []
         if data_type == 'dataset':
-            dataset_list = HfApi().list_datasets(author=author)
-            for dataset in dataset_list:
+            for dataset in api.list_datasets(author=author):
                 repo_id_list.append(dataset.id)
-
         elif data_type == 'model':
-            model_list = HfApi().list_models(author=author)
-            for model in model_list:
+            for model in api.list_models(author=author):
                 repo_id_list.append(model.id)
-        reverse = repo_id_list[::-1]
-        return reverse
+        return repo_id_list[::-1]
 
     @staticmethod
     def get_collections_repo_list(
-        collection_id
+        collection_id,
+        endpoint=None,
+        token=None,
     ):
-        collection_list = HfApi().get_collection(collection_id)
-        repo_list_in_collection = []
-        for item in collection_list.items:
-            repo_list_in_collection.append(item.item_id)
-        return repo_list_in_collection
+        api = HfApi(endpoint=endpoint, token=token)
+        collection_list = api.get_collection(collection_id)
+        return [item.item_id for item in collection_list.items]

@@ -24,21 +24,26 @@ const TokenInputPopup = ({
   onSubmit,
   isLoading = false,
   title = 'Enter Hugging Face Token',
+  endpoint = '',
+  defaultLabel = '',
 }) => {
   const [tokenInput, setTokenInput] = useState('');
+  const [labelInput, setLabelInput] = useState(defaultLabel);
   const [showPassword, setShowPassword] = useState(false);
 
   // Handle popup close and reset state
   const handleClose = () => {
     setTokenInput('');
+    setLabelInput(defaultLabel);
     setShowPassword(false);
     onClose();
   };
 
   // Handle token submission
   const handleSubmit = () => {
-    onSubmit(tokenInput.trim());
+    onSubmit({ token: tokenInput.trim(), label: labelInput.trim() });
     setTokenInput('');
+    setLabelInput(defaultLabel);
     setShowPassword(false);
   };
 
@@ -56,7 +61,13 @@ const TokenInputPopup = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-        <div className="mb-4 font-bold text-lg">{title}</div>
+        <div className="mb-2 font-bold text-lg">{title}</div>
+        {endpoint && (
+          <div className="mb-4 text-xs text-gray-600">
+            Endpoint:{' '}
+            <span className="font-mono text-blue-700 break-all">{endpoint}</span>
+          </div>
+        )}
         {/* Hidden dummy forms to confuse password managers */}
         <form style={{ display: 'none' }} autoComplete="off">
           <input type="text" name="fake-username" autoComplete="username" value="dummy" readOnly />
@@ -113,8 +124,27 @@ const TokenInputPopup = ({
             </button>
           </div>
           <div className="text-xs text-gray-500 mt-1">
-            This token will be used to fetch your available User IDs
+            This token will be validated against the endpoint above and stored
+            on the robot.
           </div>
+        </div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Label (optional)
+          </label>
+          <input
+            type="text"
+            className={clsx(
+              'w-full p-3 border border-gray-300 rounded-md',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+            )}
+            value={labelInput}
+            onChange={(e) => setLabelInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="e.g. Internal hub"
+            disabled={isLoading}
+            autoComplete="off"
+          />
         </div>
         <div className="flex gap-3">
           <button

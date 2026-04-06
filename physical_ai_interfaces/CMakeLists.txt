@@ -19,6 +19,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetDatasetInfo.srv"
   "srv/GetDatasetList.srv"
   "srv/GetHFUser.srv"
+  "srv/HFEndpointList.srv"
+  "srv/SelectHFEndpoint.srv"
   "srv/GetImageTopicList.srv"
   "srv/GetModelWeightList.srv"
   "srv/GetPolicyList.srv"

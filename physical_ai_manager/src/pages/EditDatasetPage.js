@@ -22,11 +22,13 @@ import {
   MdCloudUpload,
   MdMerge,
   MdDeleteSweep,
+  MdMovie,
   MdOutlineTouchApp,
 } from 'react-icons/md';
 import HuggingfaceSection from '../features/editDataset/components/DatasetHuggingfaceSection';
 import MergeSection from '../features/editDataset/components/DatasetMergeSection';
 import DeleteSection from '../features/editDataset/components/DatasetDeleteSection';
+import ConvertSection from '../features/editDataset/components/DatasetConvertSection';
 
 // Constants
 const TOAST_LIMIT = 3;
@@ -35,6 +37,7 @@ const SECTION_TYPES = {
   HUGGINGFACE: 'huggingface',
   MERGE: 'merge',
   DELETE: 'delete',
+  CONVERT: 'convert',
 };
 
 const SECTION_CONFIG = {
@@ -46,12 +49,17 @@ const SECTION_CONFIG = {
   [SECTION_TYPES.MERGE]: {
     label: 'Merge Dataset',
     icon: MdMerge,
-    description: 'Combine multiple datasets',
+    description: 'Combine multiple rosbag task folders',
   },
   [SECTION_TYPES.DELETE]: {
     label: 'Delete Episodes',
     icon: MdDeleteSweep,
-    description: 'Remove specific episodes from dataset',
+    description: 'Remove episodes from a rosbag task folder',
+  },
+  [SECTION_TYPES.CONVERT]: {
+    label: 'Convert Dataset',
+    icon: MdMovie,
+    description: 'Convert rosbag2 to MP4 / LeRobot',
   },
 };
 
@@ -98,7 +106,7 @@ export default function EditDatasetPage() {
         </span>
         What would you like to do?
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {Object.entries(SECTION_CONFIG).map(([sectionType, config]) => {
           const IconComponent = config.icon;
           const isActive = activeSection === sectionType;
@@ -154,6 +162,8 @@ export default function EditDatasetPage() {
         return <MergeSection isEditable={isEditable} />;
       case SECTION_TYPES.DELETE:
         return <DeleteSection isEditable={isEditable} />;
+      case SECTION_TYPES.CONVERT:
+        return <ConvertSection isEditable={isEditable} />;
       default:
         return <HuggingfaceSection isEditable={isEditable} />;
     }

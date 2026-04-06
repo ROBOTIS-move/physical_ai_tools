@@ -1,5 +1,5 @@
-string codebase_version
 string robot_type
-uint16 total_episodes
-uint16 total_tasks
-uint8 fps
+string task_instruction
+uint32 episode_count
+float32 total_duration_s
+uint16 fps

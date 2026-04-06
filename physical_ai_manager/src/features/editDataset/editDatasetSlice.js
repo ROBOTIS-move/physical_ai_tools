@@ -19,19 +19,33 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
-  mergeDatasetList: [],
-  datasetToDeleteEpisode: '',
-  datasetInfo: {
-    totalEpisodes: 0,
-    totalTasks: 0,
-    fps: 0,
-    codebaseVersion: '',
-    robotType: '',
-  },
+  // --- Merge (rosbag task folders) -----------------------------------------
+  mergeSourceTaskDirs: [],
   mergeOutputPath: '',
   mergeOutputFolderName: '',
+  mergeMoveSources: false,
+
+  // --- Delete (rosbag task folder) ----------------------------------------
+  deleteTaskDir: '',
   deleteEpisodeNums: [],
-  uploadHuggingface: false,
+  deleteCompact: true,
+
+  // --- Task info displayed by Delete section ------------------------------
+  datasetInfo: {
+    robotType: '',
+    taskInstruction: '',
+    episodeCount: 0,
+    totalDurationS: 0.0,
+    fps: 0,
+  },
+
+  // --- Hugging Face section -----------------------------------------------
+  // Currently active endpoint URL (matches one of HF_ENDPOINT_PRESETS or a
+  // user-registered custom URL). Empty when nothing has been registered yet.
+  hfActiveEndpoint: '',
+  // List of registered endpoints from the server, shape:
+  //   [{ endpoint: string, label: string, userId: string }]
+  hfEndpoints: [],
   hfUserId: '',
   hfRepoIdUpload: '',
   hfRepoIdDownload: '',
@@ -53,14 +67,9 @@ const editDatasetSlice = createSlice({
   name: 'editDataset',
   initialState,
   reducers: {
-    setMergeDatasetList: (state, action) => {
-      state.mergeDatasetList = action.payload;
-    },
-    setDatasetToDeleteEpisode: (state, action) => {
-      state.datasetToDeleteEpisode = action.payload;
-    },
-    setDatasetInfo: (state, action) => {
-      state.datasetInfo = action.payload;
+    // Merge
+    setMergeSourceTaskDirs: (state, action) => {
+      state.mergeSourceTaskDirs = action.payload;
     },
     setMergeOutputPath: (state, action) => {
       state.mergeOutputPath = action.payload;
@@ -68,11 +77,29 @@ const editDatasetSlice = createSlice({
     setMergeOutputFolderName: (state, action) => {
       state.mergeOutputFolderName = action.payload;
     },
+    setMergeMoveSources: (state, action) => {
+      state.mergeMoveSources = action.payload;
+    },
+    // Delete
+    setDeleteTaskDir: (state, action) => {
+      state.deleteTaskDir = action.payload;
+    },
     setDeleteEpisodeNums: (state, action) => {
       state.deleteEpisodeNums = action.payload;
     },
-    setUploadHuggingface: (state, action) => {
-      state.uploadHuggingface = action.payload;
+    setDeleteCompact: (state, action) => {
+      state.deleteCompact = action.payload;
+    },
+    // Info
+    setDatasetInfo: (state, action) => {
+      state.datasetInfo = action.payload;
+    },
+    // Hugging Face
+    setHFActiveEndpoint: (state, action) => {
+      state.hfActiveEndpoint = action.payload || '';
+    },
+    setHFEndpoints: (state, action) => {
+      state.hfEndpoints = action.payload || [];
     },
     setHFUserId: (state, action) => {
       state.hfUserId = action.payload;
@@ -99,13 +126,16 @@ const editDatasetSlice = createSlice({
 });
 
 export const {
-  setMergeDatasetList,
-  setDatasetToDeleteEpisode,
-  setDatasetInfo,
+  setMergeSourceTaskDirs,
   setMergeOutputPath,
   setMergeOutputFolderName,
+  setMergeMoveSources,
+  setDeleteTaskDir,
   setDeleteEpisodeNums,
-  setUploadHuggingface,
+  setDeleteCompact,
+  setDatasetInfo,
+  setHFActiveEndpoint,
+  setHFEndpoints,
   setHFUserId,
   setHFRepoIdUpload,
   setHFRepoIdDownload,

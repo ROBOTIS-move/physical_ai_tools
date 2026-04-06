@@ -306,8 +306,13 @@ class HfApiWorker:
                         repo_type = data.get('repo_type')
                         local_dir = data.get('local_dir')
                         author = data.get('author')
+                        endpoint = data.get('endpoint')
+                        token = data.get('token')
 
-                        logger.info(f'Processing {mode} request for repo: {repo_id}')
+                        logger.info(
+                            f'Processing {mode} request for repo: {repo_id} '
+                            f'(endpoint={endpoint or "<default>"})'
+                        )
 
                         # Process the request based on mode
                         if mode == 'upload':
@@ -315,7 +320,9 @@ class HfApiWorker:
                             result = DataManager.upload_huggingface_repo(
                                 repo_id=repo_id,
                                 repo_type=repo_type,
-                                local_dir=local_dir
+                                local_dir=local_dir,
+                                endpoint=endpoint,
+                                token=token,
                             )
                             if result:
                                 message = f'Uploaded Hugging Face repo: {repo_id}'
@@ -332,7 +339,10 @@ class HfApiWorker:
                             logger.info(f'Starting download for repo: {repo_id}')
                             result = DataManager.download_huggingface_repo(
                                 repo_id=repo_id,
-                                repo_type=repo_type
+                                repo_type=repo_type,
+                                local_dir=local_dir,
+                                endpoint=endpoint,
+                                token=token,
                             )
                             if result:
                                 message = f'Downloaded Hugging Face repo: {repo_id}'
@@ -349,7 +359,9 @@ class HfApiWorker:
                             logger.info(f'Starting delete for repo: {repo_id}')
                             DataManager.delete_huggingface_repo(
                                 repo_id=repo_id,
-                                repo_type=repo_type
+                                repo_type=repo_type,
+                                endpoint=endpoint,
+                                token=token,
                             )
                             message = f'Deleted Hugging Face repo: {repo_id}'
                             logger.info(f'✅ Delete completed: {repo_id}')
@@ -359,7 +371,9 @@ class HfApiWorker:
                             logger.info(f'Starting dataset list fetch for author: {author}')
                             DataManager.get_huggingface_repo_list(
                                 author=author,
-                                data_type='dataset'
+                                data_type='dataset',
+                                endpoint=endpoint,
+                                token=token,
                             )
                             message = f'Got dataset list for author: {author}'
                             logger.info(f'✅ Dataset list fetch completed: {author}')
@@ -369,7 +383,9 @@ class HfApiWorker:
                             logger.info(f'Starting model list fetch for author: {author}')
                             DataManager.get_huggingface_repo_list(
                                 author=author,
-                                data_type='model'
+                                data_type='model',
+                                endpoint=endpoint,
+                                token=token,
                             )
                             message = f'Got model list for author: {author}'
                             logger.info(f'✅ Model list fetch completed: {author}')

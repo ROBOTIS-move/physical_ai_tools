@@ -45,6 +45,8 @@ from physical_ai_interfaces.srv import (
     GetRobotTypeList,
     GetTrainingInfo,
     GetUserList,
+    HFEndpointList,
+    SelectHFEndpoint,
     SendCommand,
     SendTrainingCommand,
     SetHFUser,
@@ -54,6 +56,7 @@ from physical_ai_interfaces.srv import (
 from physical_ai_server.communication.communicator import Communicator
 from physical_ai_server.data_processing.data_manager import DataManager
 from physical_ai_server.data_processing.hf_api_worker import HfApiWorker
+from physical_ai_server.data_processing.hf_endpoint_store import HFEndpointStore
 from physical_ai_server.data_processing.mp4_conversion_worker import Mp4ConversionWorker
 from physical_ai_server.data_processing.replay_data_handler import ReplayDataHandler
 from physical_ai_server.inference.inference_manager import InferenceManager
@@ -135,6 +138,7 @@ class PhysicalAIServer(Node):
         self.inference_manager: Optional[InferenceManager] = None
 
         # Initialize HF API Worker
+        self.hf_endpoint_store = HFEndpointStore()
         self.hf_api_worker: Optional[HfApiWorker] = None
         self.hf_status_timer: Optional[TimerManager] = None
         self._init_hf_api_worker()
@@ -196,6 +200,8 @@ class PhysicalAIServer(Node):
             ('/set_robot_type', SetRobotType, self.set_robot_type_callback),
             ('/register_hf_user', SetHFUser, self.set_hf_user_callback),
             ('/get_registered_hf_user', GetHFUser, self.get_hf_user_callback),
+            ('/huggingface/list_endpoints', HFEndpointList, self.list_hf_endpoints_callback),
+            ('/huggingface/select_endpoint', SelectHFEndpoint, self.select_hf_endpoint_callback),
             ('/training/command', SendTrainingCommand, self.user_training_interaction_callback),
             ('/training/get_available_policy', GetPolicyList, self.get_available_list_callback),
             ('/training/get_user_list', GetUserList, self.get_user_list_callback),
@@ -378,45 +384,137 @@ class PhysicalAIServer(Node):
         self.joint_order = None
 
     def set_hf_user_callback(self, request, response):
-        request_hf_token = request.token
+        """Validate ``token`` against ``endpoint`` and persist on success.
+
+        The previous flow validated against a single global token; this one
+        keeps a per-endpoint store so the user can have one token for the
+        official hub and another for the internal hub at the same time.
+        """
+        endpoint = (request.endpoint or '').strip()
+        label = (request.label or '').strip()
+        token = (request.token or '').strip()
+
+        if not endpoint:
+            response.user_id_list = []
+            response.success = False
+            response.message = 'endpoint is required'
+            return response
+        if not token:
+            response.user_id_list = []
+            response.success = False
+            response.message = 'token is required'
+            return response
+
         try:
-            if DataManager.register_huggingface_token(request_hf_token):
-                self.get_logger().info('Hugging Face user token registered successfully')
-                response.user_id_list = DataManager.get_huggingface_user_id()
-                response.success = True
-                response.message = 'Hugging Face user token registered successfully'
-            else:
-                self.get_logger().error('Failed to register Hugging Face user token')
+            user_ids = DataManager.whoami_huggingface(endpoint, token)
+            if not user_ids:
                 response.user_id_list = []
                 response.success = False
-                response.message = 'Failed to register token, Please check your token'
+                response.message = (
+                    f'Token validation timed out for endpoint {endpoint}'
+                )
+                return response
+
+            primary_user = user_ids[0] if user_ids else ''
+            self.hf_endpoint_store.set(
+                endpoint=endpoint,
+                label=label,
+                token=token,
+                user_id=primary_user,
+            )
+            self.get_logger().info(
+                f'Registered HF token for {endpoint} ({primary_user})'
+            )
+            response.user_id_list = user_ids
+            response.success = True
+            response.message = (
+                f'Token validated and stored for {endpoint} ({primary_user})'
+            )
         except Exception as e:
             self.get_logger().error(f'Error in set_hf_user_callback: {str(e)}')
             response.user_id_list = []
             response.success = False
-            response.message = f'Error in set_hf_user_callback:\n{str(e)}'
+            response.message = f'Error: {str(e)}'
 
         return response
 
     def get_hf_user_callback(self, request, response):
+        """Return the user list for ``request.endpoint`` (empty = active)."""
+        endpoint = (request.endpoint or '').strip()
         try:
-            user_ids = DataManager.get_huggingface_user_id()
-            if user_ids is not None:
-                response.user_id_list = user_ids
-                self.get_logger().info(f'Hugging Face user IDs: {user_ids}')
-                response.success = True
-                response.message = 'Hugging Face user IDs retrieved successfully'
-            else:
-                self.get_logger().error('Failed to retrieve Hugging Face user ID')
+            entry = self.hf_endpoint_store.resolve(endpoint)
+            if entry is None:
                 response.user_id_list = []
                 response.success = False
-                response.message = 'Failed to retrieve Hugging Face user ID'
+                response.message = (
+                    'No HuggingFace endpoint registered yet — register a token '
+                    'from the UI first.'
+                )
+                return response
+
+            user_ids = DataManager.whoami_huggingface(entry.endpoint, entry.token)
+            if not user_ids:
+                response.user_id_list = []
+                response.success = False
+                response.message = (
+                    f'Token validation timed out for {entry.endpoint}'
+                )
+                return response
+
+            response.user_id_list = user_ids
+            response.success = True
+            response.message = (
+                f'Resolved {len(user_ids)} user id(s) for {entry.endpoint}'
+            )
         except Exception as e:
             self.get_logger().error(f'Error in get_hf_user_callback: {str(e)}')
             response.user_id_list = []
             response.success = False
-            response.message = f'Failed to retrieve Hugging Face user ID:\n{str(e)}'
+            response.message = f'Error: {str(e)}'
 
+        return response
+
+    def list_hf_endpoints_callback(self, request, response):
+        """Return every registered endpoint plus the currently active one."""
+        try:
+            entries = self.hf_endpoint_store.list()
+            active = self.hf_endpoint_store.get_active()
+            response.endpoints = [e.endpoint for e in entries]
+            response.labels = [e.label for e in entries]
+            response.user_ids = [e.user_id for e in entries]
+            response.active = active.endpoint if active else ''
+            response.success = True
+            response.message = f'{len(entries)} endpoint(s) registered'
+        except Exception as e:
+            self.get_logger().error(f'Error in list_hf_endpoints_callback: {str(e)}')
+            response.endpoints = []
+            response.labels = []
+            response.user_ids = []
+            response.active = ''
+            response.success = False
+            response.message = f'Error: {str(e)}'
+        return response
+
+    def select_hf_endpoint_callback(self, request, response):
+        """Set the active endpoint. Empty string clears the selection."""
+        endpoint = (request.endpoint or '').strip()
+        try:
+            ok = self.hf_endpoint_store.set_active(endpoint)
+            if not ok:
+                response.success = False
+                response.message = (
+                    f'Endpoint not registered: {endpoint}. Register a token '
+                    f'for it first.'
+                )
+                return response
+            response.success = True
+            response.message = (
+                f'Active endpoint set to {endpoint or "<none>"}'
+            )
+        except Exception as e:
+            self.get_logger().error(f'Error in select_hf_endpoint_callback: {str(e)}')
+            response.success = False
+            response.message = f'Error: {str(e)}'
         return response
 
     def get_robot_type_list(self):
@@ -1509,6 +1607,7 @@ class PhysicalAIServer(Node):
             local_dir = request.local_dir
             repo_type = request.repo_type
             author = request.author
+            request_endpoint = (getattr(request, 'endpoint', '') or '').strip()
 
             if self.hf_cancel_on_progress:
                 response.success = False
@@ -1528,6 +1627,19 @@ class PhysicalAIServer(Node):
                     self.hf_cancel_on_progress = False
                     return response
 
+            # Resolve which endpoint+token to use for this request. ``endpoint``
+            # field on the request takes precedence; otherwise we fall back to
+            # the active endpoint stored on disk.
+            entry = self.hf_endpoint_store.resolve(request_endpoint)
+            if entry is None:
+                response.success = False
+                response.message = (
+                    f'No HuggingFace endpoint registered '
+                    f'(requested: {request_endpoint or "<active>"}). '
+                    f'Register a token from the UI first.'
+                )
+                return response
+
             # Restart HF API Worker if it does not exist or is not running
             if self.hf_api_worker is None or not self.hf_api_worker.is_alive():
                 self.get_logger().info('HF API Worker not running, restarting...')
@@ -1538,19 +1650,27 @@ class PhysicalAIServer(Node):
                 response.success = False
                 response.message = 'HF API Worker is currently busy with another task'
                 return response
-            # Prepare request data for the worker
+            # Prepare request data for the worker. The endpoint and token
+            # travel with the request so the worker process never has to
+            # consult global state.
             request_data = {
                 'mode': mode,
                 'repo_id': repo_id,
                 'local_dir': local_dir,
                 'repo_type': repo_type,
-                'author': author
+                'author': author,
+                'endpoint': entry.endpoint,
+                'token': entry.token,
             }
             # Send request to HF API Worker
             if self.hf_api_worker.send_request(request_data):
-                self.get_logger().info(f'HF API request sent successfully: {mode} for {repo_id}')
+                self.get_logger().info(
+                    f'HF API request sent: {mode} {repo_id} via {entry.endpoint}'
+                )
                 response.success = True
-                response.message = f'HF API request started: {mode} for {repo_id}'
+                response.message = (
+                    f'HF API request started: {mode} for {repo_id} via {entry.endpoint}'
+                )
             else:
                 self.get_logger().error('Failed to send request to HF API Worker')
                 response.success = False

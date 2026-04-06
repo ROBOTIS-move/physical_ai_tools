@@ -37,7 +37,19 @@ export const DEFAULT_PATHS = {
   DATASET_PATH: `${DOT_CACHE_PATH}/huggingface/lerobot/`,
   ROSBAG2_PATH: '/workspace/rosbag2/',
   BT_TREES_PATH: `${BASE_WORKSPACE_PATH}/physical_ai_bt/trees/`,
+  // Default destination for HuggingFace model downloads on the robot.
+  HF_MODEL_DOWNLOAD_PATH:
+    '/root/ros2_ws/src/physical_ai_tools/third_party/groot/workspace/checkpoints',
 };
+
+// Built-in HuggingFace endpoints shown as quick-pick options. Users can also
+// add ad-hoc URLs via the "Custom…" entry in the dropdown; whichever ones they
+// register tokens for are persisted on the server side in
+// /root/.cache/huggingface/physical_ai_endpoints.json.
+export const HF_ENDPOINT_PRESETS = [
+  { url: 'https://huggingface.co', label: 'Hugging Face' },
+  { url: 'http://192.168.60.152:1000', label: 'Internal hub' },
+];
 
 /**
  * Target file names for different types of file selection

@@ -14,321 +14,315 @@
 //
 // Author: Kiwoong Park
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { useSelector, useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
-import { MdFolderOpen, MdRefresh } from 'react-icons/md';
+import { MdDeleteSweep, MdFolderOpen } from 'react-icons/md';
 import {
-  setDatasetToDeleteEpisode,
+  setDeleteTaskDir,
   setDeleteEpisodeNums,
+  setDeleteCompact,
   setDatasetInfo,
 } from '../editDatasetSlice';
 import { useRosServiceCaller } from '../../../hooks/useRosServiceCaller';
 import FileBrowserModal from '../../../components/FileBrowserModal';
-import { DEFAULT_PATHS, TARGET_FOLDERS } from '../../../constants/paths';
+import { DEFAULT_PATHS } from '../../../constants/paths';
 
-// Style Classes
-const STYLES = {
-  textInput: clsx(
-    'text-sm',
-    'w-full',
-    'h-8',
-    'p-2',
-    'border',
-    'border-gray-300',
-    'rounded-md',
-    'focus:outline-none',
-    'focus:ring-2',
-    'focus:ring-blue-500',
-    'focus:border-transparent'
-  ),
-  textarea: clsx(
-    'w-full',
-    'text-sm',
-    'resize-y',
-    'min-h-16',
-    'max-h-24',
-    'p-2',
-    'border',
-    'border-gray-300',
-    'rounded-lg',
-    'focus:outline-none',
-    'focus:ring-2',
-    'focus:ring-blue-500',
-    'focus:border-transparent'
-  ),
-  button: clsx(
-    'px-5',
-    'py-3',
-    'm-5',
-    'bg-blue-500',
-    'text-white',
-    'rounded-xl',
-    'hover:bg-blue-600',
-    'focus:outline-none',
-    'focus:ring-2',
-    'focus:ring-blue-500',
-    'flex',
-    'items-center',
-    'gap-5',
-    'text-xl',
-    'font-medium',
-    'shadow-md',
-    'disabled:opacity-50',
-    'disabled:cursor-not-allowed'
-  ),
-};
-
-// Utility Functions
-const parseEpisodeNumbers = (input) => {
+// Parse a string like "3, 5, 10-15" into a sorted unique list of integers.
+// Reused unchanged from the previous LeRobot-based delete UI.
+export const parseEpisodeNumbers = (input) => {
   if (!input || typeof input !== 'string') return [];
-
   const numbers = new Set();
   const parts = input.split(',').map((part) => part.trim());
-
   for (const part of parts) {
     if (part.includes('-')) {
-      // Handle range (e.g., "10-15")
-      const [start, end] = part.split('-').map((num) => parseInt(num.trim()));
+      const [start, end] = part.split('-').map((n) => parseInt(n.trim(), 10));
       if (!isNaN(start) && !isNaN(end) && start <= end) {
-        for (let i = start; i <= end; i++) {
-          numbers.add(i);
-        }
+        for (let i = start; i <= end; i++) numbers.add(i);
       }
     } else {
-      // Handle single number
-      const num = parseInt(part.trim());
-      if (!isNaN(num) && num >= 0) {
-        numbers.add(num);
-      }
+      const num = parseInt(part.trim(), 10);
+      if (!isNaN(num) && num >= 0) numbers.add(num);
     }
   }
-
   return Array.from(numbers).sort((a, b) => a - b);
 };
 
-const showOperationSuccess = (operation, episodeNums = []) => {
-  if (operation === 'delete') {
-    const episodeText = episodeNums.length > 0 ? ` (Episodes: ${episodeNums.join(', ')})` : '';
-    toast.success(`Dataset deleted successfully!${episodeText}`);
-  }
+const STYLES = {
+  textInput: clsx(
+    'text-sm w-full h-9 p-2 border border-gray-300 rounded-md',
+    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+  ),
 };
 
-const showOperationError = (operation, errorMessage = '') => {
-  const operationText = 'delete';
-  const message = errorMessage
-    ? `Failed to ${operationText} dataset:\n${errorMessage}`
-    : `Failed to ${operationText} dataset`;
-  toast.error(message);
-};
-
-// EpisodeNumberInput Component
-const EpisodeNumberInput = ({ value, onChange, disabled = false, className, parseFunction }) => {
-  const parsedNumbers = useMemo(() => parseFunction(value), [value, parseFunction]);
-
-  const hasValidInput = value && parsedNumbers.length > 0;
-  const previewText = hasValidInput ? parsedNumbers.join(', ') : 'No valid episodes';
-
-  return (
-    <div className="flex flex-col gap-2 w-full">
-      <input
-        className={clsx(className, {
-          'bg-gray-100 cursor-not-allowed': disabled,
-          'bg-white': !disabled,
-        })}
-        type="text"
-        placeholder="Enter episode numbers to delete (e.g., 0,1,2,3,10-15,20)"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        aria-label="Episode numbers input"
-      />
-      {value && (
-        <div className="text-sm text-gray-600" role="status" aria-live="polite">
-          <span className="font-medium">Preview:</span> {previewText} ({parsedNumbers.length}{' '}
-          {parsedNumbers.length === 1 ? 'episode' : 'episodes'})
-        </div>
-      )}
-    </div>
-  );
-};
-
-const DeleteSection = ({ isEditable = true }) => {
+export default function DeleteSection({ isEditable = true }) {
   const dispatch = useDispatch();
-  const { datasetToDeleteEpisode, deleteEpisodeNums, datasetInfo } = useSelector(
-    (state) => state.editDataset
-  );
   const { sendEditDatasetCommand, getDatasetInfo } = useRosServiceCaller();
 
-  // Local states
-  const [deleteEpisodeNumsInput, setDeleteEpisodeNumsInput] = useState('');
-  const [showSelectDatasetPathBrowserModal, setShowSelectDatasetPathBrowserModal] = useState(false);
+  const deleteTaskDir = useSelector((state) => state.editDataset.deleteTaskDir);
+  const deleteEpisodeNums = useSelector(
+    (state) => state.editDataset.deleteEpisodeNums
+  );
+  const deleteCompact = useSelector((state) => state.editDataset.deleteCompact);
+  const datasetInfo = useSelector((state) => state.editDataset.datasetInfo);
 
-  const fetchDatasetInfo = useCallback(
-    async (datasetPath) => {
-      if (!datasetPath || datasetPath === '') {
-        toast.error('Dataset path is empty');
-        return;
-      }
+  const [episodeInput, setEpisodeInput] = useState(
+    (deleteEpisodeNums || []).join(', ')
+  );
+  const [showPicker, setShowPicker] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [infoLoading, setInfoLoading] = useState(false);
 
+  // Refresh task info whenever the picked task dir changes.
+  useEffect(() => {
+    if (!deleteTaskDir) return;
+    let cancelled = false;
+    const fetch = async () => {
+      setInfoLoading(true);
       try {
-        const result = await getDatasetInfo(datasetPath);
-        console.log('Dataset info result:', result);
-        if (result?.success) {
+        const result = await getDatasetInfo(deleteTaskDir);
+        if (cancelled) return;
+        if (result?.success && result.dataset_info) {
           dispatch(
             setDatasetInfo({
-              ...result.dataset_info,
-              totalEpisodes: result.dataset_info.total_episodes,
-              totalTasks: result.dataset_info.total_tasks,
-              fps: result.dataset_info.fps,
-              codebaseVersion: result.dataset_info.codebase_version,
-              robotType: result.dataset_info.robot_type,
+              robotType: result.dataset_info.robot_type || '',
+              taskInstruction: result.dataset_info.task_instruction || '',
+              episodeCount: result.dataset_info.episode_count || 0,
+              totalDurationS: result.dataset_info.total_duration_s || 0.0,
+              fps: result.dataset_info.fps || 0,
             })
           );
         } else {
-          toast.error('Failed to get dataset info: ' + result.message);
+          toast.error(result?.message || 'Failed to read task info');
         }
-      } catch (error) {
-        console.error('Error fetching dataset info:', error);
-        toast.error('Failed to get dataset info: ' + error.message);
+      } catch (err) {
+        if (!cancelled) toast.error(err.message || 'Failed to read task info');
+      } finally {
+        if (!cancelled) setInfoLoading(false);
       }
+    };
+    fetch();
+    return () => {
+      cancelled = true;
+    };
+  }, [deleteTaskDir, getDatasetInfo, dispatch]);
+
+  const handlePickTaskDir = useCallback(
+    (item) => {
+      dispatch(setDeleteTaskDir(item.full_path || item.path || ''));
+      setShowPicker(false);
     },
-    [getDatasetInfo, dispatch]
+    [dispatch]
   );
 
-  // Event handlers
-  const handlers = {
-    datasetToDeleteEpisodeChange: (newDatasetToDelete) => {
-      dispatch(setDatasetToDeleteEpisode(newDatasetToDelete));
+  const handleEpisodeInputChange = useCallback(
+    (e) => {
+      const text = e.target.value;
+      setEpisodeInput(text);
+      dispatch(setDeleteEpisodeNums(parseEpisodeNumbers(text)));
     },
+    [dispatch]
+  );
 
-    deleteEpisodeNumsChange: (inputValue) => {
-      setDeleteEpisodeNumsInput(inputValue);
-      dispatch(setDeleteEpisodeNums(parseEpisodeNumbers(inputValue)));
-    },
+  const handleDelete = useCallback(async () => {
+    if (!deleteTaskDir) {
+      toast.error('Pick a task folder first.');
+      return;
+    }
+    if (!deleteEpisodeNums || deleteEpisodeNums.length === 0) {
+      toast.error('Type at least one episode index (e.g. 3, 5, 10-15).');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Delete ${deleteEpisodeNums.length} episode(s) from\n${deleteTaskDir}?\n\n` +
+          `Indices: ${deleteEpisodeNums.join(', ')}\n` +
+          `Compact remaining indices after delete: ${deleteCompact ? 'yes' : 'no'}`
+      )
+    ) {
+      return;
+    }
 
-    selectDatasetPathSelect: useCallback(
-      (item) => {
-        dispatch(setDatasetToDeleteEpisode(item.full_path));
-        setShowSelectDatasetPathBrowserModal(false);
-        fetchDatasetInfo(item.full_path);
-      },
-      [dispatch, fetchDatasetInfo]
-    ),
-  };
-
-  // Operations
-  const operations = {
-    deleteDataset: async () => {
-      try {
-        const result = await sendEditDatasetCommand('delete');
-        console.log('Delete dataset result:', result);
-
-        if (result?.success) {
-          showOperationSuccess('delete', deleteEpisodeNums);
-          fetchDatasetInfo(datasetToDeleteEpisode);
-        } else {
-          if (result?.message !== '') showOperationError('delete', result.message);
-          else showOperationError('delete');
+    setSubmitting(true);
+    try {
+      const result = await sendEditDatasetCommand('delete');
+      if (result?.success) {
+        toast.success(
+          result.message ||
+            `Deleted ${result.affected_count || 0} episode(s) successfully.`
+        );
+        // Refresh info so the user sees the new episode count
+        try {
+          const info = await getDatasetInfo(deleteTaskDir);
+          if (info?.success && info.dataset_info) {
+            dispatch(
+              setDatasetInfo({
+                robotType: info.dataset_info.robot_type || '',
+                taskInstruction: info.dataset_info.task_instruction || '',
+                episodeCount: info.dataset_info.episode_count || 0,
+                totalDurationS: info.dataset_info.total_duration_s || 0.0,
+                fps: info.dataset_info.fps || 0,
+              })
+            );
+          }
+        } catch (_) {
+          /* ignore secondary errors */
         }
-      } catch (error) {
-        console.error('Error deleting dataset:', error);
-        showOperationError('delete', error.message);
+        dispatch(setDeleteEpisodeNums([]));
+        setEpisodeInput('');
+      } else {
+        toast.error(result?.message || 'Delete failed.');
       }
-    },
-  };
+    } catch (err) {
+      toast.error(err.message || 'Delete request failed.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [
+    deleteTaskDir,
+    deleteEpisodeNums,
+    deleteCompact,
+    sendEditDatasetCommand,
+    getDatasetInfo,
+    dispatch,
+  ]);
+
+  const canSubmit =
+    isEditable &&
+    !submitting &&
+    Boolean(deleteTaskDir) &&
+    deleteEpisodeNums &&
+    deleteEpisodeNums.length > 0;
+
+  const totalDurationStr = useMemo(() => {
+    const s = datasetInfo.totalDurationS || 0;
+    if (s < 60) return `${s.toFixed(1)} s`;
+    const m = Math.floor(s / 60);
+    const r = s - m * 60;
+    return `${m}m ${r.toFixed(0)}s`;
+  }, [datasetInfo.totalDurationS]);
 
   return (
     <div className="w-full flex flex-col items-center justify-start bg-gray-100 p-10 gap-8 rounded-xl">
-      <div className="w-full flex items-center justify-start">
-        <h1 className="text-2xl font-bold mb-4">Delete Episodes from Dataset</h1>
+      <div className="w-full flex items-center justify-start gap-2">
+        <MdDeleteSweep className="w-7 h-7 text-red-500" />
+        <span className="text-2xl font-bold">Delete Episodes</span>
       </div>
 
-      <div className="flex flex-row items-center justify-start gap-20 w-full">
-        <div className="flex flex-col items-start justify-start gap-2 w-full">
-          <div className="flex items-center justify-start gap-2 w-full">
-            <div className="flex flex-row items-center justify-start gap-2 bg-white pr-2 pl-4 py-2 rounded-full shadow-md">
-              <span className="text-md font-bold">Total Episodes</span>
-              <span className="text-lg font-bold bg-gray-200 px-3 py-0 rounded-full">
-                {datasetInfo.totalEpisodes}
-              </span>
-            </div>
-            <button
-              onClick={() => fetchDatasetInfo(datasetToDeleteEpisode)}
-              className="flex items-center justify-center text-blue-500 rounded-md p-1 hover:text-blue-700 hover:bg-gray-200"
-            >
-              <MdRefresh className="w-8 h-8" />
-            </button>
-          </div>
-          <div className="flex items-center justify-center gap-2 w-full">
-            <textarea
-              className={clsx(STYLES.textarea, {
-                'bg-gray-100 cursor-not-allowed': !isEditable,
-                'bg-white': isEditable,
-                'shadow-sm': isEditable,
-              })}
-              value={datasetToDeleteEpisode}
-              onChange={(e) => handlers.datasetToDeleteEpisodeChange(e.target.value)}
-              disabled={!isEditable}
-              placeholder="Enter dataset to delete episodes"
+      <div className="w-full bg-white p-6 rounded-md shadow-md flex flex-col gap-4">
+        {/* Task folder picker -------------------------------------------- */}
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-gray-600 font-medium">Task folder</span>
+          <div className="flex flex-row items-center gap-2">
+            <input
+              className={STYLES.textInput}
+              type="text"
+              placeholder="Pick a rosbag2 task folder"
+              value={deleteTaskDir || ''}
+              onChange={(e) => dispatch(setDeleteTaskDir(e.target.value))}
+              disabled={!isEditable || submitting}
             />
-
             <button
               type="button"
-              onClick={() => setShowSelectDatasetPathBrowserModal(true)}
-              className="flex items-center justify-center w-12 h-12 text-blue-500 bg-gray-200 rounded-md hover:text-blue-700"
-              aria-label="Browse files for dataset to delete"
+              onClick={() => setShowPicker(true)}
+              disabled={!isEditable || submitting}
+              className="flex items-center justify-center w-10 h-10 text-blue-500 bg-gray-200 rounded-md hover:text-blue-700 disabled:opacity-50"
+              aria-label="Browse task folder"
             >
-              <MdFolderOpen className="w-10 h-10" />
+              <MdFolderOpen className="w-6 h-6" />
             </button>
           </div>
         </div>
 
-        <div className="flex flex-col items-start justify-start gap-2 w-full">
-          <span className="text-lg font-bold">Episode Numbers to Delete</span>
-          <EpisodeNumberInput
-            value={deleteEpisodeNumsInput}
-            onChange={handlers.deleteEpisodeNumsChange}
-            disabled={!isEditable}
-            className={clsx(STYLES.textInput, {
-              'bg-gray-100 cursor-not-allowed': !isEditable,
-              'bg-white': isEditable,
-              'shadow-sm': isEditable,
-            })}
-            parseFunction={parseEpisodeNumbers}
+        {/* Task summary --------------------------------------------------- */}
+        {deleteTaskDir && (
+          <div className="bg-gray-50 border border-gray-200 rounded-md p-3 text-xs text-gray-700 flex flex-col gap-1">
+            {infoLoading ? (
+              <div>Loading task info…</div>
+            ) : (
+              <>
+                <div>
+                  <span className="font-semibold">Episodes:</span>{' '}
+                  {datasetInfo.episodeCount}
+                </div>
+                <div>
+                  <span className="font-semibold">Robot:</span>{' '}
+                  {datasetInfo.robotType || '—'}
+                </div>
+                <div>
+                  <span className="font-semibold">Task:</span>{' '}
+                  {datasetInfo.taskInstruction || '—'}
+                </div>
+                <div>
+                  <span className="font-semibold">Total duration:</span>{' '}
+                  {totalDurationStr}
+                  {datasetInfo.fps ? `  (fps: ${datasetInfo.fps})` : ''}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Episode indices ------------------------------------------------ */}
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-gray-600 font-medium">
+            Episode indices to delete
+          </span>
+          <input
+            className={STYLES.textInput}
+            type="text"
+            placeholder="e.g. 3, 5, 10-15"
+            value={episodeInput}
+            onChange={handleEpisodeInputChange}
+            disabled={!isEditable || submitting}
           />
+          <div className="text-xs text-gray-500">
+            Comma-separated indices and ranges. Parsed:{' '}
+            <code>{(deleteEpisodeNums || []).join(', ') || '—'}</code>
+          </div>
         </div>
+
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={deleteCompact !== false}
+            onChange={(e) => dispatch(setDeleteCompact(e.target.checked))}
+            disabled={!isEditable || submitting}
+            className="rounded"
+          />
+          <span className="text-sm text-gray-700">
+            Compact indices after delete (rename surviving episodes back to 0..N-1)
+          </span>
+        </label>
+
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={!canSubmit}
+          className={clsx(
+            'mt-2 px-6 py-3 text-base font-semibold rounded-xl shadow-md transition-colors self-start',
+            canSubmit
+              ? 'bg-red-500 text-white hover:bg-red-600'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          )}
+        >
+          {submitting ? 'Deleting…' : 'Delete'}
+        </button>
       </div>
 
-      <button
-        className={STYLES.button}
-        onClick={operations.deleteDataset}
-        disabled={datasetToDeleteEpisode === '' || deleteEpisodeNums.length === 0 || !isEditable}
-      >
-        Delete
-      </button>
-
-      {/* File Browser Modal */}
       <FileBrowserModal
-        isOpen={showSelectDatasetPathBrowserModal}
-        onClose={() => setShowSelectDatasetPathBrowserModal(false)}
-        onFileSelect={handlers.selectDatasetPathSelect}
-        title="Select Dataset Path"
+        isOpen={showPicker}
+        onClose={() => setShowPicker(false)}
+        onFileSelect={handlePickTaskDir}
+        title="Select task folder"
         selectButtonText="Select"
-        allowDirectorySelect={false}
-        targetFolderName={[
-          TARGET_FOLDERS.DATASET_METADATA,
-          TARGET_FOLDERS.DATASET_VIDEO,
-          TARGET_FOLDERS.DATASET_DATA,
-        ]}
-        targetFileLabel="Dataset folder found! 🎯"
-        initialPath={DEFAULT_PATHS.DATASET_PATH}
-        defaultPath={DEFAULT_PATHS.DATASET_PATH}
+        allowDirectorySelect={true}
+        allowFileSelect={false}
+        initialPath={DEFAULT_PATHS.ROSBAG2_PATH}
+        defaultPath={DEFAULT_PATHS.ROSBAG2_PATH}
         homePath=""
       />
     </div>
   );
-};
-
-export default DeleteSection;
+}

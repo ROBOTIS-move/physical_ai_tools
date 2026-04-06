@@ -475,61 +475,70 @@ class Communicator:
         return response
 
     def dataset_edit_callback(self, request, response):
+        from pathlib import Path
         try:
             if request.mode == EditDataset.Request.MERGE:
-                merge_dataset_list = request.merge_dataset_list
-                output_path = request.output_path
-                self.data_editor.merge_datasets(
-                    merge_dataset_list, output_path)
+                source_dirs = [Path(p) for p in request.merge_source_task_dirs]
+                output_dir = Path(request.merge_output_task_dir)
+                result = self.data_editor.merge_rosbag_task_folders(
+                    source_dirs,
+                    output_dir,
+                    move=bool(request.merge_move_sources),
+                )
+                response.affected_count = int(result.total_episodes)
+                response.message = (
+                    f'Merged {result.total_episodes} episodes into '
+                    f'{result.output_dir} (mode='
+                    f'{"move" if result.moved else "copy"})'
+                )
 
             elif request.mode == EditDataset.Request.DELETE:
-                delete_dataset_path = request.delete_dataset_path
-                delete_episode_num = list(request.delete_episode_num)
+                task_dir = Path(request.delete_task_dir)
+                indices = [int(i) for i in request.delete_episode_num]
+                result = self.data_editor.delete_rosbag_episodes(
+                    task_dir,
+                    indices,
+                    compact=bool(request.delete_compact),
+                )
+                response.affected_count = int(result.deleted_count)
+                response.message = (
+                    f'Deleted {result.deleted_count} episodes from '
+                    f'{result.task_dir} (compact={result.compacted}, '
+                    f'remaining={result.remaining_count})'
+                )
 
-                if len(delete_episode_num) > 1:
-                    self.data_editor.delete_episodes_batch(
-                        delete_dataset_path, delete_episode_num
-                    )
-                else:
-                    self.data_editor.delete_episode(
-                        delete_dataset_path, delete_episode_num[0]
-                    )
             else:
                 response.success = False
+                response.affected_count = 0
                 response.message = f'Unknown edit mode: {request.mode}'
                 return response
 
             response.success = True
-            response.message = f'Successfully processed edit mode: {request.mode}'
             return response
 
         except Exception as e:
             self.node.get_logger().error(f'Error in dataset_edit_callback: {str(e)}')
             response.success = False
+            response.affected_count = 0
             response.message = f'Error: {str(e)}'
-
-        return response
+            return response
 
     def get_dataset_info_callback(self, request, response):
+        from pathlib import Path
         try:
-            dataset_path = request.dataset_path
-            dataset_info = self.data_editor.get_dataset_info(dataset_path)
+            task_dir = Path(request.dataset_path)
+            task_info = self.data_editor.get_rosbag_task_info(task_dir)
 
             info = DatasetInfo()
-            info.codebase_version = dataset_info.get('codebase_version', 'unknown') if isinstance(
-                dataset_info.get('codebase_version'), str) else 'unknown'
-            info.robot_type = dataset_info.get('robot_type', 'unknown') if isinstance(
-                dataset_info.get('robot_type'), str) else 'unknown'
-            info.total_episodes = dataset_info.get('total_episodes', 0) if isinstance(
-                dataset_info.get('total_episodes'), int) else 0
-            info.total_tasks = dataset_info.get('total_tasks', 0) if isinstance(
-                dataset_info.get('total_tasks'), int) else 0
-            info.fps = dataset_info.get('fps', 0) if isinstance(
-                dataset_info.get('fps'), int) else 0
+            info.robot_type = task_info.robot_type
+            info.task_instruction = task_info.task_instruction
+            info.episode_count = int(task_info.episode_count)
+            info.total_duration_s = float(task_info.total_duration_s)
+            info.fps = int(task_info.fps)
 
             response.dataset_info = info
             response.success = True
-            response.message = 'Dataset info retrieved successfully'
+            response.message = 'Task info retrieved successfully'
             return response
 
         except Exception as e:

@@ -243,15 +243,22 @@ export function useRosServiceCaller() {
     [callService]
   );
 
+  // Register a token for a specific HuggingFace endpoint. The server validates
+  // the (endpoint, token) pair via whoami() before persisting it, so a bad
+  // token never reaches the on-disk store.
   const registerHFUser = useCallback(
-    async (token) => {
+    async ({ endpoint, label = '', token }) => {
       try {
-        console.log('Calling service /register_hf_user with request:', { token: token });
+        console.log('Calling service /register_hf_user with request:', {
+          endpoint,
+          label,
+          token: '<redacted>',
+        });
 
         const result = await callService(
           '/register_hf_user',
           'physical_ai_interfaces/srv/SetHFUser',
-          { token: token }
+          { endpoint: endpoint || '', label: label || '', token: token || '' }
         );
 
         console.log('registerHFUser service response:', result);
@@ -264,24 +271,67 @@ export function useRosServiceCaller() {
     [callService]
   );
 
-  const getRegisteredHFUser = useCallback(async () => {
-    try {
-      console.log('Calling service /get_registered_hf_user with request:', {});
+  // Fetch the user list for a given endpoint (empty endpoint = currently
+  // active endpoint on the server side).
+  const getRegisteredHFUser = useCallback(
+    async (endpoint = '') => {
+      try {
+        console.log('Calling service /get_registered_hf_user with request:', {
+          endpoint,
+        });
 
+        const result = await callService(
+          '/get_registered_hf_user',
+          'physical_ai_interfaces/srv/GetHFUser',
+          { endpoint },
+          3000
+        );
+
+        console.log('getRegisteredHFUser service response:', result);
+        return result;
+      } catch (error) {
+        console.error('Failed to get registered HF user:', error);
+        throw new Error(`${error.message || error}`);
+      }
+    },
+    [callService]
+  );
+
+  // Return the full list of registered HF endpoints + the active one.
+  const listHFEndpoints = useCallback(async () => {
+    try {
       const result = await callService(
-        '/get_registered_hf_user',
-        'physical_ai_interfaces/srv/GetHFUser',
+        '/huggingface/list_endpoints',
+        'physical_ai_interfaces/srv/HFEndpointList',
         {},
         3000
       );
-
-      console.log('getRegisteredHFUser service response:', result);
+      console.log('listHFEndpoints service response:', result);
       return result;
     } catch (error) {
-      console.error('Failed to get registered HF user:', error);
+      console.error('Failed to list HF endpoints:', error);
       throw new Error(`${error.message || error}`);
     }
   }, [callService]);
+
+  // Set the server-side active endpoint. Empty string clears the selection.
+  const selectHFEndpoint = useCallback(
+    async (endpoint) => {
+      try {
+        const result = await callService(
+          '/huggingface/select_endpoint',
+          'physical_ai_interfaces/srv/SelectHFEndpoint',
+          { endpoint: endpoint || '' }
+        );
+        console.log('selectHFEndpoint service response:', result);
+        return result;
+      } catch (error) {
+        console.error('Failed to select HF endpoint:', error);
+        throw new Error(`${error.message || error}`);
+      }
+    },
+    [callService]
+  );
 
   const getUserList = useCallback(async () => {
     try {
@@ -487,23 +537,30 @@ export function useRosServiceCaller() {
 
         console.log('editDatasetInfo:', editDatasetInfo);
 
-        // Remove trailing slash from mergeOutputPath if present
-        let mergeOutputPath = editDatasetInfo.mergeOutputPath;
+        // Build merge_output_task_dir from mergeOutputPath + mergeOutputFolderName.
+        let mergeOutputPath = editDatasetInfo.mergeOutputPath || '';
         if (mergeOutputPath.endsWith('/')) {
           mergeOutputPath = mergeOutputPath.slice(0, -1);
         }
-        const output_path = `${mergeOutputPath}/${editDatasetInfo.mergeOutputFolderName}`;
+        const merge_output_task_dir =
+          mergeOutputPath && editDatasetInfo.mergeOutputFolderName
+            ? `${mergeOutputPath}/${editDatasetInfo.mergeOutputFolderName}`
+            : '';
 
         const result = await callService(
           '/dataset/edit',
           'physical_ai_interfaces/srv/EditDataset',
           {
             mode: command_enum,
-            merge_dataset_list: editDatasetInfo.mergeDatasetList,
-            delete_dataset_path: editDatasetInfo.datasetToDeleteEpisode,
-            output_path: output_path,
-            delete_episode_num: editDatasetInfo.deleteEpisodeNums,
-            upload_huggingface: editDatasetInfo.uploadHuggingface,
+            merge_source_task_dirs: editDatasetInfo.mergeSourceTaskDirs || [],
+            merge_output_task_dir,
+            merge_move_sources: Boolean(editDatasetInfo.mergeMoveSources),
+            delete_task_dir: editDatasetInfo.deleteTaskDir || '',
+            delete_episode_num: editDatasetInfo.deleteEpisodeNums || [],
+            delete_compact:
+              editDatasetInfo.deleteCompact === undefined
+                ? true
+                : Boolean(editDatasetInfo.deleteCompact),
           }
         );
 
@@ -536,19 +593,21 @@ export function useRosServiceCaller() {
   );
 
   const controlHfServer = useCallback(
-    async (mode, repoId = '', repoType = '', localDir = '') => {
+    async (mode, repoId = '', repoType = '', localDir = '', endpoint = '') => {
       try {
         console.log('Calling service /huggingface/control with request:', {
           mode: mode,
           repo_id: repoId,
           repo_type: repoType,
           local_dir: localDir,
+          endpoint: endpoint,
         });
 
         const request = {
           mode: mode,
           repo_id: repoId,
           repo_type: repoType,
+          endpoint: endpoint || '',
         };
 
         // Only add local_dir if it's provided and not empty
@@ -682,6 +741,8 @@ export function useRosServiceCaller() {
     setRobotType,
     registerHFUser,
     getRegisteredHFUser,
+    listHFEndpoints,
+    selectHFEndpoint,
     getUserList,
     getDatasetList,
     getPolicyList,

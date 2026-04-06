@@ -15,6 +15,8 @@
 // Author: Woojin Wie, Kiwoong Park
 
 
+#include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -36,6 +38,16 @@ ServiceBagRecorder::ServiceBagRecorder()
 : rclcpp::Node("service_bag_recorder")
 {
   RCLCPP_INFO(this->get_logger(), "Starting rosbag recorder node");
+
+  // Preflight check: how long to wait for the first message on each requested
+  // topic before failing the START command. Set <= 0 to disable.
+  this->declare_parameter<int>("preflight_wait_timeout_ms", 2000);
+  preflight_wait_timeout_ms_ =
+    this->get_parameter("preflight_wait_timeout_ms").as_int();
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Preflight wait timeout: %d ms (<=0 disables the check)",
+    preflight_wait_timeout_ms_);
 
   // Create callback groups for parallel processing
   camera_callback_group_ = this->create_callback_group(
@@ -200,6 +212,25 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     }
 
     create_subscriptions();
+
+    // Preflight: confirm every requested topic is actually publishing data
+    // before we touch the filesystem. This prevents empty bag directories
+    // (message_count: 0) when a publisher node is alive but its sensor is
+    // stalled, or when nothing is publishing the topic at all.
+    auto inactive_topics = wait_for_first_messages();
+    if (!inactive_topics.empty()) {
+      // Drop subscriptions so they don't linger until the next START.
+      generic_subscriptions_.clear();
+      type_for_topic_.clear();
+
+      std::ostringstream oss;
+      oss << "No messages received within " << preflight_wait_timeout_ms_
+          << "ms from topics:";
+      for (const auto & t : inactive_topics) {
+        oss << " " << t;
+      }
+      throw std::runtime_error(oss.str());
+    }
 
     // Now open the bag writer
     delete_bag_directory(current_bag_uri_);
@@ -406,6 +437,54 @@ void ServiceBagRecorder::create_subscriptions()
   }
 }
 
+std::vector<std::string> ServiceBagRecorder::wait_for_first_messages()
+{
+  if (preflight_wait_timeout_ms_ <= 0) {
+    RCLCPP_INFO(this->get_logger(), "Preflight check disabled (timeout <= 0)");
+    return {};
+  }
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Preflight: waiting up to %d ms for first message on each of %zu topics",
+    preflight_wait_timeout_ms_, topics_to_record_.size());
+
+  {
+    std::scoped_lock<std::mutex> lk(preflight_mutex_);
+    preflight_received_topics_.clear();
+  }
+  preflight_active_.store(true, std::memory_order_release);
+
+  std::vector<std::string> missing;
+  {
+    std::unique_lock<std::mutex> lk(preflight_mutex_);
+    preflight_cv_.wait_for(
+      lk,
+      std::chrono::milliseconds(preflight_wait_timeout_ms_),
+      [this]() {
+        for (const auto & topic : topics_to_record_) {
+          if (preflight_received_topics_.count(topic) == 0) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+    for (const auto & topic : topics_to_record_) {
+      if (preflight_received_topics_.count(topic) == 0) {
+        missing.push_back(topic);
+      }
+    }
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Preflight done: %zu/%zu topics produced data",
+      preflight_received_topics_.size(), topics_to_record_.size());
+  }
+
+  preflight_active_.store(false, std::memory_order_release);
+  return missing;
+}
+
 rclcpp::QoS ServiceBagRecorder::get_qos_for_topic(const std::string & topic)
 {
   // Camera topics: large buffer for high-bandwidth data
@@ -463,6 +542,18 @@ void ServiceBagRecorder::handle_serialized_message(
   const std::shared_ptr<rclcpp::SerializedMessage> & serialized_msg,
   const rclcpp::MessageInfo & message_info)
 {
+  // Preflight tracking: must run before the is_recording_ early return.
+  if (preflight_active_.load(std::memory_order_acquire)) {
+    bool newly_inserted = false;
+    {
+      std::scoped_lock<std::mutex> lk(preflight_mutex_);
+      newly_inserted = preflight_received_topics_.insert(topic).second;
+    }
+    if (newly_inserted) {
+      preflight_cv_.notify_all();
+    }
+  }
+
   // First check without lock - fast path for when not recording
   // is_recording_ is atomic, so this read is safe
   if (!is_recording_.load(std::memory_order_acquire)) {

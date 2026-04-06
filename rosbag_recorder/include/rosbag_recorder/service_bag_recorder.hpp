@@ -19,6 +19,7 @@
 #define ROSBAG_RECORDER__SERVICE_BAG_RECORDER_HPP_
 
 #include <atomic>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -80,6 +81,7 @@ private:
     const std::map<std::string, std::vector<std::string>> & names_and_types);
   void delete_bag_directory(const std::string & bag_uri);
   void create_subscriptions();
+  std::vector<std::string> wait_for_first_messages();
   bool is_image_topic(const std::string & topic_type) const;
   bool is_compressed_image_topic(const std::string & topic_type) const;
   rclcpp::QoS get_qos_for_topic(const std::string & topic);
@@ -110,6 +112,13 @@ private:
   std::string current_bag_uri_;
   std::vector<std::string> topics_to_record_ {};
   std::mutex mutex_;
+
+  // Preflight: verify each topic is actually publishing before recording starts
+  std::atomic<bool> preflight_active_{false};
+  std::unordered_set<std::string> preflight_received_topics_;
+  std::mutex preflight_mutex_;
+  std::condition_variable preflight_cv_;
+  int preflight_wait_timeout_ms_{2000};
 
   // Statistics for monitoring
   std::atomic<uint64_t> messages_received_{0};

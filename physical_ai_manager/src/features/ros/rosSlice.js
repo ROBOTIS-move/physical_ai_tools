@@ -18,11 +18,16 @@
 
 import { createSlice } from '@reduxjs/toolkit';
 
+// Resolved at module load so the very first render already has a valid
+// rosbridge URL — child components mount with a working connection target
+// instead of waiting for an effect-time dispatch.
+const defaultRosHost = typeof window !== 'undefined' ? window.location.hostname : '';
+
 const initialState = {
   connected: false,
   connecting: false,
-  rosHost: '',
-  rosbridgeUrl: '',
+  rosHost: defaultRosHost,
+  rosbridgeUrl: defaultRosHost ? `ws://${defaultRosHost}:9090` : '',
   imageTopicList: [],
   /** Persisted camera topic assignment [left, center, right] so it survives ImageGrid remounts */
   assignedImageTopics: [],

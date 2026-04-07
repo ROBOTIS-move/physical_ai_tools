@@ -15,7 +15,7 @@
 // Author: Kiwoong Park
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector, useDispatch, useStore } from 'react-redux';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
@@ -47,18 +47,33 @@ const ROBOT_CAMERA_PRESETS = {
 
 export default function ImageGrid({ isActive = true }) {
   const dispatch = useDispatch();
+  const store = useStore();
   const imageTopicList = useSelector((state) => state.ros.imageTopicList);
-  const assignedImageTopicsFromRedux = useSelector((state) => state.ros.assignedImageTopics);
   const robotType = useSelector((state) => state.tasks.taskStatus.robotType);
 
   const [modalOpen, setModalOpen] = React.useState(false);
   const [selectedIdx, setSelectedIdx] = React.useState(null);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [topicListError, setTopicListError] = useState(null);
-  // Initialise with default preset so first paint and remounts show cameras (avoid [] then length-effect overwrite)
-  const [asignedImageTopicList, setAsignedImageTopicList] = useState(
-    () => [...(ROBOT_CAMERA_PRESETS.ffw_sg2_rev1 || Array(DEFAULT_LAYOUT.length).fill(null))]
-  );
+  // Mount-time initial value: prefer whatever this component last persisted
+  // (so Record↔Inference page transitions remember the user's selection),
+  // otherwise fall back to the robot preset. We deliberately read via
+  // store.getState() instead of useSelector so the component does NOT
+  // subscribe to this slice — the only writer is this component itself, and
+  // round-tripping our own dispatch back into local state used to ping-pong
+  // with the persist effect below (React error #185, blank screen on page
+  // transition).
+  const [asignedImageTopicList, setAsignedImageTopicList] = useState(() => {
+    const saved = store.getState().ros.assignedImageTopics;
+    if (
+      Array.isArray(saved) &&
+      saved.length === DEFAULT_LAYOUT.length &&
+      saved.some(Boolean)
+    ) {
+      return [...saved];
+    }
+    return [...(ROBOT_CAMERA_PRESETS.ffw_sg2_rev1 || Array(DEFAULT_LAYOUT.length).fill(null))];
+  });
   const [presetApplied, setPresetApplied] = useState(false);
   // Per-cell rotation override: 0 = landscape, -90 = portrait; undefined = use layout default
   const [rotationOverrides, setRotationOverrides] = useState({});
@@ -85,31 +100,19 @@ export default function ImageGrid({ isActive = true }) {
     [robotType]
   );
 
-  // Restore persisted topic assignment when Redux has a valid list (e.g. after remount when Inference starts)
-  // Only set state when current state differs to avoid triggering persist → Redux update → restore loop
-  useEffect(() => {
-    const hasSaved =
-      assignedImageTopicsFromRedux.length === layout.length &&
-      assignedImageTopicsFromRedux.some(Boolean);
-    if (!hasSaved) return;
-    setAsignedImageTopicList((prev) => {
-      const same = prev.length === assignedImageTopicsFromRedux.length && prev.every((t, i) => t === assignedImageTopicsFromRedux[i]);
-      return same ? prev : [...assignedImageTopicsFromRedux];
-    });
-  }, [assignedImageTopicsFromRedux, layout.length]);
-
-  // Apply preset when we haven't applied yet and Redux has no valid saved list (don't overwrite restored list on remount)
+  // Apply preset when we haven't applied yet and the local list has no valid
+  // entries (don't overwrite a list we restored from redux at mount).
   useEffect(() => {
     if (!preset || presetApplied) return;
-    const hasSaved = assignedImageTopicsFromRedux.length === layout.length && assignedImageTopicsFromRedux.some(Boolean);
-    if (hasSaved) {
+    const hasLocal = asignedImageTopicList.length === layout.length && asignedImageTopicList.some(Boolean);
+    if (hasLocal) {
       setPresetApplied(true);
       return;
     }
     setAsignedImageTopicList([...preset]);
     setPresetApplied(true);
     console.log(`Applied camera preset for ${robotType || 'default (ffw_sg2_rev1)'}:`, preset);
-  }, [preset, robotType, presetApplied, assignedImageTopicsFromRedux, layout.length]);
+  }, [preset, robotType, presetApplied, asignedImageTopicList, layout.length]);
 
   // Reset presetApplied when robotType changes
   useEffect(() => {
@@ -143,17 +146,20 @@ export default function ImageGrid({ isActive = true }) {
     });
   }, [layout]);
 
-  // Persist topic assignment to Redux so it survives remounts (e.g. Inference start)
-  // Only dispatch when list actually changed to avoid loop: restore sets state → persist dispatches → Redux updates → restore runs again
+  // Persist topic assignment to Redux so it survives remounts (page swap).
+  // Compare against the latest store value via getState() so we never
+  // re-trigger this effect from our own dispatch.
   useEffect(() => {
     if (asignedImageTopicList.length === 0) return;
+    const current = store.getState().ros.assignedImageTopics;
     const same =
-      assignedImageTopicsFromRedux.length === asignedImageTopicList.length &&
-      asignedImageTopicList.every((t, i) => t === assignedImageTopicsFromRedux[i]);
+      Array.isArray(current) &&
+      current.length === asignedImageTopicList.length &&
+      asignedImageTopicList.every((t, i) => t === current[i]);
     if (!same) {
       dispatch(setAssignedImageTopics(asignedImageTopicList));
     }
-  }, [asignedImageTopicList, dispatch, assignedImageTopicsFromRedux]);
+  }, [asignedImageTopicList, dispatch, store]);
 
   useEffect(() => {
     const fetchTopicList = async () => {
@@ -184,28 +190,6 @@ export default function ImageGrid({ isActive = true }) {
 
     fetchTopicList();
   }, [getImageTopicList, autoAssignTopics, dispatch, preset]);
-
-  useEffect(() => {
-    return () => {
-      console.log('ImageGrid unmounting - cleaning up all streams');
-      layout.forEach((_, idx) => {
-        const imgById = document.querySelector(`#img-stream-${idx}`);
-        if (imgById) {
-          imgById.src = '';
-          if (imgById.parentNode) {
-            imgById.parentNode.removeChild(imgById);
-          }
-        }
-      });
-      const streamingImgs = document.querySelectorAll('img[src*="/stream"]');
-      streamingImgs.forEach((img) => {
-        img.src = '';
-        if (img.parentNode) {
-          img.parentNode.removeChild(img);
-        }
-      });
-    };
-  }, [layout]);
 
   const handlePlusClick = (idx) => {
     setSelectedIdx(idx);

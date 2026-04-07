@@ -31,7 +31,6 @@ import BTManagerPage from './pages/BTManagerPage';
 import { useRosTopicSubscription } from './hooks/useRosTopicSubscription';
 import rosConnectionManager from './utils/rosConnectionManager';
 import { useDispatch, useSelector } from 'react-redux';
-import { setRosHost } from './features/ros/rosSlice';
 import { moveToPage } from './features/ui/uiSlice';
 import PageType from './constants/pageType';
 
@@ -41,9 +40,6 @@ function App() {
   const taskInfo = useSelector((state) => state.tasks.taskInfo);
   const trainingTopicReceived = useSelector((state) => state.training.topicReceived);
 
-  const defaultRosHost = window.location.hostname;
-  dispatch(setRosHost(defaultRosHost));
-
   const page = useSelector((state) => state.ui.currentPage);
   const robotType = useSelector((state) => state.tasks.taskStatus.robotType);
 
@@ -51,7 +47,14 @@ function App() {
 
   // Subscribe to task status from ROS topic (always active)
   const rosSubscriptionControls = useRosTopicSubscription();
-  rosConnectionManager.setOnConnected(rosSubscriptionControls.initializeSubscriptions);
+
+  // rosHost is now seeded by rosSlice initialState (window.location.hostname),
+  // so we no longer need to dispatch it here.
+
+  // Register the on-connected callback once.
+  useEffect(() => {
+    rosConnectionManager.setOnConnected(rosSubscriptionControls.initializeSubscriptions);
+  }, [rosSubscriptionControls.initializeSubscriptions]);
 
   // Disconnect ROS connection when app unmounts
   useEffect(() => {
@@ -212,22 +215,6 @@ function App() {
     isFirstLoad.current = false;
     dispatch(moveToPage(PageType.BT_MANAGER));
   };
-
-  // Force cleanup of all image streams when page changes
-  useEffect(() => {
-    return () => {
-      // Clean up all possible image streams when page changes
-
-      // Find all streaming images by src pattern
-      const allStreamImgs = document.querySelectorAll('img[src*="/stream"]');
-      allStreamImgs.forEach((img, index) => {
-        img.src = '';
-        if (img.parentNode) {
-          img.parentNode.removeChild(img);
-        }
-      });
-    };
-  }, [page]);
 
   const classPageButton = clsx(
     'flex',

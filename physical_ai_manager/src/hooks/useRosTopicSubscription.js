@@ -59,6 +59,8 @@ export function useRosTopicSubscription() {
   // first message; subsequent echoes would clobber whatever the user is
   // currently typing in InfoPanel.
   const initialTaskInfoSyncRef = useRef(false);
+  // Dedup task-status error toasts so a sticky error field doesn't spam.
+  const previousTaskStatusErrorRef = useRef('');
 
   const dispatch = useDispatch();
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
@@ -251,11 +253,16 @@ export function useRosTopicSubscription() {
 
         let progress = 0;
 
-        if (msg.error !== '') {
+        // Show the toast once when a new error appears, but DO NOT bail out:
+        // we still need to dispatch setTaskStatus below so the phase update
+        // (e.g. backend resetting LOADING → READY after a failed setup) is
+        // reflected in the UI. Returning early used to leave the panel
+        // stuck in LOADING / Read-only forever.
+        if (msg.error && msg.error !== previousTaskStatusErrorRef.current) {
           console.log('error:', msg.error);
           toast.error(msg.error);
-          return;
         }
+        previousTaskStatusErrorRef.current = msg.error || '';
 
         const currentPhase = msg.phase;
         const previousPhase = previousPhaseRef.current;

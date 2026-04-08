@@ -36,8 +36,19 @@ const InferencePanel = () => {
   const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
   const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
 
-  // Calculate if the panel should be disabled based on task status
-  const disabled = taskStatus.phase !== TaskPhase.READY || !isTaskStatusPaused;
+  // Black-list approach: only lock the panel while a task is actually
+  // running. Any other phase (including STOPPED, an unknown initial value,
+  // or no recent backend echo) leaves the inputs editable.
+  const isTaskRunning =
+    taskStatus.phase === TaskPhase.WARMING_UP ||
+    taskStatus.phase === TaskPhase.RESETTING ||
+    taskStatus.phase === TaskPhase.RECORDING ||
+    taskStatus.phase === TaskPhase.SAVING ||
+    taskStatus.phase === TaskPhase.LOADING ||
+    taskStatus.phase === TaskPhase.INFERENCING ||
+    taskStatus.phase === TaskPhase.CONVERTING ||
+    taskStatus.phase === TaskPhase.PAUSED;
+  const disabled = isTaskRunning;
   const [isEditable, setIsEditable] = useState(!disabled);
 
   // User ID list for dropdown

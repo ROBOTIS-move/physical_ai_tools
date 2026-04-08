@@ -15,7 +15,7 @@
 // Author: Dongyun Kim
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
 import {
@@ -29,6 +29,7 @@ import {
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import Tooltip from './Tooltip';
 import TaskPhase from '../constants/taskPhases';
+import { setTaskStatus } from '../features/tasks/taskSlice';
 
 const phaseGuideMessages = {
   [TaskPhase.READY]: 'Ready to start',
@@ -45,6 +46,7 @@ const requiredFields = [
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧'];
 
 export default function InferenceControlPanel() {
+  const dispatch = useDispatch();
   const taskInfo = useSelector((state) => state.tasks.taskInfo);
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
   const rosHost = useSelector((state) => state.ros.rosHost);
@@ -114,10 +116,15 @@ export default function InferenceControlPanel() {
         const result = await sendRecordCommand(commandString);
         if (result && result.success === false) {
           toast.error(`Command failed: ${result.message || 'Unknown error'}`);
+          // Backend may have left phase in LOADING/INFERENCING after a failed
+          // setup; force the local phase back to READY so the panel becomes
+          // editable and the user can retry.
+          dispatch(setTaskStatus({ phase: TaskPhase.READY, running: false }));
         } else if (result && result.success === true) {
           toast.success(`${commandName} executed successfully`);
         } else {
           toast.error(`${commandName} completed with uncertain status`);
+          dispatch(setTaskStatus({ phase: TaskPhase.READY, running: false }));
         }
         return result;
       } catch (error) {
@@ -132,10 +139,12 @@ export default function InferenceControlPanel() {
         } else {
           toast.error(`Command failed [${commandName}]: ${errorMessage}`);
         }
+        // Same reasoning as the success===false branch above.
+        dispatch(setTaskStatus({ phase: TaskPhase.READY, running: false }));
         return null;
       }
     },
-    [sendRecordCommand, rosHost]
+    [sendRecordCommand, rosHost, dispatch]
   );
 
   const handleStart = useCallback(async () => {

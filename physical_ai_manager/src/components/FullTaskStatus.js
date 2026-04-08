@@ -39,15 +39,10 @@ const classBody = clsx(
   'bg-white'
 );
 
-const MultiTaskFontSizeTitle = 'clamp(1rem, 1.2vw, 1.4rem)';
-const MultiTaskFontSizeNumber = 'clamp(1rem, 1.2vw, 1.4rem)';
-
-const SingleTaskFontSizeTitle = 'clamp(1.5rem, 1.5vw, 2rem)';
-const SingleTaskFontSizeNumber = 'clamp(1.5rem, 1.5vw, 2rem)';
+const TitleFontSize = 'clamp(1.5rem, 1.5vw, 2rem)';
+const NumberFontSize = 'clamp(1.5rem, 1.5vw, 2rem)';
 
 export default function FullTaskStatus() {
-  const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
-
   const currentScenarioNumber = useSelector(
     (state) => state.tasks.taskStatus.currentScenarioNumber
   );
@@ -56,15 +51,13 @@ export default function FullTaskStatus() {
     <div className={classBody}>
       <div
         className="w-full h-full flex justify-center items-center"
-        style={{ fontSize: useMultiTaskMode ? MultiTaskFontSizeTitle : SingleTaskFontSizeTitle }}
+        style={{ fontSize: TitleFontSize }}
       >
         Scenario
       </div>
       <div
         className="w-full h-full flex justify-center items-center bg-gray-200 rounded-lg px-3 font-bold whitespace-nowrap"
-        style={{
-          fontSize: useMultiTaskMode ? MultiTaskFontSizeNumber : SingleTaskFontSizeNumber,
-        }}
+        style={{ fontSize: NumberFontSize }}
       >
         <span className="font-bold">{currentScenarioNumber}</span>
       </div>

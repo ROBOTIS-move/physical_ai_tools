@@ -17,10 +17,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
-import TaskInstructionInput from './TaskInstructionInput';
 import TagInput from './TagInput';
 import TaskPhase from '../constants/taskPhases';
-import { setTaskInfo, setUseMultiTaskMode } from '../features/tasks/taskSlice';
+import { setTaskInfo } from '../features/tasks/taskSlice';
 
 const InfoPanel = () => {
   const dispatch = useDispatch();
@@ -31,9 +30,7 @@ const InfoPanel = () => {
   const [isTaskStatusPaused, setIsTaskStatusPaused] = useState(false);
   const [lastTaskStatusUpdate, setLastTaskStatusUpdate] = useState(Date.now());
 
-  const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
-
-  const disabled = taskStatus.phase !== TaskPhase.IDLE || !isTaskStatusPaused;
+  const disabled = taskStatus.phase !== TaskPhase.IDLE || isTaskStatusPaused;
   const [isEditable, setIsEditable] = useState(!disabled);
 
   const handleChange = useCallback(
@@ -128,28 +125,6 @@ const InfoPanel = () => {
     }
   );
 
-  const classSingleTaskButton = clsx(
-    'px-3',
-    'py-1',
-    'text-sm',
-    'rounded-xl',
-    'font-medium',
-    'transition-colors',
-    !useMultiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
-    !isEditable && 'cursor-not-allowed opacity-60'
-  );
-
-  const classMultiTaskButton = clsx(
-    'px-3',
-    'py-1',
-    'text-sm',
-    'rounded-xl',
-    'font-medium',
-    'transition-colors',
-    useMultiTaskMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700',
-    !isEditable && 'cursor-not-allowed opacity-60'
-  );
-
   return (
     <div className={classInfoPanel}>
       <div className={clsx('text-lg', 'font-semibold', 'mb-3', 'text-gray-800')}>
@@ -187,59 +162,14 @@ const InfoPanel = () => {
 
       {/* Task Instruction */}
       <div className={clsx('flex', 'items-start', 'mb-2.5')}>
-        <span
-          className={clsx(
-            'text-sm',
-            'text-gray-600',
-            'w-28',
-            'flex-shrink-0',
-            'font-medium',
-            'pt-2'
-          )}
-        >
-          Task Instruction
-        </span>
-
-        <div>
-          {/* Single/Multi Task Mode Toggle */}
-          <div className={clsx('flex', 'justify-start', 'mb-3', 'gap-3')}>
-            <button
-              type="button"
-              className={classSingleTaskButton}
-              onClick={() => isEditable && dispatch(setUseMultiTaskMode(false))}
-              disabled={!isEditable}
-            >
-              Single Task
-            </button>
-            <button
-              type="button"
-              className={classMultiTaskButton}
-              onClick={() => isEditable && dispatch(setUseMultiTaskMode(true))}
-              disabled={!isEditable}
-            >
-              Multi Task
-            </button>
-          </div>
-
-          {useMultiTaskMode && (
-            <div className="flex-1 min-w-0">
-              <TaskInstructionInput
-                instructions={info.taskInstruction || []}
-                onChange={(newInstructions) => handleChange('taskInstruction', newInstructions)}
-                disabled={!isEditable}
-              />
-            </div>
-          )}
-          {!useMultiTaskMode && (
-            <textarea
-              className={classTaskInstructionTextarea}
-              value={info.taskInstruction || ''}
-              onChange={(e) => handleChange('taskInstruction', [e.target.value])}
-              disabled={!isEditable}
-              placeholder="Enter Task Instruction"
-            />
-          )}
-        </div>
+        <span className={clsx(classLabel, 'pt-2')}>Task Instruction</span>
+        <textarea
+          className={classTaskInstructionTextarea}
+          value={(info.taskInstruction && info.taskInstruction[0]) || ''}
+          onChange={(e) => handleChange('taskInstruction', [e.target.value])}
+          disabled={!isEditable}
+          placeholder="Enter Task Instruction"
+        />
       </div>
 
       {/* Tags */}

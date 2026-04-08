@@ -39,40 +39,28 @@ const classEpisodeStatusBody = clsx(
   'bg-white'
 );
 
-const MultiTaskFontSizeTitle = 'clamp(1rem, 1.2vw, 1.4rem)';
-const MultiTaskFontSizeNumber = 'clamp(1rem, 1.2vw, 1.4rem)';
-
-const SingleTaskFontSizeTitle = 'clamp(1.5rem, 1.5vw, 2rem)';
-const SingleTaskFontSizeNumber = 'clamp(1.5rem, 1.5vw, 2rem)';
+const TitleFontSize = 'clamp(1.5rem, 1.5vw, 2rem)';
+const NumberFontSize = 'clamp(1.5rem, 1.5vw, 2rem)';
 
 export default function EpisodeStatus() {
   const currentEpisodeNumber = useSelector((state) => state.tasks.taskStatus.currentEpisodeNumber);
   const numEpisodes = useSelector((state) => state.tasks.taskInfo.numEpisodes);
-  const useMultiTaskMode = useSelector((state) => state.tasks.useMultiTaskMode);
 
   return (
     <div className={classEpisodeStatusBody}>
       <div
         className="w-full h-full flex justify-center items-center"
-        style={{ fontSize: useMultiTaskMode ? MultiTaskFontSizeTitle : SingleTaskFontSizeTitle }}
+        style={{ fontSize: TitleFontSize }}
       >
         Episode
       </div>
       <div
         className="w-full h-full flex justify-center items-center bg-gray-200 rounded-lg px-3 font-bold whitespace-nowrap"
-        style={{
-          fontSize: useMultiTaskMode ? MultiTaskFontSizeNumber : SingleTaskFontSizeNumber,
-        }}
+        style={{ fontSize: NumberFontSize }}
       >
-        {useMultiTaskMode ? (
-          <span className="font-bold">{currentEpisodeNumber}</span>
-        ) : (
-          <>
-            <span className="font-bold">{currentEpisodeNumber}</span>
-            <span className="text-gray-600">{' / '}</span>
-            <span className="text-gray-600">{numEpisodes}</span>
-          </>
-        )}
+        <span className="font-bold">{currentEpisodeNumber}</span>
+        <span className="text-gray-600">{' / '}</span>
+        <span className="text-gray-600">{numEpisodes}</span>
       </div>
     </div>
   );

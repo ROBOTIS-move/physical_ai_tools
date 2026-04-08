@@ -24,8 +24,6 @@ import {
   setTaskInfo,
   setHeartbeatStatus,
   setLastHeartbeatTime,
-  setUseMultiTaskMode,
-  setMultiTaskIndex,
 } from '../features/tasks/taskSlice';
 import {
   setIsTraining,
@@ -57,6 +55,10 @@ export function useRosTopicSubscription() {
   const audioContextRef = useRef(null);
   const hfStatusTopicRef = useRef(null);
   const actionEventTopicRef = useRef(null);
+  // One-shot guard so the backend's task_info echo only seeds redux on the
+  // first message; subsequent echoes would clobber whatever the user is
+  // currently typing in InfoPanel.
+  const initialTaskInfoSyncRef = useRef(false);
 
   const dispatch = useDispatch();
   const rosbridgeUrl = useSelector((state) => state.ros.rosbridgeUrl);
@@ -321,7 +323,9 @@ export function useRosTopicSubscription() {
           (msg.task_info.task_name && msg.task_info.task_name.length > 0) ||
           (msg.task_info.policy_path && msg.task_info.policy_path.length > 0)
         );
-        if (hasTaskInfo) {
+        // Only seed once: subsequent echoes would overwrite user edits.
+        if (hasTaskInfo && !initialTaskInfoSyncRef.current) {
+          initialTaskInfoSyncRef.current = true;
           dispatch(
             setTaskInfo({
               taskName: msg.task_info.task_name || '',
@@ -344,21 +348,6 @@ export function useRosTopicSubscription() {
           );
         }
 
-        // Set multi-task index safely with null checks and optimized search
-        if (msg.task_info?.task_instruction && msg.current_task_instruction) {
-          const taskIndex = msg.task_info.task_instruction.indexOf(msg.current_task_instruction);
-          if (taskIndex !== -1) {
-            dispatch(setMultiTaskIndex(taskIndex));
-          } else {
-            dispatch(setMultiTaskIndex(undefined));
-          }
-        }
-
-        if (msg.task_info?.task_instruction.length > 1) {
-          dispatch(setUseMultiTaskMode(true));
-        } else {
-          dispatch(setUseMultiTaskMode(false));
-        }
       });
     } catch (error) {
       console.error('Failed to subscribe to task status topic:', error);

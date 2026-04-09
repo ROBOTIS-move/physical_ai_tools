@@ -1,3 +1,4 @@
+string task_num
 string task_name
 string task_type
 string[] task_instruction

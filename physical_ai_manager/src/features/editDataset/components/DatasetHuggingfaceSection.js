@@ -1063,7 +1063,6 @@ const HuggingfaceSection = () => {
                       {isDownloading && '⏳ Downloading...'}
                       {!isDownloading && hfStatus}
                     </span>
-                    {/* Spinner for model downloads - right next to status text */}
                     {isDownloading && (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                     )}

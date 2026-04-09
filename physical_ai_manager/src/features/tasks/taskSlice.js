@@ -21,6 +21,7 @@ import TaskPhase from '../../constants/taskPhases';
 
 const initialState = {
   taskInfo: {
+    taskNum: '',
     taskName: '',
     taskType: '',
     taskInstruction: [],

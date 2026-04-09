@@ -335,6 +335,7 @@ export function useRosTopicSubscription() {
           initialTaskInfoSyncRef.current = true;
           dispatch(
             setTaskInfo({
+              taskNum: msg.task_info.task_num || '',
               taskName: msg.task_info.task_name || '',
               taskType: msg.task_info.task_type || '',
               taskInstruction: msg.task_info.task_instruction || [],

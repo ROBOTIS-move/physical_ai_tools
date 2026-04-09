@@ -54,7 +54,11 @@ class DataManager:
             robot_type,
             task_info):
         self._robot_type = robot_type
-        self._save_repo_name = f'{robot_type}_{task_info.task_name}'
+        # Folder naming: Task_{task_num}_{task_name}_MCAP. The leading and
+        # trailing parts are constants so empty fields stay obvious in the
+        # resulting path.
+        task_num = getattr(task_info, 'task_num', '') or ''
+        self._save_repo_name = f'Task_{task_num}_{task_info.task_name}_MCAP'
         self._save_path = save_root_path / self._save_repo_name
         self._save_rosbag_path = '/workspace/rosbag2/' + self._save_repo_name
         self._single_task = len(task_info.task_instruction) == 1
@@ -556,6 +560,21 @@ class DataManager:
         endpoint=None,
         token=None,
     ):
+        """Download a HuggingFace repo via the ``hf`` CLI in a PTY.
+
+        We shell out to the CLI (instead of the huggingface_hub Python API)
+        because the in-process tqdm wrapper fails to track byte counts when
+        the hf-xet accelerator is used; running the CLI under a real PTY
+        gives us native tqdm bars on the backend log.
+        """
+        import ctypes
+        import os
+        import pty
+        import re
+        import select
+        import signal
+        import subprocess
+
         if local_dir:
             save_dir = Path(local_dir) / repo_id
         else:
@@ -563,36 +582,107 @@ class DataManager:
             if base is None:
                 raise ValueError(f'Invalid repo type: {repo_type}')
             save_dir = base / repo_id
+        save_dir.mkdir(parents=True, exist_ok=True)
 
+        env = os.environ.copy()
+        if token:
+            env['HF_TOKEN'] = token
+        if endpoint:
+            env['HF_ENDPOINT'] = endpoint
+        env.pop('HF_HUB_DISABLE_PROGRESS_BARS', None)
+
+        cmd = [
+            'hf', 'download', repo_id,
+            '--repo-type', repo_type,
+            '--local-dir', str(save_dir),
+        ]
+        print(
+            f'Starting download of {repo_id} ({repo_type}) from '
+            f'{endpoint or "<default endpoint>"} via hf CLI'
+        )
+
+        # Child becomes a process-group leader + dies if our worker dies.
         try:
-            print(
-                f'Starting download of {repo_id} ({repo_type}) from '
-                f'{endpoint or "<default endpoint>"}...'
+            _libc = ctypes.CDLL('libc.so.6', use_errno=True)
+        except OSError:
+            _libc = None
+
+        def _preexec():
+            os.setsid()
+            if _libc is not None:
+                try:
+                    _libc.prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG
+                except Exception:
+                    pass
+
+        master_fd, slave_fd = pty.openpty()
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                stdin=subprocess.DEVNULL,
+                env=env,
+                preexec_fn=_preexec,
+                close_fds=True,
             )
+        finally:
+            os.close(slave_fd)
 
-            # Create a wrapper class that includes the progress_queue
-            class ProgressTqdmWrapper(HuggingFaceProgressTqdm):
+        ansi_re = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
+        buf = b''
+        try:
+            while True:
+                if proc.poll() is not None:
+                    try:
+                        data = os.read(master_fd, 8192)
+                    except OSError:
+                        data = b''
+                    if data:
+                        buf += data
+                    if not data:
+                        break
 
-                def __init__(self, *args, **kwargs):
-                    kwargs['progress_queue'] = DataManager._progress_queue
-                    super().__init__(*args, **kwargs)
+                try:
+                    r, _, _ = select.select([master_fd], [], [], 0.5)
+                except (OSError, ValueError):
+                    break
+                if r:
+                    try:
+                        data = os.read(master_fd, 8192)
+                    except OSError:
+                        break
+                    if not data:
+                        break
+                    buf += data
 
-            api = HfApi(endpoint=endpoint, token=token)
-            result = api.snapshot_download(
-                repo_id=repo_id,
-                repo_type=repo_type,
-                local_dir=save_dir,
-                tqdm_class=ProgressTqdmWrapper,
-            )
+                # Split on CR or LF: tqdm uses CR for in-place updates.
+                while True:
+                    idx = -1
+                    for sep in (b'\r', b'\n'):
+                        i = buf.find(sep)
+                        if i >= 0 and (idx == -1 or i < idx):
+                            idx = i
+                    if idx < 0:
+                        break
+                    raw, buf = buf[:idx], buf[idx + 1:]
+                    line = ansi_re.sub('', raw.decode('utf-8', errors='replace')).strip()
+                    if not line:
+                        continue
+                    print(f'[hf cli] {line}')
+        finally:
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
 
+        return_code = proc.wait()
+        if return_code == 0:
             print(f'Download completed: {repo_id}')
-            return result
-        except Exception as e:
-            print(f'Error downloading HuggingFace repo: {e}')
-            # Print more detailed error information
-            import traceback
-            print(f'Detailed error traceback:\n{traceback.format_exc()}')
-            return False
+            return str(save_dir)
+
+        print(f'Error downloading HuggingFace repo (exit={return_code}): {repo_id}')
+        return False
 
     @classmethod
     def set_progress_queue(cls, progress_queue):

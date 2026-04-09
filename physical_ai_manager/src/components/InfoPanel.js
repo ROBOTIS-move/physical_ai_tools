@@ -160,6 +160,18 @@ const InfoPanel = () => {
         )}
       </div>
 
+      {/* Task Num */}
+      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
+        <span className={classLabel}>Task Num</span>
+        <textarea
+          className={classTaskNameTextarea}
+          value={info.taskNum || ''}
+          onChange={(e) => handleChange('taskNum', e.target.value)}
+          disabled={!isEditable}
+          placeholder="Enter Task Num"
+        />
+      </div>
+
       {/* Task Name */}
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
         <span className={classLabel}>Task Name</span>
@@ -203,7 +215,7 @@ const InfoPanel = () => {
       <div className="flex flex-col items-center text-xs text-gray-500 mt-3 leading-relaxed bg-gray-100 p-2 rounded-md">
         <div>Dataset will be saved as:</div>
         <div className="text-blue-500 font-bold break-all">
-          {taskStatus?.robotType}_{info.taskName}
+          Task_{info.taskNum}_{info.taskName}_MCAP
         </div>
       </div>
 

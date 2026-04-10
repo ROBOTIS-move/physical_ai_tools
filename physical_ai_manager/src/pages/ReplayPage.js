@@ -1496,8 +1496,8 @@ function ReplayPage({ isActive }) {
           allowDirectorySelect={true}
           allowFileSelect={false}
           targetFileName="metadata.yaml"
-          targetFolderName="videos"
-          defaultPath="/workspace"
+          initialPath="/workspace/rosbag2"
+          defaultPath="/workspace/rosbag2"
         />
       )}
 

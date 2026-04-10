@@ -34,6 +34,7 @@ export const store = configureStore({
     training: trainingSlice,
     editDataset: editDatasetSlice,
     replay: replaySlice,
+    layout: layoutSlice,
     btmanager: btmanagerSlice,
   },
   middleware: (getDefaultMiddleware) =>

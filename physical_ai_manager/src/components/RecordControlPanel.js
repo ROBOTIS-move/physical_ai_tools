@@ -95,34 +95,10 @@ export default function RecordControlPanel() {
   }, [taskInfo]);
 
   const showStartWarningToast = useCallback((message) => {
-    toast.custom(
-      (t) => (
-        <div
-          className={clsx(
-            'w-full max-w-[520px] rounded-md border border-red-300 bg-red-500 px-3 py-2 text-white shadow-lg pointer-events-auto',
-            'flex items-start gap-2'
-          )}
-        >
-          <div className="text-sm leading-5 break-words">{message}</div>
-          <button
-            type="button"
-            className="shrink-0 cursor-pointer rounded p-2 text-white/90 hover:bg-red-600 hover:text-white"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              toast.dismiss(t.id);
-            }}
-            aria-label="Dismiss warning"
-          >
-            <MdClose style={{ fontSize: '1.25rem' }} />
-          </button>
-        </div>
-      ),
-      {
-        id: 'start-warning-toast',
-        duration: 3000,
-      }
-    );
+    toast.error(message, {
+      id: 'start-warning-toast',
+      duration: 6000,
+    });
   }, []);
 
   const executeCommand = useCallback(

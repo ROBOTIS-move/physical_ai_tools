@@ -69,12 +69,15 @@ ServiceBagRecorder::ServiceBagRecorder()
   monitor_slow_ratio_ = this->get_parameter("monitor_slow_ratio").as_double();
   monitor_ema_alpha_ = this->get_parameter("monitor_ema_alpha").as_double();
   monitor_min_baseline_hz_ = this->get_parameter("monitor_min_baseline_hz").as_double();
+  this->declare_parameter<int>("monitor_warmup_ms", 3000);
+  monitor_warmup_ms_ = this->get_parameter("monitor_warmup_ms").as_int();
   RCLCPP_INFO(
     this->get_logger(),
     "Monitor: %.2f Hz, stall_window=%d ms, slow=%.2f, stall=%.2f, "
-    "ema_alpha=%.2f, min_baseline=%.2f Hz",
+    "ema_alpha=%.2f, min_baseline=%.2f Hz, warmup=%d ms",
     monitor_publish_hz_, monitor_stall_window_ms_, monitor_slow_ratio_,
-    monitor_stall_ratio_, monitor_ema_alpha_, monitor_min_baseline_hz_);
+    monitor_stall_ratio_, monitor_ema_alpha_, monitor_min_baseline_hz_,
+    monitor_warmup_ms_);
 
   // Create callback groups for parallel processing
   camera_callback_group_ = this->create_callback_group(
@@ -306,6 +309,8 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
   }
 
   // Set recording flag - messages will now be written to bag
+  recording_start_ns_ = static_cast<uint64_t>(
+    std::chrono::steady_clock::now().time_since_epoch().count());
   is_recording_.store(true, std::memory_order_release);
 
   RCLCPP_INFO(
@@ -620,6 +625,12 @@ void ServiceBagRecorder::monitor_tick()
   const auto now_ns = static_cast<uint64_t>(
     std::chrono::steady_clock::now().time_since_epoch().count());
 
+  const uint64_t warmup_ns =
+    static_cast<uint64_t>(monitor_warmup_ms_) * 1000000ULL;
+  const bool in_warmup =
+    (recording_start_ns_ != 0) &&
+    (now_ns - recording_start_ns_) < warmup_ns;
+
   rosbag_recorder::msg::RecordingMonitor msg;
   msg.topic_names.reserve(topics_to_record_.size());
   msg.rates_hz.reserve(topics_to_record_.size());
@@ -654,37 +665,39 @@ void ServiceBagRecorder::monitor_tick()
     m.last_tick_ns = now_ns;
     m.last_count_snapshot = count_now;
 
-    // Decide stall purely on wall-clock first: if no message has arrived
-    // within the window, the topic is stalled regardless of EMA.
+    // last_recv_ns == 0 means no message yet since PREPARE; treat as
+    // "not yet judged" so the first tick after START doesn't flash red.
     const bool no_recent_msg =
-      (last_recv_ns == 0) ||
-      (now_ns > last_recv_ns && (now_ns - last_recv_ns) > stall_window_ns);
+      (last_recv_ns != 0) &&
+      (now_ns > last_recv_ns) &&
+      ((now_ns - last_recv_ns) > stall_window_ns);
 
     bool stalled = false;
     bool slow = false;
-    const double effective_baseline =
-      (m.ema_hz > monitor_min_baseline_hz_) ? m.ema_hz : 0.0;
 
-    if (no_recent_msg) {
-      stalled = true;
-    } else if (effective_baseline > 0.0) {
-      if (rate_hz < effective_baseline * monitor_stall_ratio_) {
+    if (!in_warmup) {
+      const double effective_baseline =
+        (m.ema_hz > monitor_min_baseline_hz_) ? m.ema_hz : 0.0;
+
+      if (no_recent_msg) {
         stalled = true;
-      } else if (rate_hz < effective_baseline * monitor_slow_ratio_) {
-        slow = true;
+      } else if (effective_baseline > 0.0) {
+        if (rate_hz < effective_baseline * monitor_stall_ratio_) {
+          stalled = true;
+        } else if (rate_hz < effective_baseline * monitor_slow_ratio_) {
+          slow = true;
+        }
       }
-    }
 
-    // EMA only advances on healthy ticks. Once rate drops into slow or
-    // stalled territory the baseline freezes so it doesn't chase the
-    // declining rate down to zero (which would silence the alarm).
-    if (!stalled && !slow && rate_hz > 0.0) {
-      if (!m.ema_initialised) {
-        m.ema_hz = rate_hz;
-        m.ema_initialised = true;
-      } else {
-        m.ema_hz = (monitor_ema_alpha_ * rate_hz) +
-          ((1.0 - monitor_ema_alpha_) * m.ema_hz);
+      // EMA only advances on healthy ticks.
+      if (!stalled && !slow && rate_hz > 0.0) {
+        if (!m.ema_initialised) {
+          m.ema_hz = rate_hz;
+          m.ema_initialised = true;
+        } else {
+          m.ema_hz = (monitor_ema_alpha_ * rate_hz) +
+            ((1.0 - monitor_ema_alpha_) * m.ema_hz);
+        }
       }
     }
     m.stalled = stalled;

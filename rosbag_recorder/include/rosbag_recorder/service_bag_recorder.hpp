@@ -149,6 +149,8 @@ private:
   double monitor_slow_ratio_{0.6};
   double monitor_ema_alpha_{0.2};
   double monitor_min_baseline_hz_{1.0};
+  int monitor_warmup_ms_{3000};
+  uint64_t recording_start_ns_{0};
 
   // Storage configuration
   static constexpr size_t CACHE_SIZE_BYTES = 1024 * 1024 * 1024;  // 1GB

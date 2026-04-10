@@ -917,6 +917,8 @@ class PhysicalAIServer(Node):
             if request.command == SendCommand.Request.START_RECORD:
                 # Initialize data manager only if it doesn't exist or task changed
                 task_info = request.task_info
+                # Cache so the joystick path can reuse what the user entered.
+                self._last_ui_task_info = task_info
                 task_name = f'{self.robot_type}_{task_info.task_name}'
 
                 # Check if we need to create a new DataManager
@@ -1880,10 +1882,19 @@ class PhysicalAIServer(Node):
                 self.get_logger().info(
                     'Right button: No session exists, auto-creating...')
                 if not self._auto_create_recording_session():
-                    # Failed to create session (e.g., robot_type not set)
                     return
-                # Start recording after session creation
+                # Start rosbag, then recording
+                rosbag_path = self.data_manager.get_save_rosbag_path(allow_idle=True)
+                if not rosbag_path:
+                    self.get_logger().error('Failed to resolve rosbag path')
+                    return
+                try:
+                    self.communicator.start_rosbag(rosbag_uri=rosbag_path)
+                except Exception as e:
+                    self.get_logger().error(f'Failed to start rosbag: {e}')
+                    return
                 self.data_manager.start_recording()
+                self.on_recording = True
                 self.start_recording_time = time.perf_counter()
                 self.communicator.publish_action_event('start')
             elif self.data_manager.is_recording():
@@ -1894,9 +1905,17 @@ class PhysicalAIServer(Node):
             else:
                 # Not recording -> Start recording
                 self.get_logger().info('Right button: Starting recording')
-                # Restart timer if it was stopped (e.g., by UI Finish command)
                 if self.timer_manager:
                     self.timer_manager.start(timer_name=self.operation_mode)
+                rosbag_path = self.data_manager.get_save_rosbag_path(allow_idle=True)
+                if not rosbag_path:
+                    self.get_logger().error('Failed to resolve rosbag path')
+                    return
+                try:
+                    self.communicator.start_rosbag(rosbag_uri=rosbag_path)
+                except Exception as e:
+                    self.get_logger().error(f'Failed to start rosbag: {e}')
+                    return
                 self.on_recording = True
                 self.data_manager.start_recording()
                 self.start_recording_time = time.perf_counter()
@@ -1931,42 +1950,36 @@ class PhysicalAIServer(Node):
 
     def _auto_create_recording_session(self) -> bool:
         """
-        Auto-create a recording session with timestamp-based task name.
-
-        Task name format: task_YYMMDDHHMMSS (e.g., task_260204181101)
+        Auto-create a recording session. If the UI has already sent a
+        START_RECORD with task_info (cached in ``_last_ui_task_info``),
+        reuse that so the folder name matches what the user typed
+        (Task_{num}_{name}_MCAP). Otherwise fall back to a
+        timestamp-based name.
 
         Returns:
             bool: True if session created successfully, False otherwise
         """
-        # Check if robot_type is set
         if not hasattr(self, 'robot_type') or self.robot_type is None:
             self.get_logger().error(
                 'Cannot auto-create session: robot_type is not set. '
                 'Please set robot type from UI first.')
             return False
 
-        # Generate timestamp-based task name
-        timestamp = datetime.now().strftime('%y%m%d%H%M%S')
-        task_name = f'task_{timestamp}'
+        cached = getattr(self, '_last_ui_task_info', None)
+        if cached is not None and cached.task_name:
+            task_info = cached
+            self.get_logger().info(
+                f'Joystick: reusing UI task_info (task_name={task_info.task_name})')
+        else:
+            self.get_logger().error(
+                'Cannot start recording from joystick: '
+                'please start the first episode from the UI so task info '
+                '(Task Num / Task Name) is set.')
+            return False
 
-        self.get_logger().info(f'Auto-creating recording session: {task_name}')
-
-        # Create TaskInfo with timestamp-based values
-        task_info = TaskInfo()
-        task_info.task_name = task_name
-        task_info.task_type = ''
-        task_info.task_instruction = [task_name]
-        task_info.policy_path = ''
-        task_info.tags = []
-        task_info.record_inference_mode = False
-
-        # Initialize recording session
         self.operation_mode = 'collection'
         self.init_robot_control_parameters_from_user_task(task_info)
         self.on_recording = True
-
-        self.get_logger().info(
-            f'Auto-created recording session: {task_name}')
         return True
 
     def _cleanup_hf_api_worker_with_threading(self):

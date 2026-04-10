@@ -64,6 +64,26 @@ function App() {
     };
   }, []);
 
+  // Click anywhere on a toast to dismiss it.
+  useEffect(() => {
+    const handler = () => toast.dismiss();
+    const attach = () => {
+      const el = document.getElementById('_rht_toaster');
+      if (el) {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', handler);
+      }
+    };
+    // Toaster mounts after first render; retry once.
+    attach();
+    const t = setTimeout(attach, 500);
+    return () => {
+      clearTimeout(t);
+      const el = document.getElementById('_rht_toaster');
+      if (el) el.removeEventListener('click', handler);
+    };
+  }, []);
+
   useEffect(() => {
     if (isFirstLoad.current && page === PageType.HOME && taskStatus.topicReceived) {
       if (taskInfo?.taskType === PageType.RECORD) {

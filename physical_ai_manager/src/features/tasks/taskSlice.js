@@ -27,7 +27,6 @@ const initialState = {
     taskInstruction: [],
     policyPath: '',
     recordInferenceMode: false,
-    tags: [],
   },
   taskStatus: {
     robotType: '',
@@ -55,6 +54,12 @@ const initialState = {
   datasetList: [],
   heartbeatStatus: 'disconnected',
   lastHeartbeatTime: 0,
+  // Per-topic live monitor snapshot from rosbag_recorder (1 Hz while recording).
+  recordingMonitor: {
+    topics: [],         // [{name, rateHz, baselineHz, secondsSinceLast, status}]
+    totalReceived: 0,
+    totalWritten: 0,
+  },
 };
 
 const taskSlice = createSlice({
@@ -88,22 +93,14 @@ const taskSlice = createSlice({
     setRecordInferenceMode: (state, action) => {
       state.taskInfo.recordInferenceMode = action.payload;
     },
-    addTag: (state, action) => {
-      if (!state.taskInfo.tags.includes(action.payload)) {
-        state.taskInfo.tags.push(action.payload);
-      }
-    },
-    removeTag: (state, action) => {
-      state.taskInfo.tags = state.taskInfo.tags.filter((tag) => tag !== action.payload);
-    },
-    removeAllTags: (state) => {
-      state.taskInfo.tags = [];
-    },
     setHeartbeatStatus: (state, action) => {
       state.heartbeatStatus = action.payload;
     },
     setLastHeartbeatTime: (state, action) => {
       state.lastHeartbeatTime = action.payload;
+    },
+    setRecordingMonitor: (state, action) => {
+      state.recordingMonitor = action.payload;
     },
   },
 });
@@ -118,11 +115,9 @@ export const {
   setTaskInstruction,
   setPolicyPath,
   setRecordInferenceMode,
-  addTag,
-  removeTag,
-  removeAllTags,
   setHeartbeatStatus,
   setLastHeartbeatTime,
+  setRecordingMonitor,
 } = taskSlice.actions;
 
 export default taskSlice.reducer;

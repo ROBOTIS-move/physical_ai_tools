@@ -25,7 +25,6 @@ import InlineSystemStatus from '../components/InlineSystemStatus';
 import ImageGrid from '../components/ImageGrid';
 import RobotViewer3D from '../components/RobotViewer3D';
 import InferencePanel from '../components/InferencePanel';
-import { addTag } from '../features/tasks/taskSlice';
 import { setIsFirstLoadFalse } from '../features/ui/uiSlice';
 
 export default function InferencePage({ isActive = true }) {
@@ -36,7 +35,6 @@ export default function InferencePage({ isActive = true }) {
   const TOAST_LIMIT = 3;
 
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
-  const taskInfo = useSelector((state) => state.tasks.taskInfo);
 
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
   const [show3DViewer, setShow3DViewer] = useState(true);
@@ -45,18 +43,14 @@ export default function InferencePage({ isActive = true }) {
 
   useEffect(() => {
     toasts
-      .filter((t) => t.visible) // Only consider visible toasts
-      .filter((_, i) => i >= TOAST_LIMIT) // Is toast index over limit?
-      .forEach((t) => toast.dismiss(t.id)); // Dismiss – Use toast.remove(t.id) for no exit animation
+      .filter((t) => t.visible)
+      .filter((_, i) => i >= TOAST_LIMIT)
+      .forEach((t) => toast.dismiss(t.id));
   }, [toasts]);
 
   useEffect(() => {
-    if (isFirstLoad && taskStatus.robotType !== '' && taskInfo.tags.length === 0) {
-      dispatch(addTag(taskStatus.robotType));
-      dispatch(addTag('robotis'));
-    }
     dispatch(setIsFirstLoadFalse('inference'));
-  }, [taskInfo.tags, taskStatus.robotType, dispatch, isFirstLoad]);
+  }, [dispatch, isFirstLoad]);
 
   const classMainContainer = 'h-full flex flex-col overflow-hidden';
   const classContentsArea = 'flex-1 flex min-h-0 pt-0 px-0 justify-center items-start';

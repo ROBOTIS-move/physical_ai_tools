@@ -17,7 +17,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
-import TagInput from './TagInput';
 import TaskPhase from '../constants/taskPhases';
 import { setTaskInfo } from '../features/tasks/taskSlice';
 
@@ -194,21 +193,6 @@ const InfoPanel = () => {
           disabled={!isEditable}
           placeholder="Enter Task Instruction"
         />
-      </div>
-
-      {/* Tags */}
-      <div className={clsx('flex', 'items-start', 'mb-2.5')}>
-        <span className={clsx(classLabel, 'pt-2')}>Tags</span>
-        <div className="flex-1 min-w-0">
-          <TagInput
-            tags={info.tags || []}
-            onChange={(newTags) => handleChange('tags', newTags)}
-            disabled={!isEditable}
-          />
-          <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-            Press Enter or use comma to add tags
-          </div>
-        </div>
       </div>
 
       {/* Dataset save path indicator */}

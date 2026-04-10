@@ -21,7 +21,7 @@ import toast from 'react-hot-toast';
 import { MdRefresh } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
 import TaskPhase from '../constants/taskPhases';
-import { selectRobotType, removeAllTags } from '../features/tasks/taskSlice';
+import { selectRobotType } from '../features/tasks/taskSlice';
 import { setRobotTypeList, setIsFirstLoadTrue } from '../features/ui/uiSlice';
 
 export default function RobotTypeSelector() {
@@ -85,8 +85,7 @@ export default function RobotTypeSelector() {
         dispatch(selectRobotType(selectedRobotType));
         toast.success(`Robot type set to: ${selectedRobotType}`);
 
-        dispatch(setIsFirstLoadTrue('record')); // to reset tags
-        dispatch(removeAllTags());
+        dispatch(setIsFirstLoadTrue('record'));
       } else {
         toast.error(`Failed to set robot type: ${result.message || 'Unknown error'}`);
       }

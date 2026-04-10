@@ -24,6 +24,7 @@ import {
   setTaskInfo,
   setHeartbeatStatus,
   setLastHeartbeatTime,
+  setRecordingMonitor,
 } from '../features/tasks/taskSlice';
 import {
   setIsTraining,
@@ -55,6 +56,7 @@ export function useRosTopicSubscription() {
   const audioContextRef = useRef(null);
   const hfStatusTopicRef = useRef(null);
   const actionEventTopicRef = useRef(null);
+  const recordingMonitorTopicRef = useRef(null);
   // One-shot guard so the backend's task_info echo only seeds redux on the
   // first message; subsequent echoes would clobber whatever the user is
   // currently typing in InfoPanel.
@@ -186,6 +188,7 @@ export function useRosTopicSubscription() {
     unsubscribeFromTopic(trainingStatusTopicRef, 'Training status');
     unsubscribeFromTopic(hfStatusTopicRef, 'HF status');
     unsubscribeFromTopic(actionEventTopicRef, 'Action event');
+    unsubscribeFromTopic(recordingMonitorTopicRef, 'Recording monitor');
 
     // Reset previous phase tracking
     previousPhaseRef.current = null;
@@ -343,7 +346,6 @@ export function useRosTopicSubscription() {
               recordInferenceMode: msg.task_info.record_inference_mode || false,
               userId: msg.task_info.user_id || '',
               controlHz: msg.task_info.control_hz || 0,
-              tags: msg.task_info.tags || [],
               warmupTime: msg.task_info.warmup_time_s || 0,
               episodeTime: msg.task_info.episode_time_s || 0,
               resetTime: msg.task_info.reset_time_s || 0,
@@ -628,6 +630,48 @@ export function useRosTopicSubscription() {
     }
   }, [dispatch, rosbridgeUrl]);
 
+  // Per-topic recording monitor (1 Hz while recording is active).
+  const subscribeToRecordingMonitor = useCallback(async () => {
+    try {
+      const ros = await rosConnectionManager.getConnection(rosbridgeUrl);
+      if (!ros) return;
+      if (recordingMonitorTopicRef.current) return;
+
+      recordingMonitorTopicRef.current = new ROSLIB.Topic({
+        ros,
+        name: '/rosbag_recorder/monitor',
+        messageType: 'rosbag_recorder/msg/RecordingMonitor',
+      });
+
+      recordingMonitorTopicRef.current.subscribe((msg) => {
+        // rosbridge serialises uint8[] as a base64 string; decode it back
+        // to a plain numeric array so status[i] gives 0/1/2 not a character.
+        let statusArr = msg.status || [];
+        if (typeof statusArr === 'string') {
+          const bin = atob(statusArr);
+          statusArr = Array.from(bin, (ch) => ch.charCodeAt(0));
+        }
+
+        const topics = (msg.topic_names || []).map((name, i) => ({
+          name,
+          rateHz: msg.rates_hz?.[i] ?? 0,
+          baselineHz: msg.baseline_hz?.[i] ?? 0,
+          secondsSinceLast: msg.seconds_since_last?.[i] ?? -1,
+          status: statusArr[i] ?? 0,
+        }));
+        dispatch(setRecordingMonitor({
+          topics,
+          totalReceived: msg.total_received || 0,
+          totalWritten: msg.total_written || 0,
+        }));
+      });
+
+      console.log('Recording monitor subscription established');
+    } catch (error) {
+      console.error('Failed to subscribe to recording monitor topic:', error);
+    }
+  }, [dispatch, rosbridgeUrl]);
+
   // Manual initialization function
   const initializeSubscriptions = useCallback(async () => {
     if (!rosbridgeUrl) {
@@ -646,6 +690,7 @@ export function useRosTopicSubscription() {
       await subscribeToActionEvent();
       await subscribeToTrainingStatus();
       await subscribeHFStatus();
+      await subscribeToRecordingMonitor();
       console.log('ROS subscriptions initialized successfully');
     } catch (error) {
       console.error('Failed to initialize ROS subscriptions:', error);
@@ -658,6 +703,7 @@ export function useRosTopicSubscription() {
     subscribeToActionEvent,
     subscribeToTrainingStatus,
     subscribeHFStatus,
+    subscribeToRecordingMonitor,
   ]);
 
   // Auto-start connection and subscription (can be disabled by not calling useRosTopicSubscription)

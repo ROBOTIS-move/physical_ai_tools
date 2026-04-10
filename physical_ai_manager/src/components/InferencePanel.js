@@ -20,7 +20,6 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { MdVisibility, MdVisibilityOff, MdFolderOpen, MdDownload } from 'react-icons/md';
 import { useRosServiceCaller } from '../hooks/useRosServiceCaller';
-import TagInput from './TagInput';
 import FileBrowserModal from './FileBrowserModal';
 import PolicyDownloadModal from './PolicyDownloadModal';
 import TaskPhase from '../constants/taskPhases';
@@ -694,20 +693,6 @@ const InferencePanel = () => {
                   )}
                 </>
               )}
-            </div>
-          </div>
-
-          <div className={clsx('flex', 'items-start', 'mb-2.5')}>
-            <span className={clsx(classLabel, 'pt-2')}>Tags</span>
-            <div className="flex-1 min-w-0">
-              <TagInput
-                tags={info.tags || []}
-                onChange={(newTags) => handleChange('tags', newTags)}
-                disabled={!isEditable || !info.recordInferenceMode}
-              />
-              <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Press Enter or use comma to add tags
-              </div>
             </div>
           </div>
 

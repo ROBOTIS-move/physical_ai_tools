@@ -37,6 +37,7 @@
 
 #include "rosbag_recorder/srv/send_command.hpp"
 #include "rosbag_recorder/msg/image_metadata.hpp"
+#include "rosbag_recorder/msg/recording_monitor.hpp"
 #include "rosbag_recorder/image_compressor.hpp"
 
 
@@ -87,6 +88,7 @@ private:
   rclcpp::QoS get_qos_for_topic(const std::string & topic);
   rclcpp::CallbackGroup::SharedPtr get_callback_group_for_topic(const std::string & topic);
   void log_statistics();
+  void monitor_tick();
 
   rclcpp::Service<rosbag_recorder::srv::SendCommand>::SharedPtr send_command_srv_;
 
@@ -123,6 +125,30 @@ private:
   // Statistics for monitoring
   std::atomic<uint64_t> messages_received_{0};
   std::atomic<uint64_t> messages_written_{0};
+
+  // Per-topic live monitor: counts + last-recv timestamp updated from the
+  // hot path; rate / EMA / status fields are touched only by the monitor
+  // timer thread so they don't need atomic accessors.
+  struct TopicMetric
+  {
+    std::atomic<uint64_t> message_count{0};
+    std::atomic<uint64_t> last_recv_ns{0};
+    double ema_hz{0.0};
+    uint64_t last_count_snapshot{0};
+    uint64_t last_tick_ns{0};
+    bool ema_initialised{false};
+    bool stalled{false};
+  };
+  std::unordered_map<std::string, std::unique_ptr<TopicMetric>> per_topic_metrics_;
+
+  rclcpp::Publisher<rosbag_recorder::msg::RecordingMonitor>::SharedPtr monitor_pub_;
+  rclcpp::TimerBase::SharedPtr monitor_timer_;
+  double monitor_publish_hz_{1.0};
+  int monitor_stall_window_ms_{2000};
+  double monitor_stall_ratio_{0.2};
+  double monitor_slow_ratio_{0.6};
+  double monitor_ema_alpha_{0.2};
+  double monitor_min_baseline_hz_{1.0};
 
   // Storage configuration
   static constexpr size_t CACHE_SIZE_BYTES = 1024 * 1024 * 1024;  // 1GB

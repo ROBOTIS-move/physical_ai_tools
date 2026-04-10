@@ -49,6 +49,33 @@ ServiceBagRecorder::ServiceBagRecorder()
     "Preflight wait timeout: %d ms (<=0 disables the check)",
     preflight_wait_timeout_ms_);
 
+  // Live per-topic monitor parameters. The monitor publishes a snapshot at
+  // ``monitor_publish_hz`` while a recording is in progress; a topic is
+  // judged STALLED when no message has arrived in ``monitor_stall_window_ms``
+  // OR its rate falls below ``baseline * monitor_stall_ratio``. SLOW is the
+  // halfway state at ``baseline * monitor_slow_ratio``. The baseline is an
+  // EMA of healthy rates with weight ``monitor_ema_alpha``; ratios are not
+  // applied below ``monitor_min_baseline_hz`` to avoid spurious alarms on
+  // intrinsically slow topics.
+  this->declare_parameter<double>("monitor_publish_hz", 1.0);
+  this->declare_parameter<int>("monitor_stall_window_ms", 2000);
+  this->declare_parameter<double>("monitor_stall_ratio", 0.2);
+  this->declare_parameter<double>("monitor_slow_ratio", 0.6);
+  this->declare_parameter<double>("monitor_ema_alpha", 0.2);
+  this->declare_parameter<double>("monitor_min_baseline_hz", 1.0);
+  monitor_publish_hz_ = this->get_parameter("monitor_publish_hz").as_double();
+  monitor_stall_window_ms_ = this->get_parameter("monitor_stall_window_ms").as_int();
+  monitor_stall_ratio_ = this->get_parameter("monitor_stall_ratio").as_double();
+  monitor_slow_ratio_ = this->get_parameter("monitor_slow_ratio").as_double();
+  monitor_ema_alpha_ = this->get_parameter("monitor_ema_alpha").as_double();
+  monitor_min_baseline_hz_ = this->get_parameter("monitor_min_baseline_hz").as_double();
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Monitor: %.2f Hz, stall_window=%d ms, slow=%.2f, stall=%.2f, "
+    "ema_alpha=%.2f, min_baseline=%.2f Hz",
+    monitor_publish_hz_, monitor_stall_window_ms_, monitor_slow_ratio_,
+    monitor_stall_ratio_, monitor_ema_alpha_, monitor_min_baseline_hz_);
+
   // Create callback groups for parallel processing
   camera_callback_group_ = this->create_callback_group(
     rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -67,6 +94,18 @@ ServiceBagRecorder::ServiceBagRecorder()
       std::placeholders::_2),
     rmw_qos_profile_services_default,
     service_callback_group_);
+
+  // Live monitor publisher + 1 Hz timer (parked on the "other" callback
+  // group so it never blocks camera/joint message processing).
+  monitor_pub_ = this->create_publisher<rosbag_recorder::msg::RecordingMonitor>(
+    "rosbag_recorder/monitor", rclcpp::QoS(5));
+  if (monitor_publish_hz_ > 0.0) {
+    const auto period = std::chrono::duration<double>(1.0 / monitor_publish_hz_);
+    monitor_timer_ = this->create_wall_timer(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(period),
+      std::bind(&ServiceBagRecorder::monitor_tick, this),
+      other_callback_group_);
+  }
 
   RCLCPP_INFO(this->get_logger(), "Rosbag recorder initialized with MultiThreadedExecutor support");
 }
@@ -132,7 +171,18 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
     throw std::runtime_error("Topics are required");
   }
 
-  topics_to_record_ = topics;
+  // Deduplicate the topic list so the monitor card and subscription list
+  // don't show the same topic multiple times (config can list a topic in
+  // both joint_topics and rosbag_extra_topics).
+  {
+    std::unordered_set<std::string> seen;
+    topics_to_record_.clear();
+    for (const auto & t : topics) {
+      if (seen.insert(t).second) {
+        topics_to_record_.push_back(t);
+      }
+    }
+  }
   type_for_topic_.clear();
   camera_topics_.clear();
   joint_topics_.clear();
@@ -141,6 +191,12 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
   // Reset statistics
   messages_received_ = 0;
   messages_written_ = 0;
+
+  // Seed one fresh metric per topic.
+  per_topic_metrics_.clear();
+  for (const auto & topic : topics_to_record_) {
+    per_topic_metrics_.emplace(topic, std::make_unique<TopicMetric>());
+  }
 
   RCLCPP_INFO(
     this->get_logger(),
@@ -535,6 +591,129 @@ void ServiceBagRecorder::log_statistics()
       this->get_logger(),
       "WARNING: %lu messages were dropped during recording!", dropped);
   }
+
+  // Per-topic forensic dump so failed episodes leave a trail of which
+  // topics actually produced data and which were silent.
+  for (const auto & topic : topics_to_record_) {
+    auto it = per_topic_metrics_.find(topic);
+    const uint64_t cnt = (it != per_topic_metrics_.end())
+      ? it->second->message_count.load(std::memory_order_relaxed)
+      : 0u;
+    RCLCPP_INFO(
+      this->get_logger(),
+      "  topic %s -> %lu messages",
+      topic.c_str(), cnt);
+  }
+}
+
+void ServiceBagRecorder::monitor_tick()
+{
+  // Only emit while a recording is in progress; the timer keeps running so
+  // we have a fresh tick the moment START flips the flag.
+  if (!is_recording_.load(std::memory_order_acquire)) {
+    return;
+  }
+  if (per_topic_metrics_.empty()) {
+    return;
+  }
+
+  const auto now_ns = static_cast<uint64_t>(
+    std::chrono::steady_clock::now().time_since_epoch().count());
+
+  rosbag_recorder::msg::RecordingMonitor msg;
+  msg.topic_names.reserve(topics_to_record_.size());
+  msg.rates_hz.reserve(topics_to_record_.size());
+  msg.baseline_hz.reserve(topics_to_record_.size());
+  msg.seconds_since_last.reserve(topics_to_record_.size());
+  msg.status.reserve(topics_to_record_.size());
+
+  const uint64_t stall_window_ns =
+    static_cast<uint64_t>(monitor_stall_window_ms_) * 1000000ULL;
+
+  for (const auto & topic : topics_to_record_) {
+    auto it = per_topic_metrics_.find(topic);
+    if (it == per_topic_metrics_.end()) {
+      continue;
+    }
+    auto & m = *it->second;
+
+    const uint64_t count_now = m.message_count.load(std::memory_order_relaxed);
+    const uint64_t last_recv_ns = m.last_recv_ns.load(std::memory_order_relaxed);
+
+    // Compute instantaneous rate over [last_tick, now]. First tick after a
+    // PREPARE has last_tick_ns == 0, so we just seed it.
+    double rate_hz = 0.0;
+    if (m.last_tick_ns != 0 && now_ns > m.last_tick_ns) {
+      const double dt_s =
+        static_cast<double>(now_ns - m.last_tick_ns) / 1e9;
+      if (dt_s > 0.0) {
+        const uint64_t delta = count_now - m.last_count_snapshot;
+        rate_hz = static_cast<double>(delta) / dt_s;
+      }
+    }
+    m.last_tick_ns = now_ns;
+    m.last_count_snapshot = count_now;
+
+    // Decide stall purely on wall-clock first: if no message has arrived
+    // within the window, the topic is stalled regardless of EMA.
+    const bool no_recent_msg =
+      (last_recv_ns == 0) ||
+      (now_ns > last_recv_ns && (now_ns - last_recv_ns) > stall_window_ns);
+
+    bool stalled = false;
+    bool slow = false;
+    const double effective_baseline =
+      (m.ema_hz > monitor_min_baseline_hz_) ? m.ema_hz : 0.0;
+
+    if (no_recent_msg) {
+      stalled = true;
+    } else if (effective_baseline > 0.0) {
+      if (rate_hz < effective_baseline * monitor_stall_ratio_) {
+        stalled = true;
+      } else if (rate_hz < effective_baseline * monitor_slow_ratio_) {
+        slow = true;
+      }
+    }
+
+    // EMA only advances on healthy ticks. Once rate drops into slow or
+    // stalled territory the baseline freezes so it doesn't chase the
+    // declining rate down to zero (which would silence the alarm).
+    if (!stalled && !slow && rate_hz > 0.0) {
+      if (!m.ema_initialised) {
+        m.ema_hz = rate_hz;
+        m.ema_initialised = true;
+      } else {
+        m.ema_hz = (monitor_ema_alpha_ * rate_hz) +
+          ((1.0 - monitor_ema_alpha_) * m.ema_hz);
+      }
+    }
+    m.stalled = stalled;
+
+    uint8_t status_byte = 0;
+    if (stalled) {
+      status_byte = 2;
+    } else if (slow) {
+      status_byte = 1;
+    }
+
+    const float seconds_since_last = (last_recv_ns == 0)
+      ? -1.0f
+      : static_cast<float>(
+          static_cast<double>(now_ns - last_recv_ns) / 1e9);
+
+    msg.topic_names.push_back(topic);
+    msg.rates_hz.push_back(static_cast<float>(rate_hz));
+    msg.baseline_hz.push_back(static_cast<float>(m.ema_hz));
+    msg.seconds_since_last.push_back(seconds_since_last);
+    msg.status.push_back(status_byte);
+  }
+
+  msg.total_received = messages_received_.load(std::memory_order_relaxed);
+  msg.total_written = messages_written_.load(std::memory_order_relaxed);
+
+  if (monitor_pub_) {
+    monitor_pub_->publish(std::move(msg));
+  }
 }
 
 void ServiceBagRecorder::handle_serialized_message(
@@ -561,6 +740,16 @@ void ServiceBagRecorder::handle_serialized_message(
   }
 
   messages_received_++;
+
+  // Per-topic monitor counter. Two atomic stores; cheap enough on the hot
+  // path even at hundreds of messages per second.
+  const auto metric_it = per_topic_metrics_.find(topic);
+  if (metric_it != per_topic_metrics_.end()) {
+    metric_it->second->message_count.fetch_add(1, std::memory_order_relaxed);
+    const auto now_ns = std::chrono::steady_clock::now().time_since_epoch().count();
+    metric_it->second->last_recv_ns.store(
+      static_cast<uint64_t>(now_ns), std::memory_order_relaxed);
+  }
 
   const auto it = type_for_topic_.find(topic);
   if (it == type_for_topic_.end()) {

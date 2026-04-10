@@ -25,13 +25,12 @@ import InlineSystemStatus from '../components/InlineSystemStatus';
 import ImageGrid from '../components/ImageGrid';
 import RobotViewer3D from '../components/RobotViewer3D';
 import InfoPanel from '../components/InfoPanel';
-import { addTag } from '../features/tasks/taskSlice';
+import RecordTopicMonitor from '../components/RecordTopicMonitor';
 import { setIsFirstLoadFalse } from '../features/ui/uiSlice';
 
 export default function RecordPage({ isActive = true }) {
   const dispatch = useDispatch();
 
-  const taskInfo = useSelector((state) => state.tasks.taskInfo);
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
 
   // Toast limit implementation using useToasterStore
@@ -51,12 +50,8 @@ export default function RecordPage({ isActive = true }) {
   }, [toasts]);
 
   useEffect(() => {
-    if (isFirstLoad && taskStatus.robotType !== '' && taskInfo.tags.length === 0) {
-      dispatch(addTag(taskStatus.robotType));
-      dispatch(addTag('robotis'));
-    }
     dispatch(setIsFirstLoadFalse('record'));
-  }, [taskInfo.tags, taskStatus.robotType, dispatch, isFirstLoad]);
+  }, [dispatch, isFirstLoad]);
 
   const classMainContainer = 'h-full flex flex-col overflow-hidden';
   const classContentsArea = 'flex-1 flex min-h-0 pt-0 px-0 justify-center items-start';
@@ -181,10 +176,15 @@ export default function RecordPage({ isActive = true }) {
             </div>
             <ImageGrid isActive={isActive} />
           </div>
-          {show3DViewer && (
-            <div className="flex-[4] min-h-[120px] flex items-center justify-center mx-1">
-              <div className="h-[85%] rounded-2xl overflow-hidden relative" style={{ aspectRatio: '4/3' }}>
-                <RobotViewer3D mode="live" />
+          {(show3DViewer || true) && (
+            <div className="flex-[4] min-h-[120px] flex flex-row items-center justify-center mx-1 gap-2 h-full">
+              {show3DViewer && (
+                <div className="h-[85%] rounded-2xl overflow-hidden relative" style={{ aspectRatio: '4/3' }}>
+                  <RobotViewer3D mode="live" />
+                </div>
+              )}
+              <div className="h-[85%]" style={{ aspectRatio: '4/3' }}>
+                <RecordTopicMonitor />
               </div>
             </div>
           )}

@@ -24,6 +24,7 @@ import {
   setTaskInfo,
   setHeartbeatStatus,
   setLastHeartbeatTime,
+  setJoystickMode,
   setRecordingMonitor,
 } from '../features/tasks/taskSlice';
 import {
@@ -57,6 +58,7 @@ export function useRosTopicSubscription() {
   const hfStatusTopicRef = useRef(null);
   const actionEventTopicRef = useRef(null);
   const recordingMonitorTopicRef = useRef(null);
+  const joystickModeTopicRef = useRef(null);
   // One-shot guard so the backend's task_info echo only seeds redux on the
   // first message; subsequent echoes would clobber whatever the user is
   // currently typing in InfoPanel.
@@ -189,6 +191,7 @@ export function useRosTopicSubscription() {
     unsubscribeFromTopic(hfStatusTopicRef, 'HF status');
     unsubscribeFromTopic(actionEventTopicRef, 'Action event');
     unsubscribeFromTopic(recordingMonitorTopicRef, 'Recording monitor');
+    unsubscribeFromTopic(joystickModeTopicRef, 'Joystick mode');
 
     // Reset previous phase tracking
     previousPhaseRef.current = null;
@@ -672,6 +675,29 @@ export function useRosTopicSubscription() {
     }
   }, [dispatch, rosbridgeUrl]);
 
+  // Leader joystick operating mode (fires only on button press, not continuous).
+  const subscribeToJoystickMode = useCallback(async () => {
+    try {
+      const ros = await rosConnectionManager.getConnection(rosbridgeUrl);
+      if (!ros) return;
+      if (joystickModeTopicRef.current) return;
+
+      joystickModeTopicRef.current = new ROSLIB.Topic({
+        ros,
+        name: '/leader/joystick_controller_right/joystick_mode',
+        messageType: 'std_msgs/msg/String',
+      });
+
+      joystickModeTopicRef.current.subscribe((msg) => {
+        dispatch(setJoystickMode(msg.data));
+      });
+
+      console.log('Joystick mode subscription established');
+    } catch (error) {
+      console.error('Failed to subscribe to joystick mode topic:', error);
+    }
+  }, [dispatch, rosbridgeUrl]);
+
   // Manual initialization function
   const initializeSubscriptions = useCallback(async () => {
     if (!rosbridgeUrl) {
@@ -691,6 +717,7 @@ export function useRosTopicSubscription() {
       await subscribeToTrainingStatus();
       await subscribeHFStatus();
       await subscribeToRecordingMonitor();
+      await subscribeToJoystickMode();
       console.log('ROS subscriptions initialized successfully');
     } catch (error) {
       console.error('Failed to initialize ROS subscriptions:', error);
@@ -704,6 +731,7 @@ export function useRosTopicSubscription() {
     subscribeToTrainingStatus,
     subscribeHFStatus,
     subscribeToRecordingMonitor,
+    subscribeToJoystickMode,
   ]);
 
   // Auto-start connection and subscription (can be disabled by not calling useRosTopicSubscription)

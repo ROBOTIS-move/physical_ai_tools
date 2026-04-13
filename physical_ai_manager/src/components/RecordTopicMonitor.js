@@ -15,7 +15,6 @@
 import React from 'react';
 import clsx from 'clsx';
 import { useSelector } from 'react-redux';
-import TaskPhase from '../constants/taskPhases';
 
 const STATUS_OK = 0;
 const STATUS_SLOW = 1;
@@ -40,16 +39,9 @@ const shortenTopic = (name) => {
 };
 
 export default function RecordTopicMonitor() {
-  const phase = useSelector((state) => state.tasks.taskStatus.phase);
   const monitor = useSelector((state) => state.tasks.recordingMonitor);
 
-  const isRecording =
-    phase === TaskPhase.WARMING_UP ||
-    phase === TaskPhase.RESETTING ||
-    phase === TaskPhase.RECORDING ||
-    phase === TaskPhase.SAVING;
-
-  if (!isRecording || !monitor?.topics?.length) return null;
+  if (!monitor?.topics?.length) return null;
 
   const sorted = [...monitor.topics].sort((a, b) => b.status - a.status);
   const problemCount = monitor.topics.filter((t) => t.status !== STATUS_OK).length;

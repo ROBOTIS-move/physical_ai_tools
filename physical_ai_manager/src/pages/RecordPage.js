@@ -32,6 +32,7 @@ export default function RecordPage({ isActive = true }) {
   const dispatch = useDispatch();
 
   const taskStatus = useSelector((state) => state.tasks.taskStatus);
+  const joystickMode = useSelector((state) => state.tasks.joystickMode);
 
   // Toast limit implementation using useToasterStore
   const { toasts } = useToasterStore();
@@ -138,9 +139,9 @@ export default function RecordPage({ isActive = true }) {
     'rounded-full', 'px-3', 'py-1',
     'shadow-md', 'border', 'border-gray-100'
   );
-  const classRobotType = clsx('ml-2 mr-1 my-2 text-gray-600 text-lg');
+  const classRobotType = clsx('ml-1 mr-1 text-gray-600 text-sm');
   const classRobotTypeValue = clsx(
-    'mx-1 my-2 px-2 text-lg text-blue-600 focus:outline-none bg-blue-100 rounded-full'
+    'mx-0.5 px-2 py-0.5 text-sm text-blue-600 bg-blue-100 rounded-full'
   );
 
   const classHeartbeatStatus = clsx('absolute', 'top-[4.5rem]', 'left-5', 'z-10');
@@ -155,6 +156,14 @@ export default function RecordPage({ isActive = true }) {
                 <div className={classRobotType}>Robot Type</div>
                 <div className={classRobotTypeValue}>{taskStatus?.robotType}</div>
               </div>
+              {joystickMode && (
+                <div className={classRobotTypeContainer}>
+                  <div className={classRobotType}>Mode</div>
+                  <div className={classRobotTypeValue}>
+                    {joystickMode}
+                  </div>
+                </div>
+              )}
               <InlineSystemStatus />
               <div className="flex-grow" />
               <RecordControlPanel />

@@ -613,11 +613,9 @@ void ServiceBagRecorder::log_statistics()
 
 void ServiceBagRecorder::monitor_tick()
 {
-  // Only emit while a recording is in progress; the timer keeps running so
-  // we have a fresh tick the moment START flips the flag.
-  if (!is_recording_.load(std::memory_order_acquire)) {
-    return;
-  }
+  // Publish whenever per-topic metrics exist (i.e. after PREPARE), even when
+  // not actively recording — so the operator can see topic health before
+  // pressing record.
   if (per_topic_metrics_.empty()) {
     return;
   }
@@ -746,23 +744,24 @@ void ServiceBagRecorder::handle_serialized_message(
     }
   }
 
-  // First check without lock - fast path for when not recording
-  // is_recording_ is atomic, so this read is safe
+  // Per-topic monitor counter — runs even when not recording so the
+  // operator can see topic health before pressing record.
+  if (!per_topic_metrics_.empty()) {
+    const auto metric_it = per_topic_metrics_.find(topic);
+    if (metric_it != per_topic_metrics_.end()) {
+      metric_it->second->message_count.fetch_add(1, std::memory_order_relaxed);
+      const auto now_ns = std::chrono::steady_clock::now().time_since_epoch().count();
+      metric_it->second->last_recv_ns.store(
+        static_cast<uint64_t>(now_ns), std::memory_order_relaxed);
+    }
+  }
+
+  // Fast path for when not recording
   if (!is_recording_.load(std::memory_order_acquire)) {
     return;
   }
 
   messages_received_++;
-
-  // Per-topic monitor counter. Two atomic stores; cheap enough on the hot
-  // path even at hundreds of messages per second.
-  const auto metric_it = per_topic_metrics_.find(topic);
-  if (metric_it != per_topic_metrics_.end()) {
-    metric_it->second->message_count.fetch_add(1, std::memory_order_relaxed);
-    const auto now_ns = std::chrono::steady_clock::now().time_since_epoch().count();
-    metric_it->second->last_recv_ns.store(
-      static_cast<uint64_t>(now_ns), std::memory_order_relaxed);
-  }
 
   const auto it = type_for_topic_.find(topic);
   if (it == type_for_topic_.end()) {

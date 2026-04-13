@@ -54,6 +54,7 @@ const initialState = {
   datasetList: [],
   heartbeatStatus: 'disconnected',
   lastHeartbeatTime: 0,
+  joystickMode: '',
   // Per-topic live monitor snapshot from rosbag_recorder (1 Hz while recording).
   recordingMonitor: {
     topics: [],         // [{name, rateHz, baselineHz, secondsSinceLast, status}]
@@ -99,6 +100,9 @@ const taskSlice = createSlice({
     setLastHeartbeatTime: (state, action) => {
       state.lastHeartbeatTime = action.payload;
     },
+    setJoystickMode: (state, action) => {
+      state.joystickMode = action.payload || '';
+    },
     setRecordingMonitor: (state, action) => {
       state.recordingMonitor = action.payload;
     },
@@ -117,6 +121,7 @@ export const {
   setRecordInferenceMode,
   setHeartbeatStatus,
   setLastHeartbeatTime,
+  setJoystickMode,
   setRecordingMonitor,
 } = taskSlice.actions;
 

@@ -19,6 +19,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
 import toast, { useToasterStore } from 'react-hot-toast';
 import { MdKeyboardDoubleArrowLeft, MdKeyboardDoubleArrowRight, MdViewInAr } from 'react-icons/md';
+
 import RecordControlPanel from '../components/RecordControlPanel';
 import HeartbeatStatus from '../components/HeartbeatStatus';
 import InlineSystemStatus from '../components/InlineSystemStatus';
@@ -137,11 +138,13 @@ export default function RecordPage({ isActive = true }) {
     'flex', 'flex-row', 'items-center',
     'bg-white/90', 'backdrop-blur-sm',
     'rounded-full', 'px-3', 'py-1',
-    'shadow-md', 'border', 'border-gray-100'
+    'shadow-md', 'border', 'border-gray-100',
+    'whitespace-nowrap', 'shrink-0'
   );
   const classRobotType = clsx('ml-1 mr-1 text-gray-600 text-sm');
   const classRobotTypeValue = clsx(
-    'mx-0.5 px-2 py-0.5 text-sm text-blue-600 bg-blue-100 rounded-full'
+    'mx-0.5 px-2 py-0.5 text-sm text-blue-600 bg-blue-100 rounded-full',
+    'whitespace-nowrap'
   );
 
   const classHeartbeatStatus = clsx('absolute', 'top-[4.5rem]', 'left-5', 'z-10');
@@ -167,36 +170,34 @@ export default function RecordPage({ isActive = true }) {
               <InlineSystemStatus />
               <div className="flex-grow" />
               <RecordControlPanel />
-              <button
-                onClick={() => setShow3DViewer(!show3DViewer)}
-                className={clsx(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors shadow-md border',
-                  show3DViewer
-                    ? 'bg-indigo-500/90 text-white border-indigo-400 backdrop-blur-sm'
-                    : 'bg-white/90 text-gray-600 border-gray-100 backdrop-blur-sm hover:bg-gray-50'
-                )}
-              >
-                <MdViewInAr size={18} />
-                3D
-              </button>
             </div>
             <div className={classHeartbeatStatus}>
               <HeartbeatStatus />
             </div>
             <ImageGrid isActive={isActive} />
           </div>
-          {(show3DViewer || true) && (
-            <div className="flex-[4] min-h-[120px] flex flex-row items-center justify-center mx-1 gap-2 h-full">
-              {show3DViewer && (
-                <div className="h-[85%] rounded-2xl overflow-hidden relative" style={{ aspectRatio: '4/3' }}>
-                  <RobotViewer3D mode="live" />
-                </div>
-              )}
-              <div className="h-[85%]" style={{ aspectRatio: '4/3' }}>
-                <RecordTopicMonitor />
+          <div className="flex-[4] min-h-[120px] flex flex-row items-center justify-center mx-1 gap-2 h-full relative">
+            {show3DViewer && (
+              <div className="h-[85%] rounded-2xl overflow-hidden relative" style={{ aspectRatio: '4/3' }}>
+                <RobotViewer3D mode="live" />
               </div>
+            )}
+            <div className="h-[85%]" style={{ aspectRatio: '4/3' }}>
+              <RecordTopicMonitor />
             </div>
-          )}
+            <button
+              onClick={() => setShow3DViewer(!show3DViewer)}
+              className={clsx(
+                'absolute top-2 left-2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors shadow-md border',
+                show3DViewer
+                  ? 'bg-indigo-500/90 text-white border-indigo-400 backdrop-blur-sm'
+                  : 'bg-white/90 text-gray-600 border-gray-100 backdrop-blur-sm hover:bg-gray-50'
+              )}
+            >
+              <MdViewInAr size={18} />
+              3D
+            </button>
+          </div>
         </div>
         <div className={classRightPanelArea}>
           <button

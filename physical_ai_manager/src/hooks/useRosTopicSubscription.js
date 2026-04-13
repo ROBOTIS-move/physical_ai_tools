@@ -152,6 +152,7 @@ export function useRosTopicSubscription() {
       try {
         if ('speechSynthesis' in window) {
           window.speechSynthesis.cancel();
+          window.speechSynthesis.resume();
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.lang = 'en-US';
           utterance.rate = 1.1;

@@ -174,9 +174,7 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
     throw std::runtime_error("Topics are required");
   }
 
-  // Deduplicate the topic list so the monitor card and subscription list
-  // don't show the same topic multiple times (config can list a topic in
-  // both joint_topics and rosbag_extra_topics).
+  // Deduplicate the topic list.
   {
     std::unordered_set<std::string> seen;
     topics_to_record_.clear();
@@ -186,24 +184,70 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
       }
     }
   }
+
+  // Clean up any previous subscriptions / state.
   type_for_topic_.clear();
   camera_topics_.clear();
   joint_topics_.clear();
   generic_subscriptions_.clear();
-
-  // Reset statistics
   messages_received_ = 0;
   messages_written_ = 0;
 
-  // Seed one fresh metric per topic.
+  // Resolve topic types from the ROS graph so we can subscribe now.
+  auto names_and_types = this->get_topic_names_and_types();
+  RCLCPP_INFO(this->get_logger(), "Found %zu active topics in system", names_and_types.size());
+
+  auto missing_topics = get_missing_topics(names_and_types);
+  if (!missing_topics.empty()) {
+    std::ostringstream oss;
+    oss << "Types not found for topics:";
+    for (const auto & t : missing_topics) {
+      oss << " " << t;
+    }
+    throw std::runtime_error(oss.str());
+  }
+
+  // Categorize topics and populate type_for_topic_.
+  for (const auto & topic : topics_to_record_) {
+    auto it = names_and_types.find(topic);
+    if (it != names_and_types.end() && !it->second.empty()) {
+      const std::string & type = it->second.front();
+      type_for_topic_[topic] = type;
+
+      if (topic.find("image") != std::string::npos ||
+        topic.find("camera") != std::string::npos)
+      {
+        camera_topics_.insert(topic);
+      } else if (topic.find("joint") != std::string::npos ||
+        topic.find("arm") != std::string::npos ||
+        topic.find("head") != std::string::npos ||
+        topic.find("lift") != std::string::npos)
+      {
+        joint_topics_.insert(topic);
+      }
+    }
+  }
+
+  // Create subscriptions — messages start flowing immediately so the
+  // monitor can show live Hz before the user presses record.
+  create_subscriptions();
+
+  // Seed one fresh metric per topic with subscribe timestamp.
+  const auto now_ns = static_cast<uint64_t>(
+    std::chrono::steady_clock::now().time_since_epoch().count());
   per_topic_metrics_.clear();
   for (const auto & topic : topics_to_record_) {
-    per_topic_metrics_.emplace(topic, std::make_unique<TopicMetric>());
+    auto m = std::make_unique<TopicMetric>();
+    m->subscribe_start_ns = now_ns;
+    per_topic_metrics_.emplace(topic, std::move(m));
   }
+
+  // Mark monitor warmup start so status checks have a grace period.
+  monitor_start_ns_ = now_ns;
 
   RCLCPP_INFO(
     this->get_logger(),
-    "Recording prepared: total=%zu topics stored",
+    "Recording prepared: %zu topics subscribed, monitor active",
     topics_to_record_.size());
 }
 
@@ -229,59 +273,9 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
   try {
     current_bag_uri_ = uri;
 
-    // Resolve topic types before opening the bag writer so that
-    // a missing-topic failure leaves no partial bag directory behind.
-    auto names_and_types = this->get_topic_names_and_types();
-    RCLCPP_INFO(this->get_logger(), "Found %zu active topics in system", names_and_types.size());
-
-    auto missing_topics = get_missing_topics(names_and_types);
-    if (!missing_topics.empty()) {
-      std::ostringstream oss;
-      oss << "Types not found for topics:";
-      for (const auto & t : missing_topics) {
-        oss << " " << t;
-      }
-      throw std::runtime_error(oss.str());
-    }
-
-    // Categorize and create subscriptions
-    type_for_topic_.clear();
-    camera_topics_.clear();
-    joint_topics_.clear();
-    generic_subscriptions_.clear();
-
-    for (const auto & topic : topics_to_record_) {
-      auto it = names_and_types.find(topic);
-      if (it != names_and_types.end() && !it->second.empty()) {
-        const std::string & type = it->second.front();
-        type_for_topic_[topic] = type;
-
-        if (topic.find("image") != std::string::npos ||
-          topic.find("camera") != std::string::npos)
-        {
-          camera_topics_.insert(topic);
-        } else if (topic.find("joint") != std::string::npos ||
-          topic.find("arm") != std::string::npos ||
-          topic.find("head") != std::string::npos ||
-          topic.find("lift") != std::string::npos)
-        {
-          joint_topics_.insert(topic);
-        }
-      }
-    }
-
-    create_subscriptions();
-
-    // Preflight: confirm every requested topic is actually publishing data
-    // before we touch the filesystem. This prevents empty bag directories
-    // (message_count: 0) when a publisher node is alive but its sensor is
-    // stalled, or when nothing is publishing the topic at all.
+    // Preflight: confirm every topic is actually publishing data.
     auto inactive_topics = wait_for_first_messages();
     if (!inactive_topics.empty()) {
-      // Drop subscriptions so they don't linger until the next START.
-      generic_subscriptions_.clear();
-      type_for_topic_.clear();
-
       std::ostringstream oss;
       oss << "No messages received within " << preflight_wait_timeout_ms_
           << "ms from topics:";
@@ -291,14 +285,16 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
       throw std::runtime_error(oss.str());
     }
 
-    // Now open the bag writer
+    // Open the bag writer.
     delete_bag_directory(current_bag_uri_);
 
     rosbag2_storage::StorageOptions storage_options;
     storage_options.uri = current_bag_uri_;
     storage_options.storage_id = STORAGE_ID;  // "mcap"
     storage_options.max_cache_size = CACHE_SIZE_BYTES;  // 500MB
-    storage_options.max_bagfile_size = 0;  // No splitting to prevent message loss
+    storage_options.max_bagfile_size = 0;
+
+    auto names_and_types = this->get_topic_names_and_types();
 
     writer_ = std::make_unique<rosbag2_cpp::Writer>();
     writer_->open(storage_options);
@@ -308,9 +304,10 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     throw std::runtime_error(std::string("Failed to start recording: ") + e.what());
   }
 
-  // Set recording flag - messages will now be written to bag
-  recording_start_ns_ = static_cast<uint64_t>(
-    std::chrono::steady_clock::now().time_since_epoch().count());
+  // Reset per-episode counters.
+  messages_received_ = 0;
+  messages_written_ = 0;
+
   is_recording_.store(true, std::memory_order_release);
 
   RCLCPP_INFO(
@@ -337,10 +334,9 @@ void ServiceBagRecorder::handle_stop()
     log_statistics();
 
     writer_.reset();
-    type_for_topic_.clear();
     current_bag_uri_.clear();
 
-    RCLCPP_INFO(this->get_logger(), "Recording stopped");
+    RCLCPP_INFO(this->get_logger(), "Recording stopped (subscriptions kept alive)");
   } catch (const std::exception & e) {
     throw std::runtime_error(std::string("Failed to stop recording: ") + e.what());
   }
@@ -364,7 +360,6 @@ void ServiceBagRecorder::handle_stop_and_delete()
     log_statistics();
 
     writer_.reset();
-    type_for_topic_.clear();
 
     delete_bag_directory(current_bag_uri_);
 
@@ -626,8 +621,8 @@ void ServiceBagRecorder::monitor_tick()
   const uint64_t warmup_ns =
     static_cast<uint64_t>(monitor_warmup_ms_) * 1000000ULL;
   const bool in_warmup =
-    (recording_start_ns_ != 0) &&
-    (now_ns - recording_start_ns_) < warmup_ns;
+    (monitor_start_ns_ != 0) &&
+    (now_ns - monitor_start_ns_) < warmup_ns;
 
   rosbag_recorder::msg::RecordingMonitor msg;
   msg.topic_names.reserve(topics_to_record_.size());
@@ -663,12 +658,17 @@ void ServiceBagRecorder::monitor_tick()
     m.last_tick_ns = now_ns;
     m.last_count_snapshot = count_now;
 
-    // last_recv_ns == 0 means no message yet since PREPARE; treat as
-    // "not yet judged" so the first tick after START doesn't flash red.
-    const bool no_recent_msg =
-      (last_recv_ns != 0) &&
-      (now_ns > last_recv_ns) &&
-      ((now_ns - last_recv_ns) > stall_window_ns);
+    // If last_recv_ns > 0, check against last received timestamp.
+    // If last_recv_ns == 0 (never received), check against subscribe time —
+    // if we've waited longer than the stall window with zero messages, it's stalled.
+    bool no_recent_msg = false;
+    if (last_recv_ns != 0) {
+      no_recent_msg = (now_ns > last_recv_ns) &&
+        ((now_ns - last_recv_ns) > stall_window_ns);
+    } else if (m.subscribe_start_ns != 0) {
+      no_recent_msg = (now_ns > m.subscribe_start_ns) &&
+        ((now_ns - m.subscribe_start_ns) > stall_window_ns);
+    }
 
     bool stalled = false;
     bool slow = false;

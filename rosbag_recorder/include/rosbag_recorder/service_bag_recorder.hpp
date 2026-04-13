@@ -136,6 +136,7 @@ private:
     double ema_hz{0.0};
     uint64_t last_count_snapshot{0};
     uint64_t last_tick_ns{0};
+    uint64_t subscribe_start_ns{0};
     bool ema_initialised{false};
     bool stalled{false};
   };
@@ -150,7 +151,7 @@ private:
   double monitor_ema_alpha_{0.2};
   double monitor_min_baseline_hz_{1.0};
   int monitor_warmup_ms_{3000};
-  uint64_t recording_start_ns_{0};
+  uint64_t monitor_start_ns_{0};
 
   // Storage configuration
   static constexpr size_t CACHE_SIZE_BYTES = 1024 * 1024 * 1024;  // 1GB

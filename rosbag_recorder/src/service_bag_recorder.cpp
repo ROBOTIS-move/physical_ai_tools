@@ -175,15 +175,33 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
   }
 
   // Deduplicate the topic list.
+  std::vector<std::string> deduped;
   {
     std::unordered_set<std::string> seen;
-    topics_to_record_.clear();
     for (const auto & t : topics) {
       if (seen.insert(t).second) {
-        topics_to_record_.push_back(t);
+        deduped.push_back(t);
       }
     }
   }
+
+  // If subscriptions already exist for the same topic set, skip re-creation
+  // to preserve EMA baselines across episodes.
+  if (!generic_subscriptions_.empty() && deduped.size() == topics_to_record_.size()) {
+    bool same = true;
+    std::unordered_set<std::string> existing(topics_to_record_.begin(), topics_to_record_.end());
+    for (const auto & t : deduped) {
+      if (existing.count(t) == 0) { same = false; break; }
+    }
+    if (same) {
+      RCLCPP_INFO(this->get_logger(),
+        "Prepare skipped: %zu subscriptions already active for same topics",
+        generic_subscriptions_.size());
+      return;
+    }
+  }
+
+  topics_to_record_ = deduped;
 
   // Clean up any previous subscriptions / state.
   type_for_topic_.clear();
@@ -193,21 +211,23 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
   messages_received_ = 0;
   messages_written_ = 0;
 
-  // Resolve topic types from the ROS graph so we can subscribe now.
+  // Resolve topic types from the ROS graph. Topics not yet available
+  // (e.g. robot not running) are skipped with a warning — they will be
+  // caught by the preflight check when START is called.
   auto names_and_types = this->get_topic_names_and_types();
   RCLCPP_INFO(this->get_logger(), "Found %zu active topics in system", names_and_types.size());
 
   auto missing_topics = get_missing_topics(names_and_types);
   if (!missing_topics.empty()) {
     std::ostringstream oss;
-    oss << "Types not found for topics:";
+    oss << "Skipping " << missing_topics.size() << " topics not yet in graph:";
     for (const auto & t : missing_topics) {
       oss << " " << t;
     }
-    throw std::runtime_error(oss.str());
+    RCLCPP_WARN(this->get_logger(), "%s", oss.str().c_str());
   }
 
-  // Categorize topics and populate type_for_topic_.
+  // Categorize topics and populate type_for_topic_ (only available ones).
   for (const auto & topic : topics_to_record_) {
     auto it = names_and_types.find(topic);
     if (it != names_and_types.end() && !it->second.empty()) {
@@ -273,6 +293,59 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
   try {
     current_bag_uri_ = uri;
 
+    // Re-resolve any topics that were missing during prepare.
+    auto names_and_types = this->get_topic_names_and_types();
+    {
+      bool added_new = false;
+      for (const auto & topic : topics_to_record_) {
+        if (type_for_topic_.count(topic) > 0) {
+          continue;  // already subscribed
+        }
+        auto it = names_and_types.find(topic);
+        if (it != names_and_types.end() && !it->second.empty()) {
+          const std::string & type = it->second.front();
+          type_for_topic_[topic] = type;
+          if (topic.find("image") != std::string::npos ||
+            topic.find("camera") != std::string::npos) {
+            camera_topics_.insert(topic);
+          } else if (topic.find("joint") != std::string::npos ||
+            topic.find("arm") != std::string::npos ||
+            topic.find("head") != std::string::npos ||
+            topic.find("lift") != std::string::npos) {
+            joint_topics_.insert(topic);
+          }
+          added_new = true;
+          RCLCPP_INFO(this->get_logger(), "Late-discovered topic: %s [%s]",
+            topic.c_str(), type.c_str());
+        }
+      }
+      if (added_new) {
+        // Recreate all subscriptions to include newly discovered topics.
+        create_subscriptions();
+        // Seed metrics for new topics.
+        const auto now_ns = static_cast<uint64_t>(
+          std::chrono::steady_clock::now().time_since_epoch().count());
+        for (const auto & topic : topics_to_record_) {
+          if (per_topic_metrics_.count(topic) == 0) {
+            auto m = std::make_unique<TopicMetric>();
+            m->subscribe_start_ns = now_ns;
+            per_topic_metrics_.emplace(topic, std::move(m));
+          }
+        }
+      }
+    }
+
+    // Check for topics still missing from the graph.
+    auto still_missing = get_missing_topics(names_and_types);
+    if (!still_missing.empty()) {
+      std::ostringstream oss;
+      oss << "Topics not available in ROS graph:";
+      for (const auto & t : still_missing) {
+        oss << " " << t;
+      }
+      throw std::runtime_error(oss.str());
+    }
+
     // Preflight: confirm every topic is actually publishing data.
     auto inactive_topics = wait_for_first_messages();
     if (!inactive_topics.empty()) {
@@ -293,8 +366,6 @@ void ServiceBagRecorder::handle_start(const std::string & uri)
     storage_options.storage_id = STORAGE_ID;  // "mcap"
     storage_options.max_cache_size = CACHE_SIZE_BYTES;  // 500MB
     storage_options.max_bagfile_size = 0;
-
-    auto names_and_types = this->get_topic_names_and_types();
 
     writer_ = std::make_unique<rosbag2_cpp::Writer>();
     writer_->open(storage_options);

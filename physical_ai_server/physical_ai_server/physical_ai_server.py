@@ -939,7 +939,10 @@ class PhysicalAIServer(Node):
                     if self.timer_manager:
                         self.timer_manager.start(timer_name=self.operation_mode)
 
-                # Start rosbag first (synchronous), then recording on success
+                # Ensure rosbag subscriptions are ready before recording
+                rosbag_topics = self.communicator.get_all_topics()
+                self.communicator.prepare_rosbag(topics=rosbag_topics)
+
                 self.get_logger().info('Starting recording')
                 rosbag_path = self.data_manager.get_save_rosbag_path(allow_idle=True)
                 if not rosbag_path:

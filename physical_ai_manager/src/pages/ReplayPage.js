@@ -90,6 +90,9 @@ function ReplayPage({ isActive }) {
     mcapFile,
   } = useSelector((state) => state.replay);
 
+  const rosHost = useSelector((state) => state.ros.rosHost);
+  const videoServerPort = useSelector((state) => state.replay.videoServerPort);
+
   // Layout state
   const layoutPanels = useSelector((state) => state.layout.panels);
 
@@ -117,9 +120,11 @@ function ReplayPage({ isActive }) {
   // MCAP direct streaming mode detection
   const isDirectMcapMode = isLoaded && hasRawImages && videoFiles.length === 0;
 
-  // MCAP frame player hook
-  const mcapUrl = isDirectMcapMode && bagPath && mcapFile
-    ? `/files${bagPath}/${mcapFile}`
+  // MCAP frame player hook — serve via the video file server (port 8082),
+  // not nginx, because only the video server has Range support + access to
+  // the rosbag2 filesystem.
+  const mcapUrl = isDirectMcapMode && bagPath && mcapFile && rosHost
+    ? `http://${rosHost}:${videoServerPort || 8082}${bagPath}/${mcapFile}`
     : null;
 
   const mcapPlayer = useMcapFramePlayer({

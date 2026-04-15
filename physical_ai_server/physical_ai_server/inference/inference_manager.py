@@ -45,6 +45,7 @@ from typing import Optional
 import numpy as np
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from geometry_msgs.msg import Twist
 
 from physical_ai_server.communication.container_service_client import ContainerServiceClient
 
@@ -457,13 +458,23 @@ class InferenceManager:
             values = action[offset:offset + n_joints]
             offset += n_joints
 
-            msg = JointTrajectory()
-            msg.joint_names = list(joint_names)
-            point = JointTrajectoryPoint()
-            point.positions = [float(v) for v in values]
-            msg.points = [point]
             # Strip "joint_order." prefix to match communicator publisher keys
             publisher_key = leader_group.removeprefix("joint_order.")
+
+            if 'mobile' in publisher_key.lower():
+                # Mobile action → Twist on /cmd_vel (publisher is created as
+                # Twist in communicator.init_publishers).
+                msg = Twist()
+                msg.linear.x = float(values[0]) if len(values) > 0 else 0.0
+                msg.linear.y = float(values[1]) if len(values) > 1 else 0.0
+                msg.angular.z = float(values[2]) if len(values) > 2 else 0.0
+            else:
+                msg = JointTrajectory()
+                msg.joint_names = list(joint_names)
+                point = JointTrajectoryPoint()
+                point.positions = [float(v) for v in values]
+                msg.points = [point]
+
             joint_msg_datas[publisher_key] = msg
 
         return joint_msg_datas

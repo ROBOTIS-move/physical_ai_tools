@@ -54,11 +54,13 @@ class DataManager:
             robot_type,
             task_info):
         self._robot_type = robot_type
-        # Folder naming: Task_{task_num}_{task_name}_MCAP. The leading and
-        # trailing parts are constants so empty fields stay obvious in the
-        # resulting path.
+        # Folder naming: Task_{task_num}_{task_name}_MCAP for recordings,
+        # Task_{task_num}_{task_name}_Inference_MCAP for inference-time
+        # recordings so the two data sources stay visually separated.
         task_num = getattr(task_info, 'task_num', '') or ''
-        self._save_repo_name = f'Task_{task_num}_{task_info.task_name}_MCAP'
+        task_type = getattr(task_info, 'task_type', '') or ''
+        suffix = '_Inference_MCAP' if task_type == 'inference' else '_MCAP'
+        self._save_repo_name = f'Task_{task_num}_{task_info.task_name}{suffix}'
         self._save_path = save_root_path / self._save_repo_name
         self._save_rosbag_path = '/workspace/rosbag2/' + self._save_repo_name
         self._single_task = len(task_info.task_instruction) == 1

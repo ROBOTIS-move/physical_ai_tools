@@ -346,8 +346,14 @@ class PhysicalAIServer(Node):
             task_info=task_info
         )
 
-        control_hz = getattr(task_info, 'control_hz', 0) or 10
+        control_hz = getattr(task_info, 'control_hz', 0) or 100
+        inference_hz = getattr(task_info, 'inference_hz', 0) or 15
+        chunk_align_window_s = getattr(task_info, 'chunk_align_window_s', 0.0)
+        if chunk_align_window_s <= 0.0:
+            chunk_align_window_s = 0.3
         self._control_hz = control_hz
+        self._inference_hz = inference_hz
+        self._chunk_align_window_s = chunk_align_window_s
 
         # Stop previous timer before creating a new one
         if hasattr(self, 'timer_manager') and self.timer_manager is not None:
@@ -1005,6 +1011,8 @@ class PhysicalAIServer(Node):
                         service_prefix=service_prefix,
                         on_chunk_received=self.communicator.publish_action_chunk,
                         control_hz=self._control_hz,
+                        inference_hz=self._inference_hz,
+                        chunk_align_window_s=self._chunk_align_window_s,
                         client_cb_group=self._client_cb_group,
                     )
 

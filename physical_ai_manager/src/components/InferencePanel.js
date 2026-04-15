@@ -17,6 +17,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import clsx from 'clsx';
+import { MdInfoOutline } from 'react-icons/md';
+import Tooltip from './Tooltip';
 import TaskPhase from '../constants/taskPhases';
 import { setTaskInfo } from '../features/tasks/taskSlice';
 
@@ -224,13 +226,64 @@ const InferencePanel = () => {
       <div className="w-full h-1 my-2 border-t border-gray-300"></div>
 
       <div className={clsx('flex', 'items-center', 'mb-2.5')}>
-        <span className={classLabel}>Control Hz</span>
+        <div className={clsx(classLabel, 'flex', 'items-center', 'gap-1')}>
+          <Tooltip content="Model output rate. Match training data rate." position="bottom">
+            <MdInfoOutline className="text-gray-400 hover:text-gray-600 cursor-help" size={14} />
+          </Tooltip>
+          <span>Inference Hz</span>
+        </div>
+        <input
+          className={classTextInput}
+          type="number"
+          step="1"
+          min="1"
+          value={info.inferenceHz || ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            handleChange('inferenceHz', v === '' ? '' : Number(v));
+          }}
+          disabled={!isEditable}
+        />
+      </div>
+
+      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
+        <div className={clsx(classLabel, 'flex', 'items-center', 'gap-1')}>
+          <Tooltip content="Rate of commands sent to the robot." position="bottom">
+            <MdInfoOutline className="text-gray-400 hover:text-gray-600 cursor-help" size={14} />
+          </Tooltip>
+          <span>Control Hz</span>
+        </div>
         <input
           className={classTextInput}
           type="number"
           step="5"
+          min="1"
           value={info.controlHz || ''}
-          onChange={(e) => handleChange('controlHz', Number(e.target.value))}
+          onChange={(e) => {
+            const v = e.target.value;
+            handleChange('controlHz', v === '' ? '' : Number(v));
+          }}
+          disabled={!isEditable}
+        />
+      </div>
+
+      <div className={clsx('flex', 'items-center', 'mb-2.5')}>
+        <div className={clsx(classLabel, 'flex', 'items-center', 'gap-1')}>
+          <Tooltip content="How far ahead inference can jump when joining chunks. Keep small (~0.3s) for loop trajectories." position="bottom">
+            <MdInfoOutline className="text-gray-400 hover:text-gray-600 cursor-help" size={14} />
+          </Tooltip>
+          <span>Max Skip Ahead (s)</span>
+        </div>
+        <input
+          className={classTextInput}
+          type="number"
+          step="0.05"
+          min="0"
+          value={info.chunkAlignWindowS ?? ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            handleChange('chunkAlignWindowS', v === '' ? '' : Number(v));
+          }}
           disabled={!isEditable}
         />
       </div>

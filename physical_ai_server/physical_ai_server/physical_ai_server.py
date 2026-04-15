@@ -1035,9 +1035,11 @@ class PhysicalAIServer(Node):
                 self.start_recording_time = time.perf_counter()
 
             elif request.command == SendCommand.Request.CONVERT_MP4:
-                # Handle MP4 conversion command
+                # Handle MP4 conversion command. Folder names under rosbag2
+                # are stored as-is (e.g. "Task_1_1_MCAP") without a
+                # {robot_type}_ prefix, so use task_info.task_name directly.
                 task_info = request.task_info
-                task_name = f'{self.robot_type}_{task_info.task_name}'
+                task_name = task_info.task_name
                 source_folders = [s for s in task_info.task_instruction if s.strip()]
 
                 base_path = Path('/workspace/rosbag2')
@@ -1060,16 +1062,13 @@ class PhysicalAIServer(Node):
                     # === Merge & Convert mode (requires at least 2 sources) ===
                     dataset_path = base_path / task_name
 
-                    # Validate source folders
+                    # Validate source folders (raw folder names under rosbag2).
                     source_paths = []
                     for folder_name in source_folders:
                         if folder_name.startswith('/'):
                             src = Path(folder_name)
                         else:
-                            # Try with robot_type prefix first, then raw name
-                            src = base_path / f'{self.robot_type}_{folder_name}'
-                            if not src.exists():
-                                src = base_path / folder_name
+                            src = base_path / folder_name
                         if not src.exists():
                             response.success = False
                             response.message = f'Source folder not found: {src}'

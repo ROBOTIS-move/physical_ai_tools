@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1
+FROM robotis/physical-ai-server:latest
+
+# PyTorch cu128 (Blackwell sm_120 지원)
+RUN pip install torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu128
+
+# 소스를 레이어에 저장하지 않고 마운트하여 설치
+RUN --mount=type=bind,source=Isaac-GR00T,target=/tmp/Isaac-GR00T \
+    --mount=type=bind,source=lerobot,target=/tmp/lerobot \
+    pip install /tmp/Isaac-GR00T --ignore-installed cryptography && \
+    pip install /tmp/lerobot && \
+    pip install \
+        peft==0.19.0 \
+        deepspeed==0.17.6 \
+        albumentations==2.0.8 \
+        tyro==0.9.17 && \
+    pip install flash-attn==2.8.3 --no-build-isolation

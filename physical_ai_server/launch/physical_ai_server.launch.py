@@ -32,12 +32,17 @@ def generate_launch_description():
     config_files = glob.glob(os.path.join(config_dir, '*.yaml'))
     config_files.sort()
 
+    # DEFAULT_ROBOT_TYPE env (set in docker-compose) auto-applies a robot_type
+    # at startup so the backend is usable without the Web UI calling
+    # /set_robot_type first — useful for fresh containers on new machines.
+    default_robot_type = os.environ.get('DEFAULT_ROBOT_TYPE', '')
+
     physical_ai_server = Node(
         package='physical_ai_server',
         executable='physical_ai_server',
         name='physical_ai_server',
         output='screen',
-        parameters=config_files
+        parameters=config_files + [{'default_robot_type': default_robot_type}]
     )
 
     return LaunchDescription([

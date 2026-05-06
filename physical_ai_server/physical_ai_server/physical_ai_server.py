@@ -126,6 +126,34 @@ class PhysicalAIServer(Node):
 
         self.goal_repo_id = None
 
+        self._auto_apply_default_robot_type()
+
+    def _auto_apply_default_robot_type(self):
+        """Apply `default_robot_type` ros parameter on startup so the backend
+        is usable without waiting for the Web UI to call /set_robot_type
+        (e.g. headless deployments, fresh container starts on a new machine).
+        Empty value disables auto-apply (legacy behavior)."""
+        default_robot_type = self.declare_parameter(
+            'default_robot_type', ''
+        ).value
+        if not default_robot_type:
+            return
+        if default_robot_type not in self.robot_type_list:
+            self.get_logger().warn(
+                f'default_robot_type={default_robot_type!r} not in available list '
+                f'{self.robot_type_list} — skipping auto-apply')
+            return
+        self.get_logger().info(
+            f'Auto-applying default robot type: {default_robot_type}')
+        from physical_ai_interfaces.srv import SetRobotType
+        request = SetRobotType.Request()
+        request.robot_type = default_robot_type
+        response = SetRobotType.Response()
+        self.set_robot_type_callback(request, response)
+        if not response.success:
+            self.get_logger().warn(
+                f'default_robot_type auto-apply failed: {response.message}')
+
     def _init_core_components(self):
         self.communicator: Optional[Communicator] = None
         self.data_manager: Optional[DataManager] = None

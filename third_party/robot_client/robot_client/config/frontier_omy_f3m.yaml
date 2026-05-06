@@ -1,0 +1,59 @@
+# Frontier OMY F3M Robot Configuration (omy_f3m 베이스 사용자 변형)
+# robot_type 식별자: frontier_omy_f3m
+# - 카메라 3개: cam_wrist, cam_top, cam_belly
+# - 단일 6-DoF 매니퓰레이터 + RH-P12-RN-A 그리퍼 (총 7-DoF)
+# - 추론: follower_arm 관측 → GR00T → leader_arm 으로 액션 publish (JointTrajectory)
+robot_name: "Frontier OMY F3M"
+total_dof: 6  # 임시 (현재 체크포인트 6-DoF). 7-DoF 재학습 후 복원.
+
+cameras:
+  cam_wrist:
+    topic: "/camera/cam_wrist/color/image_rect_raw/compressed"
+    msg_type: "sensor_msgs/msg/CompressedImage"
+
+  cam_top:
+    topic: "/camera/cam_top/color/image_rect_raw/compressed"
+    msg_type: "sensor_msgs/msg/CompressedImage"
+
+  cam_belly:
+    topic: "/camera/cam_belly/color/image_rect_raw/compressed"
+    msg_type: "sensor_msgs/msg/CompressedImage"
+
+joint_groups:
+  follower_arm:
+    topic: "/joint_states"
+    msg_type: "sensor_msgs/msg/JointState"
+    role: "follower"
+    joint_names:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+      - joint6
+      # - rh_r1_joint  # 임시 제거 (현재 체크포인트 6-DoF arm 학습). 7-DoF 재학습 후 복원.
+    dof: 6
+
+  # RobotClient._init_publishers 는 role==leader 인 그룹의 msg_type 을 무시하고
+  # JointState 로 publisher 를 만든다 (robot_client.py:170 하드코딩). 그래서
+  # physical_ai_server command publisher (/leader/joint_trajectory, JointTrajectory)
+  # 와 충돌하지 않도록 별도 state 토픽으로 분리. physical_ai_server config 의
+  # joint_topic_list[leader_arm] 과 일치.
+  leader_arm:
+    topic: "/leader/joint_states"
+    msg_type: "sensor_msgs/msg/JointState"
+    role: "leader"
+    joint_names:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+      - joint6
+      # - rh_r1_joint  # 임시 제거 (현재 체크포인트 6-DoF arm 학습). 7-DoF 재학습 후 복원.
+    dof: 6
+
+sensors: {}
+
+rosbag_extra_topics:
+  - "/tf"

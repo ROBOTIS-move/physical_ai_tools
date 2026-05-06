@@ -126,17 +126,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Build flash-attn from source (required by Eagle backbone for inference/training)
 # Pre-built wheels from Jetson AI Lab have ABI mismatch with PyTorch 2.9+.
 # Default setup.py targets SM 80/90 but Orin is SM 8.7 → "no kernel image" at runtime.
-# We download source, patch setup.py to add SM 8.7, and build with only SM 8.7 target.
+# Source via git clone (uv venv 에 pip 가 없어 pip download 사용 불가).
+# packaging/wheel/setuptools 는 setup.py import 단계에서 필요 → uv pip 로 venv 에 미리 설치.
+# uv pip install . --no-build-isolation 은 venv 패키지를 그대로 사용해서 setup.py 실행.
 # MAX_JOBS=4 to avoid OOM on Jetson (build takes ~100 min on Orin)
-RUN pip download flash-attn --no-binary :all: --no-deps -d /tmp/flash-attn-src \
-    && mkdir -p /tmp/flash-attn-build \
-    && tar xzf /tmp/flash-attn-src/flash_attn-*.tar.gz -C /tmp/flash-attn-build --strip-components=1 \
+RUN uv pip install --no-cache packaging wheel setuptools \
+    && git clone --depth 1 --branch v2.7.4.post1 https://github.com/Dao-AILab/flash-attention.git /tmp/flash-attn-build \
     && cd /tmp/flash-attn-build \
     && sed -i 's/return os.getenv("FLASH_ATTN_CUDA_ARCHS", "80;90;100;120")/return os.getenv("FLASH_ATTN_CUDA_ARCHS", "87")/' setup.py \
     && sed -i 's/if "80" in cuda_archs():/if set(cuda_archs()) \& {"80", "87"}:/' setup.py \
     && sed -i '/arch=compute_80,code=sm_80/a\\        cc_flag.append("-gencode")\n        cc_flag.append("arch=compute_87,code=sm_87")' setup.py \
     && MAX_JOBS=4 uv pip install . --no-build-isolation \
-    && rm -rf /tmp/flash-attn-src /tmp/flash-attn-build
+    && rm -rf /tmp/flash-attn-build
 
 # Install triton (required by flash_attn rotary ops)
 RUN uv pip install triton --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
@@ -169,6 +170,11 @@ RUN for pkg in tensorrt tensorrt-10.3.0.dist-info \
 
 # Install GR00T package in editable mode (without strict dependencies)
 RUN uv pip install -e . --no-deps
+
+# Patch: add transforms.ToImage() before LetterBoxTransform in eval pipeline
+# numpy → tv_tensors.Image conversion needed for F.pad call inside LetterBoxTransform
+RUN sed -i '/LetterBoxTransform()/i\            transforms.ToImage(),' \
+    /gr00t/gr00t/model/gr00t_n1d6/image_augmentations.py
 
 # Zenoh dependencies (zenoh_ros2_sdk mounted as volume at /zenoh_sdk)
 # json5 required for zenoh_ros2_sdk

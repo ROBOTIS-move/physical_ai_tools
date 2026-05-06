@@ -17,12 +17,18 @@ RUN echo 'export PATH=/opt/venv/bin:$PATH' >> /root/.bashrc && \
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies including rmw_zenoh_cpp for Zenoh communication
+# Pin newer fastcdr (2.2.5 -> 2.2.7) and matching typesupport-fastrtps (3.6.1 -> 3.6.3)
+# to fix `librosbridge_msgs__rosidl_typesupport_fastrtps_c.so: undefined symbol
+# _ZN8eprosima7fastcdr3Cdr9serializeEj` — rosbridge_msgs is built against 2.2.7 API.
 RUN apt-get update && apt-get install -y \
     xz-utils \
     ffmpeg \
     vim \
     nano \
     ros-${ROS_DISTRO}-rmw-zenoh-cpp \
+    ros-${ROS_DISTRO}-fastcdr \
+    ros-${ROS_DISTRO}-rosidl-typesupport-fastrtps-c \
+    ros-${ROS_DISTRO}-rosidl-typesupport-fastrtps-cpp \
     python3-pip \
     docker.io \
     && rm -rf /var/lib/apt/lists/*
@@ -45,19 +51,22 @@ RUN cd ${COLCON_WS} && \
 ENV PIP_INDEX_URL=https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
 ENV PIP_EXTRA_INDEX_URL=https://pypi.org/simple
 
-RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
-    sed -i '/"torch[^\"]*",/d' pyproject.toml && \
-    sed -i '/"torchvision[^\"]*",/d' pyproject.toml && \
-    pip install --ignore-installed -e .
-
-RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
-    pip install -e ".[smolvla]"
+# LeRobot in-container install removed — physical_ai_tools/lerobot/ 폴더는
+# 분리되어 third_party/lerobot/ 에 있고 별도 lerobot_server 컨테이너에서 빌드됨.
+# physical_ai_server 코드 자체는 lerobot 을 import 하지 않으므로 이 컨테이너에서는 불필요.
+# RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
+#     sed -i '/"torch[^\"]*",/d' pyproject.toml && \
+#     sed -i '/"torchvision[^\"]*",/d' pyproject.toml && \
+#     pip install --ignore-installed -e .
+#
+# RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
+#     pip install -e ".[smolvla]"
 
 RUN pip install --no-cache-dir setuptools==68.1.2
 RUN pip install --no-cache-dir 'numpy<2'
 
-RUN echo 'export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH' >> /root/.bashrc && \
-    export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH;
+# RUN echo 'export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH' >> /root/.bashrc && \
+#     export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH;
 
 RUN bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd ${COLCON_WS} && \
@@ -82,11 +91,11 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc  && \
 RUN mkdir -p /var/run/agent && \
     chmod 777 /var/run/agent
 
-RUN git clone -b main https://github.com/ROBOTIS-GIT/talos.git /opt/talos
+RUN git clone -b main https://github.com/ROBOTIS-GIT/talos_system_manager.git /opt/talos_system_manager
 
-ENV PYTHONPATH=/opt/talos:${PYTHONPATH}
+ENV PYTHONPATH=/opt/talos_system_manager:${PYTHONPATH}
 
-RUN pip install --no-cache-dir -r /opt/talos/requirements.txt
+RUN pip install --no-cache-dir -r /opt/talos_system_manager/requirements.txt
 
 # s6-rc services: s6-agent, physical_ai_server (longrun + log pipeline)
 COPY docker/s6-agent /etc/s6-overlay/s6-rc.d/s6-agent

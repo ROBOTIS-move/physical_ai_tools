@@ -4,7 +4,7 @@ services:
   # ============================================
   physical_ai_manager:
     container_name: physical_ai_manager
-    image: robotis/physical-ai-manager:${VERSION:-1.0.0}-${ARCH:-arm64}
+    image: robotis/frontier-physical-ai-manager:${VERSION:-1.0.0}-${ARCH:-arm64}
     build:
       context: ../physical_ai_manager
       dockerfile: Dockerfile
@@ -22,7 +22,7 @@ services:
   # ============================================
   physical_ai_server:
     container_name: physical_ai_server
-    image: robotis/physical-ai-server:${VERSION:-1.0.0}-${ARCH:-arm64}
+    image: robotis/frontier-physical-ai-server:${VERSION:-1.0.0}-${ARCH:-arm64}
     build:
       context: ..
       dockerfile: physical_ai_server/Dockerfile.${ARCH:-arm64}
@@ -75,7 +75,7 @@ services:
   # ============================================
   lerobot:
     container_name: lerobot_server
-    image: robotis/lerobot-zenoh:${VERSION:-1.0.0}-${ARCH:-arm64}
+    image: robotis/frontier-lerobot-zenoh:${VERSION:-1.0.0}-${ARCH:-arm64}
     build:
       context: ../third_party/lerobot
       dockerfile: Dockerfile.${ARCH:-arm64}
@@ -133,7 +133,7 @@ services:
   # ============================================
   groot:
     container_name: groot_server
-    image: robotis/groot-zenoh:${VERSION:-1.0.0}-${ARCH:-arm64}
+    image: robotis/frontier-groot-zenoh:${VERSION:-1.0.0}-${ARCH:-arm64}
     build:
       context: ../third_party/groot
       dockerfile: Dockerfile.${ARCH:-arm64}

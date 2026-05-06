@@ -4,6 +4,21 @@ import URDFLoader from 'urdf-loader';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 
 const DEFAULT_URDF_PATH = '/urdf/urdf/ffw_sg2_follower.urdf';
+
+// robot_type → URDF asset paths (nginx mount). 추가 로봇은 여기에만 등록하면 됨.
+// rosbag_recorder/config/urdf 와 ../<pkg_name>/ 가 docker-compose 에 마운트되어
+// /usr/share/nginx/html/urdf/ 아래로 노출.
+export const URDF_ASSETS_BY_ROBOT_TYPE = {
+  ffw_sg2_rev1: {
+    urdf: '/urdf/urdf/ffw_sg2_follower.urdf',
+    packages: { ffw_description: '/urdf/ffw_description' },
+  },
+  frontier_omy_f3m: {
+    urdf: '/urdf/urdf/omy_f3m.urdf',
+    packages: { open_manipulator_description: '/urdf/open_manipulator_description' },
+  },
+};
+
 const EE_LINKS = ['end_effector_l_link', 'end_effector_r_link'];
 const ROS_TO_THREE = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
 
@@ -30,7 +45,15 @@ function createFkSolver(robot) {
   return solver;
 }
 
-export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
+export default function useUrdfRobot(urdfPathOrRobotType = DEFAULT_URDF_PATH) {
+  // robot_type 키 또는 직접 URDF path 둘 다 받음. 매핑 등록된 robot_type 이면
+  // 그 packages 까지 자동 사용. URL 형태(/urdf/...)는 그대로 path 로 처리.
+  const matchedAsset = URDF_ASSETS_BY_ROBOT_TYPE[urdfPathOrRobotType];
+  const urdfPath = matchedAsset?.urdf ?? urdfPathOrRobotType;
+  const packagesForRobot = matchedAsset?.packages ?? {
+    ffw_description: '/urdf/ffw_description',
+    open_manipulator_description: '/urdf/open_manipulator_description',
+  };
   const [robot, setRobot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,9 +67,7 @@ export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
     const loader = new URDFLoader();
     const stlLoader = new STLLoader();
 
-    loader.packages = {
-      'ffw_description': '/urdf/ffw_description',
-    };
+    loader.packages = packagesForRobot;
 
     const makeFallback = (color = 0x888888) => new THREE.Mesh(
       new THREE.BoxGeometry(0.02, 0.02, 0.02),

@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useMemo, useState, useCallback, useImperative
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, Line } from '@react-three/drei';
 import * as THREE from 'three';
+import { useSelector } from 'react-redux';
 import { MdCenterFocusStrong } from 'react-icons/md';
 import useUrdfRobot from '../hooks/useUrdfRobot';
 import useJointStateSubscription from '../hooks/useJointStateSubscription';
@@ -386,7 +387,10 @@ export default function RobotViewer3D({
   showGrid = true,
   className = '',
 }) {
-  const { robot, loading, error, setJointValues, computeTrajectoryPaths, reload } = useUrdfRobot();
+  // taskStatus.robotType 이 set_robot_type 결과로 갱신되면 useUrdfRobot 가
+  // 매핑된 URDF/메쉬를 다시 로드. 빈 값이면 hook 의 default (ffw_sg2) fallback.
+  const robotType = useSelector((state) => state.tasks.taskStatus.robotType);
+  const { robot, loading, error, setJointValues, computeTrajectoryPaths, reload } = useUrdfRobot(robotType);
   const cameraRef = useRef();
   const [activePreset, setActivePreset] = useState('perspective');
   const [trajectoryPaths, setTrajectoryPaths] = useState(null);

@@ -1,10 +1,21 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as THREE from 'three';
 import URDFLoader from 'urdf-loader';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 
-const DEFAULT_URDF_PATH = '/urdf/urdf/ffw_sg2_follower.urdf';
-const EE_LINKS = ['end_effector_l_link', 'end_effector_r_link'];
+const ROBOT_URDF_CONFIGS = {
+  ffw_sg2_rev1: {
+    urdfPath: '/urdf/urdf/ffw_sg2_follower.urdf',
+    packages: { ffw_description: '/urdf/ffw_description' },
+    eeLinks: ['end_effector_l_link', 'end_effector_r_link'],
+  },
+  omy_f3m_3cam: {
+    urdfPath: '/urdf/urdf/omy_f3m.urdf',
+    packages: { open_manipulator_description: '/urdf/open_manipulator_description' },
+    eeLinks: ['end_effector_link'],
+  },
+};
+const DEFAULT_CONFIG = ROBOT_URDF_CONFIGS.ffw_sg2_rev1;
 const ROS_TO_THREE = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
 
 function createFkSolver(robot) {
@@ -30,7 +41,12 @@ function createFkSolver(robot) {
   return solver;
 }
 
-export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
+export default function useUrdfRobot(robotType) {
+  const config = useMemo(
+    () => ROBOT_URDF_CONFIGS[robotType] || DEFAULT_CONFIG,
+    [robotType]
+  );
+  const urdfPath = config.urdfPath;
   const [robot, setRobot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,9 +60,7 @@ export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
     const loader = new URDFLoader();
     const stlLoader = new STLLoader();
 
-    loader.packages = {
-      'ffw_description': '/urdf/ffw_description',
-    };
+    loader.packages = config.packages;
 
     const makeFallback = (color = 0x888888) => new THREE.Mesh(
       new THREE.BoxGeometry(0.02, 0.02, 0.02),
@@ -194,14 +208,15 @@ export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
       }
     });
 
+    const eeLinks = config.eeLinks;
     const eeObjects = {};
     fk.traverse((child) => {
-      if (EE_LINKS.includes(child.name)) {
+      if (eeLinks.includes(child.name)) {
         eeObjects[child.name] = child;
       }
     });
 
-    if (!eeObjects[EE_LINKS[0]] && !eeObjects[EE_LINKS[1]]) {
+    if (!eeLinks.some(link => eeObjects[link])) {
       return { left: [], right: [] };
     }
 
@@ -218,18 +233,18 @@ export default function useUrdfRobot(urdfPath = DEFAULT_URDF_PATH) {
 
       fk.updateMatrixWorld(true);
 
-      if (eeObjects[EE_LINKS[0]]) {
-        eeObjects[EE_LINKS[0]].getWorldPosition(localPos);
+      if (eeObjects[eeLinks[0]]) {
+        eeObjects[eeLinks[0]].getWorldPosition(localPos);
         leftPath.push(localPos.clone().applyMatrix4(ROS_TO_THREE));
       }
-      if (eeObjects[EE_LINKS[1]]) {
-        eeObjects[EE_LINKS[1]].getWorldPosition(localPos);
+      if (eeLinks[1] && eeObjects[eeLinks[1]]) {
+        eeObjects[eeLinks[1]].getWorldPosition(localPos);
         rightPath.push(localPos.clone().applyMatrix4(ROS_TO_THREE));
       }
     }
 
     return { left: leftPath, right: rightPath };
-  }, []);
+  }, [config]);
 
   return { robot, loading, error, setJointValues, computeTrajectoryPaths, reload: loadRobot };
 }

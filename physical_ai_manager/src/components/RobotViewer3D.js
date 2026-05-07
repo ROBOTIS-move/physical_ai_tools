@@ -3,6 +3,7 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { MdCenterFocusStrong } from 'react-icons/md';
+import { useSelector } from 'react-redux';
 import useUrdfRobot from '../hooks/useUrdfRobot';
 import useJointStateSubscription from '../hooks/useJointStateSubscription';
 
@@ -113,7 +114,7 @@ function TrajectoryPathLines({ paths }) {
   );
 }
 
-const CameraController = forwardRef(function CameraController({ robot }, ref) {
+const CameraController = forwardRef(function CameraController({ robot, defaultPreset = 'perspective' }, ref) {
   const { camera } = useThree();
   const controlsRef = useRef();
   const centerRef = useRef(new THREE.Vector3());
@@ -160,7 +161,7 @@ const CameraController = forwardRef(function CameraController({ robot }, ref) {
         centerRef.current.copy(center);
         baseDist.current = maxDim;
         initialized.current = true;
-        applyPreset('perspective', false);
+        applyPreset(defaultPreset, false);
       }
     }, 200);
 
@@ -241,19 +242,19 @@ function SharedScene({ showGrid }) {
   );
 }
 
-function SceneContent({ robot, trajectoryPaths, hasTrajectory, actionChunk, viewMode, showGrid, cameraRef }) {
+function SceneContent({ robot, trajectoryPaths, hasTrajectory, actionChunk, viewMode, showGrid, cameraRef, defaultPreset }) {
   return (
     <>
       <SharedScene showGrid={showGrid} />
       {robot && <RobotModel robot={robot} />}
       {hasTrajectory && <TrajectoryPathLines paths={trajectoryPaths} />}
       <SimAnimator robot={robot} actionChunk={actionChunk} viewMode={viewMode} />
-      <CameraController ref={cameraRef} robot={robot} />
+      <CameraController ref={cameraRef} robot={robot} defaultPreset={defaultPreset} />
     </>
   );
 }
 
-function ReplaySceneContent({ robot, jointData, currentTime, showGrid, cameraRef }) {
+function ReplaySceneContent({ robot, jointData, currentTime, showGrid, cameraRef, defaultPreset }) {
   const lastAppliedTime = useRef(-1);
 
   useFrame(() => {
@@ -282,7 +283,7 @@ function ReplaySceneContent({ robot, jointData, currentTime, showGrid, cameraRef
     <>
       <SharedScene showGrid={showGrid} />
       {robot && <RobotModel robot={robot} />}
-      <CameraController ref={cameraRef} robot={robot} />
+      <CameraController ref={cameraRef} robot={robot} defaultPreset={defaultPreset} />
     </>
   );
 }
@@ -386,9 +387,15 @@ export default function RobotViewer3D({
   showGrid = true,
   className = '',
 }) {
-  const { robot, loading, error, setJointValues, computeTrajectoryPaths, reload } = useUrdfRobot();
+  const taskRobotType = useSelector((state) => state.tasks.taskStatus.robotType);
+  const replayRobotType = useSelector((state) => state.replay.robotType);
+  const robotType = taskRobotType || replayRobotType;
+  const { robot, loading, error, setJointValues, computeTrajectoryPaths, reload } = useUrdfRobot(robotType);
   const cameraRef = useRef();
-  const [activePreset, setActivePreset] = useState('perspective');
+  // omy arm extends toward Three.js +X; side view (from +Z) shows this as rightward motion,
+  // which is more intuitive than the diagonal perspective where +X appears leftward.
+  const defaultCameraPreset = robotType?.startsWith('omy') ? 'side' : 'perspective';
+  const [activePreset, setActivePreset] = useState(defaultCameraPreset);
   const [trajectoryPaths, setTrajectoryPaths] = useState(null);
   const [hasTrajectory, setHasTrajectory] = useState(false);
   const [viewMode, setViewMode] = useState('live');
@@ -465,6 +472,7 @@ export default function RobotViewer3D({
             currentTime={currentTime}
             showGrid={showGrid}
             cameraRef={cameraRef}
+            defaultPreset={defaultCameraPreset}
           />
         ) : (
           <SceneContent
@@ -475,6 +483,7 @@ export default function RobotViewer3D({
             viewMode={viewMode}
             showGrid={showGrid}
             cameraRef={cameraRef}
+            defaultPreset={defaultCameraPreset}
           />
         )}
       </Canvas>

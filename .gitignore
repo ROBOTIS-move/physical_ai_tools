@@ -738,7 +738,8 @@ doc/
 .agent/
 .agents/
 skills-lock.json
-
+*claude*
+docker/groot
 
 ##############################
 # Third-Party Model Workspaces

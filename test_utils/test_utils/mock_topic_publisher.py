@@ -124,7 +124,7 @@ class MockTopicPublisher(Node):
             except Exception:
                 # Fallback to source path
                 config_file = (
-                    f'/root/main_ws/physical_ai_tools/physical_ai_server/'
+                    f'/root/ros2_ws/src/physical_ai_tools/physical_ai_server/'
                     f'config/{self.robot_type}_config.yaml')
 
         self.get_logger().info(f'Loading config from: {config_file}')

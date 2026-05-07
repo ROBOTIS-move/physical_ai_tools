@@ -1,0 +1,46 @@
+physical_ai_server:
+  ros__parameters:
+    omy_f3m_3cam:
+      observation_list:
+        - cam_wrist
+        - cam_top
+        - cam_belly
+        - state
+
+      camera_topic_list:
+        - cam_wrist:/camera/cam_wrist/color/image_rect_raw/compressed
+        - cam_top:/camera/cam_top/color/image_rect_raw/compressed
+        - cam_belly:/camera/cam_belly/color/image_rect_raw/compressed
+
+      joint_topic_list:
+        - follower:/joint_states
+        - leader_arm:/leader/joint_states
+
+      command_topic_list:
+        - leader_arm:/leader/joint_trajectory
+
+      joint_list:
+        - leader_arm
+
+      rosbag_extra_topic_list:
+        - /tf
+
+      urdf_path: /root/ros2_ws/src/physical_ai_tools/rosbag_recorder/config/urdf/omy_f3m.urdf
+
+      joint_order:
+        follower:
+          - joint1
+          - joint2
+          - joint3
+          - joint4
+          - joint5
+          - joint6
+          - rh_r1_joint
+        leader_arm:
+          - joint1
+          - joint2
+          - joint3
+          - joint4
+          - joint5
+          - joint6
+          - rh_r1_joint

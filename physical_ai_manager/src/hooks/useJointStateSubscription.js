@@ -1,13 +1,19 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import ROSLIB from 'roslib';
 
-const JOINT_STATE_TOPICS = [
-  { name: '/robot/arm_left_follower/joint_states', type: 'sensor_msgs/msg/JointState' },
-  { name: '/robot/arm_right_follower/joint_states', type: 'sensor_msgs/msg/JointState' },
-  { name: '/robot/head_follower/joint_states', type: 'sensor_msgs/msg/JointState' },
-  { name: '/robot/lift_follower/joint_states', type: 'sensor_msgs/msg/JointState' },
-];
+const JOINT_STATE_TOPICS_BY_ROBOT = {
+  ffw_sg2_rev1: [
+    { name: '/robot/arm_left_follower/joint_states', type: 'sensor_msgs/msg/JointState' },
+    { name: '/robot/arm_right_follower/joint_states', type: 'sensor_msgs/msg/JointState' },
+    { name: '/robot/head_follower/joint_states', type: 'sensor_msgs/msg/JointState' },
+    { name: '/robot/lift_follower/joint_states', type: 'sensor_msgs/msg/JointState' },
+  ],
+  omy_f3m_3cam: [
+    { name: '/joint_states', type: 'sensor_msgs/msg/JointState' },
+  ],
+};
+const DEFAULT_JOINT_STATE_TOPICS = JOINT_STATE_TOPICS_BY_ROBOT.ffw_sg2_rev1;
 
 const ACTION_CHUNK_TOPIC = {
   name: '/inference/trajectory_preview',
@@ -18,8 +24,14 @@ const THROTTLE_MS = 33;
 
 export default function useJointStateSubscription(setJointValues, setActionChunk, enabled = true) {
   const rosHost = useSelector((state) => state.ros.rosHost);
+  const robotType = useSelector((state) => state.tasks.taskStatus.robotType);
   const subscribersRef = useRef([]);
   const lastJointUpdateRef = useRef(0);
+
+  const jointStateTopics = useMemo(
+    () => JOINT_STATE_TOPICS_BY_ROBOT[robotType] || DEFAULT_JOINT_STATE_TOPICS,
+    [robotType]
+  );
 
   const handleJointState = useCallback(
     (msg) => {
@@ -55,7 +67,7 @@ export default function useJointStateSubscription(setJointValues, setActionChunk
     const subs = [];
 
     ros.on('connection', () => {
-      JOINT_STATE_TOPICS.forEach((topic) => {
+      jointStateTopics.forEach((topic) => {
         const sub = new ROSLIB.Topic({
           ros,
           name: topic.name,
@@ -92,5 +104,5 @@ export default function useJointStateSubscription(setJointValues, setActionChunk
         ros.close();
       } catch (_e) { /* ignore */ }
     };
-  }, [enabled, rosHost, handleJointState, handleActionChunk]);
+  }, [enabled, rosHost, jointStateTopics, handleJointState, handleActionChunk]);
 }

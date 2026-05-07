@@ -18,8 +18,18 @@ RUN apt-get update && apt-get install -y \
     vim \
     nano \
     ros-${ROS_DISTRO}-rmw-zenoh-cpp \
+    ros-${ROS_DISTRO}-rmw-fastrtps-cpp \
+    ros-${ROS_DISTRO}-ament-cmake-mypy \
     python3-pip \
     docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade fastcdr and rosidl-typesupport-fastrtps to fix rosbridge_websocket symbol mismatch
+# (rosbridge_msgs 2.6.0 requires fastcdr 2.2.7+, but base image ships 2.2.5)
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-fastcdr \
+    ros-${ROS_DISTRO}-rosidl-typesupport-fastrtps-c \
+    ros-${ROS_DISTRO}-rosidl-typesupport-fastrtps-cpp \
     && rm -rf /var/lib/apt/lists/*
 
 ENV COLCON_WS=/root/ros2_ws
@@ -37,19 +47,19 @@ RUN cd ${COLCON_WS} && \
     rosdep install -i --from-path src --rosdistro $ROS_DISTRO -y && \
     rm -rf /var/lib/apt/lists/*
 
-RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
-    sed -i '/"torch[^\"]*",/d' pyproject.toml && \
-    sed -i '/"torchvision[^\"]*",/d' pyproject.toml && \
-    pip install --ignore-installed -e .
+# RUN cd ${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot && \
+#     sed -i '/"torch[^\"]*",/d' pyproject.toml && \
+#     sed -i '/"torchvision[^\"]*",/d' pyproject.toml && \
+#     pip install --ignore-installed -e .
 
-RUN cd ${COLCON_WS}/src/physical_ai_tools/lerobot && \
-    pip install -e ".[smolvla]"
+# RUN cd ${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot && \
+#     pip install -e ".[smolvla]"
 
 RUN pip install --no-cache-dir setuptools==68.1.2
 RUN pip install --no-cache-dir 'numpy<2'
 
-RUN echo 'export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH' >> /root/.bashrc && \
-    export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/lerobot/src:$PYTHONPATH
+# RUN echo 'export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot/src:$PYTHONPATH' >> /root/.bashrc && \
+#     export PYTHONPATH=${COLCON_WS}/src/physical_ai_tools/third_party/lerobot/lerobot/src:$PYTHONPATH
 
 RUN bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd ${COLCON_WS} && \
@@ -73,11 +83,15 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc  && \
 RUN mkdir -p /var/run/agent && \
     chmod 777 /var/run/agent
 
-RUN git clone -b main https://github.com/ROBOTIS-GIT/talos.git /opt/talos
+# # Origin ROBOTIS-GIT
+# RUN git clone -b main https://github.com/ROBOTIS-GIT/talos.git /opt/talos
+# ENV PYTHONPATH=/opt/talos:${PYTHONPATH}
+# RUN pip install --no-cache-dir -r /opt/talos/requirements.txt
 
-ENV PYTHONPATH=/opt/talos:${PYTHONPATH}
-
-RUN pip install --no-cache-dir -r /opt/talos/requirements.txt
+# Changed. ROBOTIS-GIT/talos.git is private.
+RUN git clone -b main https://github.com/ROBOTIS-GIT/talos_system_manager.git /opt/talos_system_manager
+ENV PYTHONPATH=/opt/talos_system_manager:${PYTHONPATH}
+RUN pip install --no-cache-dir -r /opt/talos_system_manager/requirements.txt
 
 # s6-rc services: s6-agent, physical_ai_server (longrun + log pipeline)
 COPY docker/s6-agent /etc/s6-overlay/s6-rc.d/s6-agent

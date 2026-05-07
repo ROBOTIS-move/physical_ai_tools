@@ -15,6 +15,7 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   test_utils/mock_topic_publisher.py
+  test_utils/hdf5_topic_publisher.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

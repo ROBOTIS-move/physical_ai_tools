@@ -185,9 +185,11 @@ void ServiceBagRecorder::handle_prepare(const std::vector<std::string> & topics)
     }
   }
 
-  // If subscriptions already exist for the same topic set, skip re-creation
-  // to preserve EMA baselines across episodes.
-  if (!generic_subscriptions_.empty() && deduped.size() == topics_to_record_.size()) {
+  // If subscriptions already exist for the same topic set AND all topics are
+  // successfully subscribed, skip re-creation to preserve EMA baselines.
+  if (generic_subscriptions_.size() == deduped.size() &&
+    deduped.size() == topics_to_record_.size())
+  {
     bool same = true;
     std::unordered_set<std::string> existing(topics_to_record_.begin(), topics_to_record_.end());
     for (const auto & t : deduped) {

@@ -1,0 +1,35 @@
+# OMY F3M 3-Camera Robot Configuration
+# 6-DOF arm + 1 gripper, 3 cameras (wrist, top, belly)
+robot_name: "OMY F3M 3-Camera"
+total_dof: 7
+
+cameras:
+  cam_wrist:
+    topic: "/camera/cam_wrist/color/image_rect_raw/compressed"
+    msg_type: "sensor_msgs/msg/CompressedImage"
+
+  cam_top:
+    topic: "/camera/cam_top/color/image_rect_raw/compressed"
+    msg_type: "sensor_msgs/msg/CompressedImage"
+
+  cam_belly:
+    topic: "/camera/cam_belly/color/image_rect_raw/compressed"
+    msg_type: "sensor_msgs/msg/CompressedImage"
+
+joint_groups:
+  follower_arm:
+    topic: "/joint_states"
+    msg_type: "sensor_msgs/msg/JointState"
+    role: "follower"
+    joint_names:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+      - joint6
+      - rh_r1_joint
+    dof: 7
+
+rosbag_extra_topics:
+  - "/tf"

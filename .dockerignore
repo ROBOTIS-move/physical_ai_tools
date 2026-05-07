@@ -1,6 +1,7 @@
 # Large data directories (volume mounted at runtime)
 docker/huggingface/
 docker/workspace/
+docker/claude_persist/
 
 # Third-party submodule source (each has its own Dockerfile)
 third_party/lerobot/lerobot/

@@ -14,6 +14,7 @@ services:
     volumes:
       - ../rosbag_recorder/config/urdf:/usr/share/nginx/html/urdf/urdf:ro
       - ../rosbag_recorder/config/ffw_description:/usr/share/nginx/html/urdf/ffw_description:ro
+      - ../rosbag_recorder/config/open_manipulator_description:/usr/share/nginx/html/urdf/open_manipulator_description:ro
       - ./workspace:/data/workspace:ro
 
   # ============================================
@@ -43,10 +44,13 @@ services:
       - ZENOH_ROUTER_IP=127.0.0.1
       - ZENOH_ROUTER_PORT=7447
       - ZENOH_CONFIG_OVERRIDE=transport/shared_memory/enabled=true
+      - NVIDIA_VISIBLE_DEVICES=6
+      - NVIDIA_DRIVER_CAPABILITIES=all
     volumes:
       - /dev:/dev
       - /dev/shm:/dev/shm
       - ./workspace:/workspace
+      - /SSD_02/frontier/datasets:/workspace/datasets:ro
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
       - ../:/root/ros2_ws/src/physical_ai_tools/
@@ -55,8 +59,9 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
       - /var/run/robotis/agent_sockets/physical_ai_server:/var/run/agent
+      - ./claude_persist/.claude:/root/.claude
+      - ./claude_persist/.claude.json:/root/.claude.json
     privileged: true
-    runtime: nvidia
     deploy:
       resources:
         reservations:
@@ -105,7 +110,7 @@ services:
       - ZENOH_CONFIG_OVERRIDE=transport/shared_memory/enabled=true
       - ZENOH_TRANSPORT_SHM_ENABLED=
       - ZENOH_SHM_ENABLED=
-      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_VISIBLE_DEVICES=6
       - NVIDIA_DRIVER_CAPABILITIES=all
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/
@@ -113,7 +118,6 @@ services:
     command: server
     depends_on:
       - physical_ai_server
-    runtime: nvidia
     deploy:
       resources:
         reservations:
@@ -151,7 +155,7 @@ services:
       - ZENOH_CONFIG_OVERRIDE=
       - ZENOH_TRANSPORT_SHM_ENABLED=
       - ZENOH_SHM_ENABLED=
-      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_VISIBLE_DEVICES=6
       - NVIDIA_DRIVER_CAPABILITIES=all
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/
@@ -164,15 +168,17 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ./huggingface:/root/.cache/huggingface
       - ../third_party/groot/workspace:/workspace
+      - /SSD_02/frontier/datasets:/workspace/datasets
       - ../third_party/zenoh_ros2_sdk:/zenoh_sdk
       - ../third_party/robot_client/robot_client:/robot_client:ro
       - ../third_party/groot/executor.py:/app/executor.py:ro
       - ../third_party/groot/training.py:/app/training.py:ro
       - ../third_party/groot/inference.py:/app/inference.py:ro
+      - ./claude_persist/groot/.claude:/root/.claude
+      - ./claude_persist/groot/.claude.json:/root/.claude.json
     command: server
     depends_on:
       - physical_ai_server
-    runtime: nvidia
     deploy:
       resources:
         reservations:

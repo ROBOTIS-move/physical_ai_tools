@@ -43,6 +43,11 @@ const ROBOT_CAMERA_PRESETS = {
     '/robot/camera/cam_left_head/image_raw/compressed',
     '/robot/camera/cam_right_wrist/image_raw/compressed',
   ],
+  omy_f3m_3cam: [
+    '/camera/cam_wrist/color/image_rect_raw/compressed',
+    '/camera/cam_top/color/image_rect_raw/compressed',
+    '/camera/cam_belly/color/image_rect_raw/compressed',
+  ],
 };
 
 export default function ImageGrid({ isActive = true }) {
@@ -72,9 +77,10 @@ export default function ImageGrid({ isActive = true }) {
     ) {
       return [...saved];
     }
-    return [...(ROBOT_CAMERA_PRESETS.ffw_sg2_rev1 || Array(DEFAULT_LAYOUT.length).fill(null))];
+    return Array(DEFAULT_LAYOUT.length).fill(null);
   });
-  const [presetApplied, setPresetApplied] = useState(false);
+  // Track which robotType's preset has been applied; null = not yet applied
+  const [presetRobotType, setPresetRobotType] = useState(null);
   // Per-cell rotation override: 0 = landscape, -90 = portrait; undefined = use layout default
   const [rotationOverrides, setRotationOverrides] = useState({});
 
@@ -94,30 +100,29 @@ export default function ImageGrid({ isActive = true }) {
     }));
   }, [rotationDegrees]);
 
-  // Use robot type preset, or fallback to ffw_sg2_rev1 when robotType not yet received (e.g. right after page load)
   const preset = useMemo(
-    () => ROBOT_CAMERA_PRESETS[robotType] || ROBOT_CAMERA_PRESETS.ffw_sg2_rev1,
+    () => ROBOT_CAMERA_PRESETS[robotType] || null,
     [robotType]
   );
 
-  // Apply preset when we haven't applied yet and the local list has no valid
-  // entries (don't overwrite a list we restored from redux at mount).
+  // Apply preset on robotType change; on first mount, preserve saved topics if any.
   useEffect(() => {
-    if (!preset || presetApplied) return;
+    if (!preset) return;
+    if (presetRobotType === robotType) return;
+
+    const isFirstMount = presetRobotType === null;
     const hasLocal = asignedImageTopicList.length === layout.length && asignedImageTopicList.some(Boolean);
-    if (hasLocal) {
-      setPresetApplied(true);
+
+    if (isFirstMount && hasLocal) {
+      // Preserve topics saved from a previous session
+      setPresetRobotType(robotType);
       return;
     }
-    setAsignedImageTopicList([...preset]);
-    setPresetApplied(true);
-    console.log(`Applied camera preset for ${robotType || 'default (ffw_sg2_rev1)'}:`, preset);
-  }, [preset, robotType, presetApplied, asignedImageTopicList, layout.length]);
 
-  // Reset presetApplied when robotType changes
-  useEffect(() => {
-    setPresetApplied(false);
-  }, [robotType]);
+    setAsignedImageTopicList([...preset]);
+    setPresetRobotType(robotType);
+    console.log(`Applied camera preset for ${robotType}:`, preset);
+  }, [preset, robotType, presetRobotType, asignedImageTopicList, layout.length]);
 
   const autoAssignTopics = useCallback((imageTopics, isRefresh = false) => {
     if (imageTopics.length > 0) {

@@ -12,11 +12,11 @@ cameras:
     msg_type: "sensor_msgs/msg/CompressedImage"
 
   cam_top:
-    topic: "/camera/cam_top/color/image_rect_raw/compressed"
+    topic: "/camera/cam_top/color/image_raw/compressed"
     msg_type: "sensor_msgs/msg/CompressedImage"
 
   cam_belly:
-    topic: "/camera/cam_belly/color/image_rect_raw/compressed"
+    topic: "/camera/cam_belly/color/image_raw/compressed"
     msg_type: "sensor_msgs/msg/CompressedImage"
 
 joint_groups:

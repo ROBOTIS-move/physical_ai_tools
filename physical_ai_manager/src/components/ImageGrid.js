@@ -43,6 +43,13 @@ const ROBOT_CAMERA_PRESETS = {
     '/robot/camera/cam_left_head/image_raw/compressed',
     '/robot/camera/cam_right_wrist/image_raw/compressed',
   ],
+  // frontier_omy_f3m: omy_f3m 변형. cam_wrist/cam_top/cam_belly 3개.
+  // wrist 만 image_rect_raw, top/belly 는 image_raw (rectify 안 함).
+  frontier_omy_f3m: [
+    '/camera/cam_wrist/color/image_rect_raw/compressed',
+    '/camera/cam_top/color/image_raw/compressed',
+    '/camera/cam_belly/color/image_raw/compressed',
+  ],
 };
 
 export default function ImageGrid({ isActive = true }) {
@@ -72,7 +79,7 @@ export default function ImageGrid({ isActive = true }) {
     ) {
       return [...saved];
     }
-    return [...(ROBOT_CAMERA_PRESETS.ffw_sg2_rev1 || Array(DEFAULT_LAYOUT.length).fill(null))];
+    return [...(ROBOT_CAMERA_PRESETS.frontier_omy_f3m || Array(DEFAULT_LAYOUT.length).fill(null))];
   });
   const [presetApplied, setPresetApplied] = useState(false);
   // Per-cell rotation override: 0 = landscape, -90 = portrait; undefined = use layout default
@@ -94,9 +101,10 @@ export default function ImageGrid({ isActive = true }) {
     }));
   }, [rotationDegrees]);
 
-  // Use robot type preset, or fallback to ffw_sg2_rev1 when robotType not yet received (e.g. right after page load)
+  // Use robot type preset, or fallback to frontier_omy_f3m when robotType not yet received
+  // (this fork targets the Jetson Orin frontier_omy_f3m setup).
   const preset = useMemo(
-    () => ROBOT_CAMERA_PRESETS[robotType] || ROBOT_CAMERA_PRESETS.ffw_sg2_rev1,
+    () => ROBOT_CAMERA_PRESETS[robotType] || ROBOT_CAMERA_PRESETS.frontier_omy_f3m,
     [robotType]
   );
 
@@ -111,7 +119,7 @@ export default function ImageGrid({ isActive = true }) {
     }
     setAsignedImageTopicList([...preset]);
     setPresetApplied(true);
-    console.log(`Applied camera preset for ${robotType || 'default (ffw_sg2_rev1)'}:`, preset);
+    console.log(`Applied camera preset for ${robotType || 'default (frontier_omy_f3m)'}:`, preset);
   }, [preset, robotType, presetApplied, asignedImageTopicList, layout.length]);
 
   // Reset presetApplied when robotType changes

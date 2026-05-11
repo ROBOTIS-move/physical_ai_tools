@@ -219,6 +219,28 @@ class PhysicalAIServer(Node):
             '/training/status',
             pub_qos_size
         )
+        # /robot_type: backend가 현재 robot_type을 Web UI에 알리는 latched 채널.
+        # TRANSIENT_LOCAL 이라 새 subscriber도 마지막 값을 즉시 받음.
+        from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+        from std_msgs.msg import String as _StdString
+        self._robot_type_msg_cls = _StdString
+        self.robot_type_publisher = self.create_publisher(
+            _StdString,
+            '/robot_type',
+            QoSProfile(
+                depth=1,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            )
+        )
+
+    def _publish_robot_type(self):
+        """robot_type을 /robot_type 토픽에 publish. Web UI가 자동 동기화."""
+        if not hasattr(self, 'robot_type_publisher'):
+            return
+        msg = self._robot_type_msg_cls()
+        msg.data = getattr(self, 'robot_type', '') or ''
+        self.robot_type_publisher.publish(msg)
 
     def _init_ros_service(self):
         self.get_logger().info('Initializing ROS services...')
@@ -1556,6 +1578,9 @@ class PhysicalAIServer(Node):
                     f'Rosbag prepared with {topic_count} topics - ready for recording')
             else:
                 self.get_logger().warn('Rosbag service not available - prepare skipped')
+
+            # Notify Web UI (and any other subscribers) of the new robot_type.
+            self._publish_robot_type()
 
             response.success = True
             response.message = f'Robot type set to {self.robot_type}'

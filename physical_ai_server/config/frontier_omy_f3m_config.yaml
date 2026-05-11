@@ -9,8 +9,8 @@ physical_ai_server:
 
       camera_topic_list:
         - cam_wrist:/camera/cam_wrist/color/image_rect_raw/compressed
-        - cam_top:/camera/cam_top/color/image_rect_raw/compressed
-        - cam_belly:/camera/cam_belly/color/image_rect_raw/compressed
+        - cam_top:/camera/cam_top/color/image_raw/compressed
+        - cam_belly:/camera/cam_belly/color/image_raw/compressed
 
       joint_topic_list:
         - follower_arm:/joint_states

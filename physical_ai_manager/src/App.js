@@ -29,6 +29,7 @@ import EditDatasetPage from './pages/EditDatasetPage';
 import ReplayPage from './pages/ReplayPage';
 import BTManagerPage from './pages/BTManagerPage';
 import { useRosTopicSubscription } from './hooks/useRosTopicSubscription';
+import useRobotTypeSubscription from './hooks/useRobotTypeSubscription';
 import rosConnectionManager from './utils/rosConnectionManager';
 import { useDispatch, useSelector } from 'react-redux';
 import { moveToPage } from './features/ui/uiSlice';
@@ -47,6 +48,10 @@ function App() {
 
   // Subscribe to task status from ROS topic (always active)
   const rosSubscriptionControls = useRosTopicSubscription();
+
+  // Auto-sync robot_type from backend (latched /robot_type topic). On page
+  // load this picks up DEFAULT_ROBOT_TYPE without the user re-selecting.
+  useRobotTypeSubscription();
 
   // rosHost is now seeded by rosSlice initialState (window.location.hostname),
   // so we no longer need to dispatch it here.

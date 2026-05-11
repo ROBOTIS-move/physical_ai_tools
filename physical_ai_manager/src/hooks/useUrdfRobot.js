@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import URDFLoader from 'urdf-loader';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 
-const DEFAULT_URDF_PATH = '/urdf/urdf/ffw_sg2_follower.urdf';
+const DEFAULT_URDF_PATH = '/urdf/urdf/omy_f3m.urdf';
 
 // robot_type → URDF asset paths (nginx mount). 추가 로봇은 여기에만 등록하면 됨.
 // rosbag_recorder/config/urdf 와 ../<pkg_name>/ 가 docker-compose 에 마운트되어

@@ -118,7 +118,10 @@ export default function ImageGridCell({
       // web_video_server expects base topic (e.g. .../image_raw); use default_transport=compressed to subscribe to CompressedImage
       // Do not encode slashes: server rejects %2F and expects literal /
       const streamTopic = topic.endsWith('/compressed') ? topic.slice(0, -11) : topic;
-      img.src = `http://${rosHost}:8085/stream?quality=50&type=ros_compressed&default_transport=compressed&topic=${streamTopic}&t=${timestamp}`;
+      // Web display only — keep recording/inference at native 640x480x30.
+      // width/height force web_video_server to mjpeg re-encode (type=ros_compressed becomes mjpeg internally),
+      // but downsampled bandwidth is ~1/4 raw resolution + framerate cap = TCP buffer never piles up.
+      img.src = `http://${rosHost}:8085/stream?quality=50&type=mjpeg&default_transport=compressed&topic=${streamTopic}&width=320&height=240&framerate=10&t=${timestamp}`;
       img.alt = topic;
 
       img.onclick = (e) => e.stopPropagation();

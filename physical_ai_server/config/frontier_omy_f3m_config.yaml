@@ -17,7 +17,7 @@ physical_ai_server:
         - leader_arm:/leader/joint_states
 
       command_topic_list:
-        - leader_arm:/leader/joint_trajectory
+        - leader_arm:/arm/arm_controller/joint_trajectory
 
       joint_list:
         - leader_arm
@@ -27,20 +27,20 @@ physical_ai_server:
 
       joint_order:
         follower_arm:
-          - joint1
-          - joint2
-          - joint3
-          - joint4
-          - joint5
-          - joint6
+          - omy_joint1
+          - omy_joint2
+          - omy_joint3
+          - omy_joint4
+          - omy_joint5
+          - omy_joint6
           # - rh_r1_joint  # 임시 제거 (현재 체크포인트 6-DoF arm 학습). 7-DoF 재학습 후 복원.
         leader_arm:
-          - joint1
-          - joint2
-          - joint3
-          - joint4
-          - joint5
-          - joint6
+          - omy_joint1
+          - omy_joint2
+          - omy_joint3
+          - omy_joint4
+          - omy_joint5
+          - omy_joint6
           # - rh_r1_joint  # 임시 제거 (현재 체크포인트 6-DoF arm 학습). 7-DoF 재학습 후 복원.
 
       urdf_path: /root/ros2_ws/src/physical_ai_tools/rosbag_recorder/config/urdf/omy_f3m.urdf
